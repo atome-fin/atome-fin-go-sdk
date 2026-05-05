@@ -1,0 +1,4 @@
+{
+  "code": "WRONG_PARAMS_FORMAT",
+  "message": "totalAmount is not an integer"
+}

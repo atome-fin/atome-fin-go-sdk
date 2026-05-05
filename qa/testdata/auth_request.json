@@ -1,0 +1,10 @@
+{
+  "requestId": "01HABC1234567890ABCDEFGHJK",
+  "externalReferenceUid": "user-42",
+  "totalAmount": 1500000,
+  "periodType": 3,
+  "subOrders": [
+    {"subOrderId": "so-1", "amount": 1000000},
+    {"subOrderId": "so-2", "amount": 500000}
+  ]
+}

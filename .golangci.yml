@@ -1,0 +1,55 @@
+# golangci-lint config — kept tight on purpose. The SDK's public surface
+# is the contract; lint catches drift against it.
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gofmt
+    - goimports
+    - govet
+    - ineffassign
+    - misspell
+    - revive
+    - staticcheck
+    - typecheck
+    - unconvert
+    - unused
+
+linters-settings:
+  errcheck:
+    # Closing things we already deferred is intentionally unchecked.
+    exclude-functions:
+      - (io.Closer).Close
+      - (net/http.ResponseWriter).Write
+  goimports:
+    local-prefixes: github.com/atome-fin/atome-fin-go-sdk
+  revive:
+    rules:
+      - name: var-naming
+        disabled: false
+      - name: unused-parameter
+        disabled: true # we use explicit `_ ctx context.Context` for clarity
+      - name: package-comments
+        disabled: false
+  govet:
+    enable:
+      - shadow
+
+issues:
+  exclude-rules:
+    # Test helpers may shadow / leave unused locals in table-driven tests.
+    - path: _test\.go
+      linters:
+        - unused
+        - errcheck
+    # Generated docs in doc.go are exempt from package-comment formatting.
+    - path: doc\.go
+      linters:
+        - revive
+  max-issues-per-linter: 0
+  max-same-issues: 0

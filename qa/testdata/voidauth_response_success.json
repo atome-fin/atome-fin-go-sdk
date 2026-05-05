@@ -1,0 +1,23 @@
+{
+  "code": "SUCCESS",
+  "message": "voided",
+  "data": {
+    "requestId": "01HVOI1234567890ABCDEFGHJK",
+    "externalReferenceUid": "user-42",
+    "authOrderId": "AUTH-2026-0501-0001",
+    "status": "SUCCESS",
+    "accountChanges": {
+      "version": 1746662400000,
+      "externalReferenceUid": "user-42",
+      "previousStatus": "NORMAL",
+      "currentStatus": "NORMAL",
+      "totalCreditChange": 0,
+      "usedCreditChange": -1500000,
+      "frozenCreditChange": -1500000,
+      "availableCreditChange": 1500000,
+      "overpaidAmountChange": 0,
+      "lateFeeAmountChange": 0,
+      "interestAmountChange": 0
+    }
+  }
+}

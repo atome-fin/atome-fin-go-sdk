@@ -1,0 +1,12 @@
+{
+  "code": "SUCCESS",
+  "message": "capture submitted",
+  "data": {
+    "requestId": "01HCAP1234567890ABCDEFGHJK",
+    "orderId": "ORD-2026-0501-A",
+    "currency": "IDR",
+    "totalAmount": 1500000,
+    "status": "PROCESSING",
+    "authOrderId": "AUTH-2026-0501-0001"
+  }
+}

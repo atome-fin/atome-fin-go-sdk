@@ -1,0 +1,4 @@
+{
+  "code": "USER_CREDIT_LIMIT_INSUFFICIENT",
+  "message": "credit limit insufficient at capture time"
+}

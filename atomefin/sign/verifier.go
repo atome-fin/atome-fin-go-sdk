@@ -1,0 +1,82 @@
+package sign
+
+import (
+	"context"
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"fmt"
+)
+
+// ErrSignature is returned when a signature fails to verify. Callers should
+// treat all verification failures as opaque: do not branch on the wrapped
+// error to avoid leaking distinguishing information back to a caller.
+var ErrSignature = errors.New("sign: signature verification failed")
+
+// Verifier verifies a base64-standard-encoded RSA signature against canonical
+// bytes. Implementations must be safe for concurrent use.
+type Verifier interface {
+	Verify(ctx context.Context, canonical []byte, signature string) error
+}
+
+// VerifierOption configures a Verifier constructed via NewRSA2Verifier.
+type VerifierOption func(*rsa2Verifier) error
+
+// rsa2Verifier mirrors rsa2Signer for the receive path (callbacks + sync
+// error-envelope sanity checks).
+type rsa2Verifier struct {
+	pub     *rsa.PublicKey
+	pss     bool
+	saltLen int
+}
+
+// NewRSA2Verifier constructs a Verifier over an RSA-2048-or-larger public
+// key. The default scheme is RSASSA-PKCS#1 v1.5; callers can opt into PSS
+// via WithVerifierSaltedPSS.
+func NewRSA2Verifier(pub *rsa.PublicKey, opts ...VerifierOption) (Verifier, error) {
+	if pub == nil {
+		return nil, fmt.Errorf("%w: nil public key", ErrInvalidKey)
+	}
+	if pub.N == nil || pub.N.BitLen() < MinKeyBits {
+		bits := 0
+		if pub.N != nil {
+			bits = pub.N.BitLen()
+		}
+		return nil, fmt.Errorf("%w: modulus %d bits, need >= %d",
+			ErrInvalidKey, bits, MinKeyBits)
+	}
+	v := &rsa2Verifier{pub: pub}
+	for _, opt := range opts {
+		if err := opt(v); err != nil {
+			return nil, err
+		}
+	}
+	return v, nil
+}
+
+func (v *rsa2Verifier) Verify(ctx context.Context, canonical []byte, signature string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if signature == "" {
+		return fmt.Errorf("%w: empty signature", ErrSignature)
+	}
+	sig, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		return fmt.Errorf("%w: base64 decode: %v", ErrSignature, err)
+	}
+	sum := sha256.Sum256(canonical)
+	if v.pss {
+		if err := rsa.VerifyPSS(v.pub, crypto.SHA256, sum[:], sig,
+			&rsa.PSSOptions{SaltLength: v.saltLen, Hash: crypto.SHA256}); err != nil {
+			return fmt.Errorf("%w: %v", ErrSignature, err)
+		}
+		return nil
+	}
+	if err := rsa.VerifyPKCS1v15(v.pub, crypto.SHA256, sum[:], sig); err != nil {
+		return fmt.Errorf("%w: %v", ErrSignature, err)
+	}
+	return nil
+}

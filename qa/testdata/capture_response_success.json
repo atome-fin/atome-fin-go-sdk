@@ -1,0 +1,16 @@
+{
+  "code": "SUCCESS",
+  "message": "captured",
+  "data": {
+    "requestId": "01HCAP1234567890ABCDEFGHJK",
+    "orderId": "ORD-2026-0501-A",
+    "currency": "IDR",
+    "totalAmount": 1500000,
+    "status": "SUCCESS",
+    "authOrderId": "AUTH-2026-0501-0001",
+    "extendInfo": {
+      "reapplyTime": 1746576000000,
+      "agreement": {"agreementUrl": "https://atome.example/agreements/ORD-2026-0501-A.pdf"}
+    }
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "code": "INVALID_SIGNATURE",
+  "message": "Authorization header signature does not verify"
+}

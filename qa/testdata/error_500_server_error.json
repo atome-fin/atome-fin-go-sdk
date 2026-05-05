@@ -1,0 +1,4 @@
+{
+  "code": "SERVER_ERROR",
+  "message": "internal server error; retry per spec"
+}

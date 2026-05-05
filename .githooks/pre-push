@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# atome-fin-go-sdk pre-push hook — runs `make ci` so the same gates
+# GitHub Actions runs are checked before any push leaves the machine.
+#
+# Opt in once per clone:
+#
+#     git config core.hooksPath .githooks
+#
+# To bypass on a one-off basis (use sparingly — CI will catch it):
+#
+#     git push --no-verify
+#
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+cd "$repo_root"
+
+echo "pre-push: running 'make ci'..."
+make ci

@@ -1,0 +1,4 @@
+{
+  "code": "AUTH_EXPIRED",
+  "message": "auth has expired beyond void window"
+}

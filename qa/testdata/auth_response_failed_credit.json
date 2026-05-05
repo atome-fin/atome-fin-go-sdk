@@ -1,0 +1,12 @@
+{
+  "code": "SUCCESS",
+  "message": "auth resolved",
+  "data": {
+    "requestId": "01HABC1234567890ABCDEFGHJK",
+    "currency": "IDR",
+    "authOrderId": "AUTH-2026-0501-0002",
+    "totalAmount": 1500000,
+    "status": "FAILED",
+    "failureCode": "USER_CREDIT_LIMIT_INSUFFICIENT"
+  }
+}

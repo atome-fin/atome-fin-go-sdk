@@ -1,0 +1,4 @@
+{
+  "code": "CAPTURE_AMOUNT_EXCEED",
+  "message": "captureAmount exceeds the prior auth totalAmount"
+}

@@ -1,0 +1,60 @@
+{
+  "requestId": "01HABC1234567890ABCDEFGHJK",
+  "externalReferenceUid": "user-42",
+  "totalAmount": 1500000,
+  "periodType": 3,
+  "subOrders": [
+    {
+      "subOrderId": "so-1",
+      "amount": 1000000,
+      "quantity": 1,
+      "skuId": "sku-001",
+      "skuName": "Widget Pro",
+      "categoryId": "cat-electronics",
+      "categoryOneName": "Electronics",
+      "categoryCodes": ["ELEC", "GADGET"],
+      "originalAmount": 1100000,
+      "merchantId": "merchant-foo"
+    },
+    {
+      "subOrderId": "so-2",
+      "amount": 500000,
+      "quantity": 2
+    }
+  ],
+  "extendInfo": {
+    "userCreditScore": 0.85,
+    "deviceInfo": {
+      "platform": "ANDROID",
+      "gps": {"longitude": 106.8456, "latitude": -6.2088, "time": 1746489600000},
+      "device": {
+        "utdid": "utdid-abc",
+        "isRoot": false,
+        "androidId": "and-123",
+        "build": {
+          "board": "msm8998",
+          "brand": "Pixel",
+          "cpuAbi": "arm64-v8a",
+          "device": "walleye",
+          "manufacturer": "Google",
+          "model": "Pixel 2",
+          "product": "walleye"
+        }
+      },
+      "wifiList": [{"ssid": "PartnerCorp"}],
+      "ipAddress": {"ethIp": "10.0.0.1", "trueIp": "203.0.113.7"}
+    },
+    "address": {
+      "shippingAddress": {
+        "state": "Jakarta",
+        "city": "Jakarta Selatan",
+        "district": "Kebayoran Baru",
+        "address1": "Jl. Sudirman No. 1",
+        "address2": "Lantai 10"
+      },
+      "shippingName": "Foo Customer",
+      "shippingPhoneNo": "+628123456789"
+    },
+    "reapplyTime": 1746489600000
+  }
+}

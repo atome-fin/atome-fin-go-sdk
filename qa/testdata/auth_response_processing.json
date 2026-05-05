@@ -1,0 +1,11 @@
+{
+  "code": "SUCCESS",
+  "message": "auth submitted",
+  "data": {
+    "requestId": "01HABC1234567890ABCDEFGHJK",
+    "currency": "IDR",
+    "authOrderId": "AUTH-2026-0501-0001",
+    "totalAmount": 1500000,
+    "status": "PROCESSING"
+  }
+}

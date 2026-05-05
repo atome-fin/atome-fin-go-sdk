@@ -1,0 +1,27 @@
+# Internal-only review / signoff documents — kept locally for paper
+# trail but not part of the published SDK. Drop a doc here and it
+# stays out of git.
+docs/internal/
+
+# Built binaries from `go build ./examples/...` or `make examples`,
+# anchored to repo root so the `examples/auth_capture/` and
+# `examples/webhook_server/` source directories stay tracked.
+/auth_capture
+/webhook_server
+
+# Standard Go build artefacts.
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+
+# IDEs / editors.
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
