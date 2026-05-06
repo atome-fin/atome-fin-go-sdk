@@ -95,10 +95,15 @@ func (s *Service) Bills(ctx context.Context, params *BillsParams) (*BillsRespons
 }
 
 // BillDetail retrieves the full detail for a single bill, keyed by
-// billID (yyyyMM, e.g. "202605").
+// billID (yyyyMM, e.g. "202605") + externalReferenceUID.
 //
-// Spec endpoint: GET /billDetail?billId=<id>
-func (s *Service) BillDetail(ctx context.Context, billID string) (*BillDetailResponse, error) {
+// Spec endpoint: GET /billDetail?billId=<id>&externalReferenceUid=<uid>
+//
+// Signature change in v0.2.3: takes both `billID` and
+// `externalReferenceUID` to match the 2026-05-06 spec snapshot —
+// both query params are required. v0.2.0 — v0.2.2 callers must add
+// the externalReferenceUID argument.
+func (s *Service) BillDetail(ctx context.Context, billID, externalReferenceUID string) (*BillDetailResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
@@ -108,7 +113,16 @@ func (s *Service) BillDetail(ctx context.Context, billID string) (*BillDetailRes
 			Message: "required (yyyyMM, e.g. \"202605\")",
 		}
 	}
-	q := url.Values{"billId": []string{billID}}
+	if externalReferenceUID == "" {
+		return nil, &atomefin.ValidationError{
+			Field:   "externalReferenceUid",
+			Message: "required (the partner-side user identifier)",
+		}
+	}
+	q := url.Values{
+		"billId":               []string{billID},
+		"externalReferenceUid": []string{externalReferenceUID},
+	}
 	resp, err := s.c.DoSignedGET(ctx, "/billDetail", q)
 	if err != nil {
 		return nil, err
@@ -261,11 +275,11 @@ func buildBillsQuery(p *BillsParams) url.Values {
 	if p.BillID != "" {
 		q.Set("billId", p.BillID)
 	}
-	if p.StartDate != "" {
-		q.Set("startDate", p.StartDate)
+	if p.StartMonth != "" {
+		q.Set("startMonth", p.StartMonth)
 	}
-	if p.EndDate != "" {
-		q.Set("endDate", p.EndDate)
+	if p.EndMonth != "" {
+		q.Set("endMonth", p.EndMonth)
 	}
 	return q
 }

@@ -200,29 +200,29 @@ func validateRefund(req *RefundParam) error {
 	if req.ExternalReferenceUID == "" {
 		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "required"}
 	}
-	if req.AuthOrderID == "" {
-		return &atomefin.ValidationError{Field: "authOrderId", Message: "required (from prior /auth response)"}
+	if req.CaptureRequestID == "" {
+		return &atomefin.ValidationError{Field: "captureRequestId", Message: "required (the requestId of the prior /capture call)"}
 	}
 	if req.RefundAmount <= 0 {
 		return &atomefin.ValidationError{Field: "refundAmount", Message: "must be > 0 (minor units)"}
 	}
-	if len(req.SubOrderRefunds) == 0 {
-		return &atomefin.ValidationError{Field: "subOrderRefunds", Message: "must be non-empty"}
+	if len(req.SubOrders) == 0 {
+		return &atomefin.ValidationError{Field: "subOrders", Message: "must be non-empty"}
 	}
 	var sum atomefin.Amount
-	for _, so := range req.SubOrderRefunds {
+	for _, so := range req.SubOrders {
 		if so.SubOrderID == "" {
-			return &atomefin.ValidationError{Field: "subOrderRefunds[].subOrderId", Message: "required"}
+			return &atomefin.ValidationError{Field: "subOrders[].subOrderId", Message: "required"}
 		}
-		if so.RefundAmount <= 0 {
-			return &atomefin.ValidationError{Field: "subOrderRefunds[].refundAmount", Message: "must be > 0 (minor units)"}
+		if so.Amount <= 0 {
+			return &atomefin.ValidationError{Field: "subOrders[].amount", Message: "must be > 0 (minor units)"}
 		}
-		sum += so.RefundAmount
+		sum += so.Amount
 	}
 	if sum != req.RefundAmount {
 		return &atomefin.ValidationError{
 			Field:   "refundAmount",
-			Message: "must equal sum of subOrderRefunds[].refundAmount (Q25 conservative — partner-pending)",
+			Message: "must equal sum of subOrders[].amount (Q25 conservative — partner-pending)",
 		}
 	}
 	return nil

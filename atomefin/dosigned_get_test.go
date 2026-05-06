@@ -45,7 +45,8 @@ func TestDoSignedGET_R13_WireEqualsCanonical(t *testing.T) {
 		// This is the round-trip property the spec demands — partner
 		// signs canonical, server parses + re-canonicalises, signature
 		// verifies against the rebuilt canonical.
-		gotCanonical := []byte(sign.CanonicalQuery(r.URL.Query()))
+		canonicalStr, _ := sign.CanonicalQuery(r.URL.Query())
+		gotCanonical := []byte(canonicalStr)
 		auth := r.Header.Get("Authorization")
 		if vErr := verifier.Verify(r.Context(), gotCanonical, auth); vErr != nil {
 			// Diagnostic: dump the wire query and the rebuilt canonical

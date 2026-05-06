@@ -241,7 +241,8 @@ func TestService_BalanceHistory_MultiParam_R13_AtScale(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotCanonical := []byte(sign.CanonicalQuery(r.URL.Query()))
+		canonicalStr, _ := sign.CanonicalQuery(r.URL.Query())
+		gotCanonical := []byte(canonicalStr)
 		if vErr := verifier.Verify(r.Context(), gotCanonical, r.Header.Get("Authorization")); vErr != nil {
 			t.Errorf("R13 multi-param: verify failed.\n"+
 				"raw wire query:    %s\nrebuilt canonical: %s\nerr: %v",

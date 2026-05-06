@@ -2,35 +2,41 @@ package transaction
 
 import "github.com/atome-fin/atome-fin-go-sdk/atomefin"
 
-// TradeType enumerates the kinds of transactions partners may
-// receive. Closed enum per spec convention; unknown values
-// round-trip opaquely (forward-compat).
-type TradeType string
+// TransactionType enumerates the kinds of originating transaction
+// the /transactions and /transactionDetail endpoints address. Per
+// the 2026-05-06 spec snapshot, this is an alias of PAYMENT,
+// REFUND, or REPAYMENT — discriminating which originating
+// `requestId` the lookup is rooted in. Forward-compat: unknown
+// values round-trip opaquely.
+//
+// Renamed v0.2.3 from `TradeType` (which previously enumerated
+// AUTH/CAPTURE/VOID/REFUND) — the partner-pending 2026-04-22
+// snapshot used a different wire shape. v0.2.0 — v0.2.2 callers
+// must update both the type name and the literal values.
+type TransactionType string
 
-// Spec-defined trade types.
+// Spec-defined transaction types (alias PAYMENT, REFUND, REPAYMENT).
 const (
-	// TradeTypeAuth — corresponds to a /auth submission.
-	TradeTypeAuth TradeType = "AUTH"
-	// TradeTypeCapture — a /capture submission.
-	TradeTypeCapture TradeType = "CAPTURE"
-	// TradeTypeVoid — a /voidAuth submission.
-	TradeTypeVoid TradeType = "VOID"
-	// TradeTypeRefund — a /refund submission.
-	TradeTypeRefund TradeType = "REFUND"
+	// TransactionTypePayment — capture-side outcomes.
+	TransactionTypePayment TransactionType = "PAYMENT"
+	// TransactionTypeRefund — refund outcomes.
+	TransactionTypeRefund TransactionType = "REFUND"
+	// TransactionTypeRepayment — repayment outcomes.
+	TransactionTypeRepayment TransactionType = "REPAYMENT"
 )
 
-// IsValid reports whether t is a spec-defined trade type.
+// IsValid reports whether t is a spec-defined transaction type.
 // Forward-compat: unknown values round-trip opaquely.
-func (t TradeType) IsValid() bool {
+func (t TransactionType) IsValid() bool {
 	switch t {
-	case TradeTypeAuth, TradeTypeCapture, TradeTypeVoid, TradeTypeRefund:
+	case TransactionTypePayment, TransactionTypeRefund, TransactionTypeRepayment:
 		return true
 	}
 	return false
 }
 
 // String returns the wire literal verbatim.
-func (t TradeType) String() string { return string(t) }
+func (t TransactionType) String() string { return string(t) }
 
 // Transaction is the list-row type returned by /transactions. The
 // shape is also embedded into TransactionDetail for the single-
@@ -45,9 +51,9 @@ type Transaction struct {
 	// transaction. Acts as the param for /transactionDetail.
 	TradeID string `json:"tradeId"`
 
-	// TradeType discriminates the originating call. See the TradeType
-	// enum.
-	TradeType TradeType `json:"tradeType"`
+	// TransactionType discriminates the originating call. See the
+	// TransactionType enum (PAYMENT / REFUND / REPAYMENT).
+	TransactionType TransactionType `json:"transactionType"`
 
 	// AuthOrderID links to the originating /auth (always present;
 	// every transaction roots in an auth).
@@ -106,11 +112,13 @@ type TransactionsParams struct {
 	// AuthOrderID filters to all transactions rooted in a single
 	// /auth.
 	AuthOrderID string
-	// TradeType filters to a single trade-type (e.g. only refunds).
-	// Empty → no type filter.
-	TradeType TradeType
-	// StartDate / EndDate filter the trade-time window
-	// (yyyy-MM-dd; TZ open per DESIGN §13/Q11).
+	// TransactionType discriminates the originating endpoint
+	// (PAYMENT / REFUND / REPAYMENT). REQUIRED on the wire per the
+	// 2026-05-06 spec snapshot. Renamed v0.2.3 from `TradeType`.
+	TransactionType TransactionType
+	// StartDate / EndDate filter the trade-time window. The spec
+	// declares these as yyyyMMdd strings (REQUIRED on the wire).
+	// TZ open per DESIGN §13/Q11.
 	StartDate string
 	EndDate   string
 }

@@ -3,7 +3,7 @@
   "message": "ok",
   "data": {
     "tradeId": "TRD-2026-0501-B",
-    "tradeType": "CAPTURE",
+    "transactionType": "PAYMENT",
     "authOrderId": "AUTH-2026-0501-0001",
     "orderId": "ORD-2026-0501-A",
     "externalReferenceUid": "user-42",

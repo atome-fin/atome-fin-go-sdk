@@ -96,20 +96,51 @@ func (s *Service) Transactions(ctx context.Context, params *TransactionsParams) 
 }
 
 // TransactionDetail retrieves the full detail for a single
-// transaction, keyed by the atome-fin-side `tradeID`.
+// transaction, keyed by the originating partner-side `requestID` +
+// `externalReferenceUID` + `transactionType`. The
+// `transactionType` discriminates which originating endpoint the
+// requestId came from: per spec, alias of PAYMENT, REFUND, or
+// REPAYMENT.
 //
-// Spec endpoint: GET /transactionDetail?tradeId=<id>
-func (s *Service) TransactionDetail(ctx context.Context, tradeID string) (*TransactionDetailResponse, error) {
+// Spec endpoint:
+//
+//	GET /transactionDetail?requestId=<r>&externalReferenceUid=<u>&transactionType=<t>
+//
+// Signature change in v0.2.3: previously took only `tradeID`
+// (which the SDK encoded as `tradeId` per the partner-pending
+// 2026-04-22 spec). The 2026-05-06 publish renamed the lookup to
+// require all three of `requestId`, `externalReferenceUid`, and
+// `transactionType` — `tradeID` no longer exists on the wire.
+// v0.2.0 — v0.2.2 callers must update both the signature and their
+// call-site bookkeeping (substitute the original payment / refund
+// / repayment requestId for the discarded tradeID).
+func (s *Service) TransactionDetail(ctx context.Context, requestID, externalReferenceUID string, transactionType TransactionType) (*TransactionDetailResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
-	if tradeID == "" {
+	if requestID == "" {
 		return nil, &atomefin.ValidationError{
-			Field:   "tradeId",
-			Message: "required (the atome-fin tradeId from a prior /transactions row)",
+			Field:   "requestId",
+			Message: "required (the original payment / refund / repayment requestId)",
 		}
 	}
-	q := url.Values{"tradeId": []string{tradeID}}
+	if externalReferenceUID == "" {
+		return nil, &atomefin.ValidationError{
+			Field:   "externalReferenceUid",
+			Message: "required (the partner-side user identifier)",
+		}
+	}
+	if transactionType == "" {
+		return nil, &atomefin.ValidationError{
+			Field:   "transactionType",
+			Message: "required (PAYMENT / REFUND / REPAYMENT)",
+		}
+	}
+	q := url.Values{
+		"requestId":            []string{requestID},
+		"externalReferenceUid": []string{externalReferenceUID},
+		"transactionType":      []string{string(transactionType)},
+	}
 	resp, err := s.c.DoSignedGET(ctx, "/transactionDetail", q)
 	if err != nil {
 		return nil, err
@@ -183,10 +214,10 @@ func validateTransactionsParams(p *TransactionsParams) error {
 	if p.PageSize > 1000 {
 		return &atomefin.ValidationError{Field: "pageSize", Message: "must be <= 1000 (sanity cap)"}
 	}
-	// TradeType is intentionally NOT strict-validated here — partners
-	// passing an unknown literal hit the server's NOT_FOUND-style
-	// envelope and forward-compat works (matches the bill enum
-	// pattern).
+	// TransactionType is intentionally NOT strict-validated here —
+	// partners passing an unknown literal hit the server's
+	// NOT_FOUND-style envelope and forward-compat works (matches the
+	// bill enum pattern).
 	return nil
 }
 
@@ -210,8 +241,8 @@ func buildTransactionsQuery(p *TransactionsParams) url.Values {
 	if p.AuthOrderID != "" {
 		q.Set("authOrderId", p.AuthOrderID)
 	}
-	if p.TradeType != "" {
-		q.Set("tradeType", string(p.TradeType))
+	if p.TransactionType != "" {
+		q.Set("transactionType", string(p.TransactionType))
 	}
 	if p.StartDate != "" {
 		q.Set("startDate", p.StartDate)

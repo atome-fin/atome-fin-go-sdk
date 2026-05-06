@@ -181,7 +181,10 @@ func TestExternalVector_CanonicalQueryRoundTrip(t *testing.T) {
 		"totalAmount":          []string{"1500000"},
 		"periodType":           []string{"3"},
 	}
-	canonical := sign.CanonicalQuery(values)
+	canonical, err := sign.CanonicalQuery(values)
+	if err != nil {
+		t.Fatalf("CanonicalQuery: %v", err)
+	}
 
 	wantCanonical := strings.TrimSpace(string(mustRead(t, "testdata/external_query_canonical.txt")))
 	if canonical != wantCanonical {
@@ -192,10 +195,10 @@ func TestExternalVector_CanonicalQueryRoundTrip(t *testing.T) {
 	// Verify the openssl-produced signature against the SDK's canonical bytes.
 	v := mustVerifierFromExternalCert(t)
 	wantSig := strings.TrimSpace(string(mustRead(t, "testdata/external_query_sig.b64")))
-	if err := v.Verify(context.Background(), []byte(canonical), wantSig); err != nil {
+	if vErr := v.Verify(context.Background(), []byte(canonical), wantSig); vErr != nil {
 		t.Fatalf("openssl signature over the canonical query did not verify against "+
 			"sign.CanonicalQuery output: %v\nthis means the GET signing path is "+
-			"broken — see DESIGN.md §1.3 / §4 / §5", err)
+			"broken — see DESIGN.md §1.3 / §4 / §5", vErr)
 	}
 
 	// And: Go signer over the same key + canonical produces the

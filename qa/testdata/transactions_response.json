@@ -8,7 +8,7 @@
     "items": [
       {
         "tradeId": "TRD-2026-0501-A",
-        "tradeType": "AUTH",
+        "transactionType": "PAYMENT",
         "authOrderId": "AUTH-2026-0501-0001",
         "externalReferenceUid": "user-42",
         "currency": "IDR",
@@ -18,7 +18,7 @@
       },
       {
         "tradeId": "TRD-2026-0501-B",
-        "tradeType": "CAPTURE",
+        "transactionType": "PAYMENT",
         "authOrderId": "AUTH-2026-0501-0001",
         "orderId": "ORD-2026-0501-A",
         "externalReferenceUid": "user-42",
@@ -29,7 +29,7 @@
       },
       {
         "tradeId": "TRD-2026-0507-C",
-        "tradeType": "REFUND",
+        "transactionType": "REFUND",
         "authOrderId": "AUTH-2026-0501-0001",
         "orderId": "RFD-2026-0507-A",
         "externalReferenceUid": "user-42",

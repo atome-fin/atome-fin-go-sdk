@@ -10,16 +10,10 @@ import (
 )
 
 // TestSpec_RefundEndpoints drives every refund-package outbound
-// method against the spec server.
-//
-// The SDK's RefundParam was authored against the partner-pending
-// 2026-04-22 spec snapshot; the 2026-05-06 publish renamed two
-// top-level fields (`authOrderId` → `captureRequestId`,
-// `subOrderRefunds` → `subOrders`) and renamed one nested field
-// (`subOrders[].refundAmount` → `subOrders[].amount`). The renames
-// are tracked toward the v0.2.x roadmap; for the spec-server
-// regression backstop today, the missing fields are skipped with a
-// pointer to this comment so future readers see the gap explicitly.
+// method against the spec server. v0.2.3 closes the rename gap
+// surfaced by milestone 2 of v0.2.2 — the SDK now sends
+// `captureRequestId` / `subOrders` / `subOrders[].amount` matching
+// the 2026-05-06 spec snapshot. No SkipRequired entries needed.
 func TestSpec_RefundEndpoints(t *testing.T) {
 	specserver.RunCases(t, []specserver.Case{
 		{
@@ -27,12 +21,6 @@ func TestSpec_RefundEndpoints(t *testing.T) {
 			Run: func(c *atomefin.Client) error {
 				_, err := refund.New(c).Refund(context.Background(), specSampleRefundParam())
 				return err
-			},
-			SkipRequired: []string{
-				"captureRequestId",       // SDK sends authOrderId; rename pending v0.2.x
-				"subOrders",              // SDK sends subOrderRefunds; rename pending v0.2.x
-				"subOrders[].subOrderId", // unreachable until subOrders rename lands
-				"subOrders[].amount",     // SDK sends subOrderRefunds[].refundAmount; rename pending
 			},
 		},
 		{
@@ -49,10 +37,10 @@ func specSampleRefundParam() *refund.RefundParam {
 	return &refund.RefundParam{
 		RequestID:            "r-spec-refund",
 		ExternalReferenceUID: "u-spec-1",
-		AuthOrderID:          "AUTH-SPEC-1",
+		CaptureRequestID:     "CAP-SPEC-1",
 		RefundAmount:         500000,
-		SubOrderRefunds: []refund.SubOrderRefundRequest{
-			{SubOrderID: "so-1", RefundAmount: 500000},
+		SubOrders: []refund.SubOrderRefundRequest{
+			{SubOrderID: "so-1", Amount: 500000},
 		},
 	}
 }

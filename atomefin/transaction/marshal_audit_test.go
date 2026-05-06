@@ -40,13 +40,13 @@ func TestTransactionDetailResponse_Roundtrip_Failed(t *testing.T) {
 func TestR10_Transaction_Amount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[transaction.Transaction](t, func(v int64) transaction.Transaction {
 		return transaction.Transaction{
-			TradeID:     "TRD-1",
-			TradeType:   transaction.TradeTypeAuth,
-			AuthOrderID: "AUTH-1",
-			Currency:    "IDR",
-			Amount:      v,
-			TradeStatus: "SUCCESS",
-			TradeTime:   1,
+			TradeID:         "TRD-1",
+			TransactionType: transaction.TransactionTypePayment,
+			AuthOrderID:     "AUTH-1",
+			Currency:        "IDR",
+			Amount:          v,
+			TradeStatus:     "SUCCESS",
+			TradeTime:       1,
 		}
 	})
 }
@@ -54,7 +54,7 @@ func TestR10_Transaction_Amount(t *testing.T) {
 // ---------- R11 — fractional decode rejection ----------
 
 func TestR11_RejectsFractionalAmount(t *testing.T) {
-	body := []byte(`{"tradeId":"TRD-1","tradeType":"AUTH","authOrderId":"A","currency":"IDR","amount":1.5,"tradeStatus":"SUCCESS","tradeTime":1}`)
+	body := []byte(`{"tradeId":"TRD-1","transactionType":"PAYMENT","authOrderId":"A","currency":"IDR","amount":1.5,"tradeStatus":"SUCCESS","tradeTime":1}`)
 	marshal.AssertRejectsFractionalAmount[transaction.Transaction](t, body)
 }
 
@@ -62,13 +62,13 @@ func TestR11_RejectsFractionalAmount(t *testing.T) {
 
 func TestR12_Transaction_IntegerLiterals(t *testing.T) {
 	in := transaction.Transaction{
-		TradeID:     "TRD-1",
-		TradeType:   transaction.TradeTypeAuth,
-		AuthOrderID: "AUTH-1",
-		Currency:    "IDR",
-		Amount:      1500000,
-		TradeStatus: "SUCCESS",
-		TradeTime:   1746084600000,
+		TradeID:         "TRD-1",
+		TransactionType: transaction.TransactionTypePayment,
+		AuthOrderID:     "AUTH-1",
+		Currency:        "IDR",
+		Amount:          1500000,
+		TradeStatus:     "SUCCESS",
+		TradeTime:       1746084600000,
 	}
 	marshal.AssertAmountKeysAreInteger[transaction.Transaction](t, in,
 		"amount",

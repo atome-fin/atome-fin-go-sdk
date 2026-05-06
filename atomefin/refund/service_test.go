@@ -86,10 +86,10 @@ func TestService_Refund_Success(t *testing.T) {
 	resp, err := refund.New(c).Refund(context.Background(), &refund.RefundParam{
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
-		AuthOrderID:          "AUTH-1",
+		CaptureRequestID:     "CAP-1",
 		RefundAmount:         1000,
-		SubOrderRefunds: []refund.SubOrderRefundRequest{
-			{SubOrderID: "so-1", RefundAmount: 1000},
+		SubOrders: []refund.SubOrderRefundRequest{
+			{SubOrderID: "so-1", Amount: 1000},
 		},
 	})
 	if err != nil {
@@ -119,10 +119,10 @@ func TestService_Refund_AutoMintsRequestID(t *testing.T) {
 	c := mustClient(t, srv)
 	req := &refund.RefundParam{
 		ExternalReferenceUID: "u-1",
-		AuthOrderID:          "AUTH-1",
+		CaptureRequestID:     "CAP-1",
 		RefundAmount:         1,
-		SubOrderRefunds: []refund.SubOrderRefundRequest{
-			{SubOrderID: "so-1", RefundAmount: 1},
+		SubOrders: []refund.SubOrderRefundRequest{
+			{SubOrderID: "so-1", Amount: 1},
 		},
 	}
 	if _, err := refund.New(c).Refund(context.Background(), req); err != nil {
@@ -148,10 +148,10 @@ func TestService_Refund_4xxBecomesAPIError(t *testing.T) {
 	_, err := refund.New(c).Refund(context.Background(), &refund.RefundParam{
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
-		AuthOrderID:          "AUTH-1",
+		CaptureRequestID:     "CAP-1",
 		RefundAmount:         1,
-		SubOrderRefunds: []refund.SubOrderRefundRequest{
-			{SubOrderID: "so-1", RefundAmount: 1},
+		SubOrders: []refund.SubOrderRefundRequest{
+			{SubOrderID: "so-1", Amount: 1},
 		},
 	})
 	var ae *atomefin.APIError
@@ -233,10 +233,10 @@ func TestService_RefundPollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 	resp, err := refund.New(c).RefundPollUntilTerminal(context.Background(), &refund.RefundParam{
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
-		AuthOrderID:          "AUTH-1",
+		CaptureRequestID:     "CAP-1",
 		RefundAmount:         1,
-		SubOrderRefunds: []refund.SubOrderRefundRequest{
-			{SubOrderID: "so-1", RefundAmount: 1},
+		SubOrders: []refund.SubOrderRefundRequest{
+			{SubOrderID: "so-1", Amount: 1},
 		},
 	}, payment.PollOptions{
 		MaxWait:      2 * time.Second,
@@ -305,56 +305,56 @@ func TestRefund_Validate_TableDriven(t *testing.T) {
 		{"long-requestId", &refund.RefundParam{
 			RequestID:            strings.Repeat("a", 65),
 			ExternalReferenceUID: "u",
-			AuthOrderID:          "A",
+			CaptureRequestID:     "C",
 			RefundAmount:         1,
-			SubOrderRefunds:      []refund.SubOrderRefundRequest{{SubOrderID: "s", RefundAmount: 1}},
+			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
 		}, "requestId"},
 		{"missing-externalReferenceUid", &refund.RefundParam{
-			RequestID:       "r",
-			AuthOrderID:     "A",
-			RefundAmount:    1,
-			SubOrderRefunds: []refund.SubOrderRefundRequest{{SubOrderID: "s", RefundAmount: 1}},
+			RequestID:        "r",
+			CaptureRequestID: "C",
+			RefundAmount:     1,
+			SubOrders:        []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
 		}, "externalReferenceUid"},
-		{"missing-authOrderId", &refund.RefundParam{
+		{"missing-captureRequestId", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			RefundAmount:         1,
-			SubOrderRefunds:      []refund.SubOrderRefundRequest{{SubOrderID: "s", RefundAmount: 1}},
-		}, "authOrderId"},
+			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
+		}, "captureRequestId"},
 		{"zero-refundAmount", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			AuthOrderID:          "A",
+			CaptureRequestID:     "C",
 			RefundAmount:         0,
-			SubOrderRefunds:      []refund.SubOrderRefundRequest{{SubOrderID: "s", RefundAmount: 1}},
+			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
 		}, "refundAmount"},
-		{"empty-subOrderRefunds", &refund.RefundParam{
+		{"empty-subOrders", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			AuthOrderID:          "A",
+			CaptureRequestID:     "C",
 			RefundAmount:         1,
-			SubOrderRefunds:      []refund.SubOrderRefundRequest{},
-		}, "subOrderRefunds"},
+			SubOrders:            []refund.SubOrderRefundRequest{},
+		}, "subOrders"},
 		{"empty-subOrderId", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			AuthOrderID:          "A",
+			CaptureRequestID:     "C",
 			RefundAmount:         1,
-			SubOrderRefunds:      []refund.SubOrderRefundRequest{{SubOrderID: "", RefundAmount: 1}},
+			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "", Amount: 1}},
 		}, "subOrderId"},
-		{"zero-sub-refundAmount", &refund.RefundParam{
+		{"zero-sub-amount", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			AuthOrderID:          "A",
+			CaptureRequestID:     "C",
 			RefundAmount:         1,
-			SubOrderRefunds:      []refund.SubOrderRefundRequest{{SubOrderID: "s", RefundAmount: 0}},
-		}, "subOrderRefunds[].refundAmount"},
+			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 0}},
+		}, "subOrders[].amount"},
 		{"sum-mismatch-Q25", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			AuthOrderID:          "A",
+			CaptureRequestID:     "C",
 			RefundAmount:         1000,
-			SubOrderRefunds:      []refund.SubOrderRefundRequest{{SubOrderID: "s", RefundAmount: 999}},
+			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 999}},
 		}, "refundAmount"},
 	}
 	for _, tc := range cases {

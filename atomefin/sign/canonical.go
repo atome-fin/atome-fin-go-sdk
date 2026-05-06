@@ -1,10 +1,40 @@
 package sign
 
 import (
+	"fmt"
 	"net/url"
 	"sort"
 	"strings"
 )
+
+// MultiValueQueryError is returned by CanonicalQuery when the input
+// url.Values contains more than one value for any key. The
+// apaylater spec's Signature section is silent on multi-value
+// canonicalization (the rule reads "sorted in alphabetical natural
+// order" — singular per key). The upstream gateway's observed
+// behaviour is to retain only the first value for verification, so
+// emitting all values produced an asymmetric canonical that
+// silently failed signature verification with a generic
+// `INVALID_SIGNATURE` 401 — a subtle foot-gun for any partner that
+// fed a multi-value `url.Values` through `Client.DoSignedGET`.
+//
+// v0.2.3 makes the contract explicit: callers MUST pre-flatten
+// multi-value queries (typically by joining values into a single
+// comma-separated string per the partner agreement, or by picking
+// one value) before signing. The resulting hard fail at sign time
+// surfaces the bug in the dev loop rather than at production
+// first-call.
+type MultiValueQueryError struct {
+	// Key is the offending parameter name.
+	Key string
+	// Count is the number of values supplied for the key (always > 1).
+	Count int
+}
+
+// Error implements the error interface.
+func (e *MultiValueQueryError) Error() string {
+	return fmt.Sprintf("sign: query key %q has %d values; the canonical signing form requires single-value (pre-flatten before calling)", e.Key, e.Count)
+}
 
 // CanonicalQuery returns the canonical signing-input string for a GET
 // request, per the apaylater spec's Signature section:
@@ -14,32 +44,33 @@ import (
 //
 // (DESIGN.md §1.3 — verbatim spec quote, also DESIGN.md §4 / §5).
 //
-// All five v1 spec endpoints are POST, so this canonical is reserved
-// rather than exercised by the current SDK surface (Client.DoSigned
-// is POST-only and rejects other verbs at the call site). Partners
-// writing forward-compat code that needs a GET — or partners
-// integrating with a future spec revision that adds one — should
-// build the bytes via this helper and feed them to Signer.Sign
-// directly. The Signer is verb-agnostic; it signs whatever bytes it
-// is handed.
-//
 // Rules:
 //   - Keys are sorted in lexicographic order.
-//   - For repeated keys, values are emitted in their existing slice order.
-//   - Both keys and values are percent-encoded per RFC 3986 unreserved set:
-//     space encodes as "%20" (NOT "+"), "+" encodes as "%2B", etc.
+//   - Each key MUST have at most one value. Multi-value keys return
+//     a *MultiValueQueryError; the spec does not define repeated-key
+//     canonicalization and the upstream gateway only retains the first
+//     value, so emitting all values would silently fail signature
+//     verification. Callers must pre-flatten before signing.
+//   - Both keys and values are percent-encoded per RFC 3986 unreserved
+//     set: space encodes as "%20" (NOT "+"), "+" encodes as "%2B", etc.
 //   - Pairs are joined by "&", separated by "=" between key and value.
-//   - Keys with an empty value slice are skipped; a key with a single empty
-//     string value is emitted as "key=".
+//   - Keys with an empty value slice are skipped; a key with a single
+//     empty string value is emitted as "key=".
 //
 // The wire encoding url.Values.Encode() produces uses application/x-www-form-
 // urlencoded conventions ("+" for space) which is *not* what RFC 3986 requires
 // for the query component. Many partner SDKs canonicalize differently from how
 // they wire-encode, so we keep the canonical form pinned to RFC 3986 and let
 // the HTTP layer do its own wire encoding independently.
-func CanonicalQuery(values url.Values) string {
+//
+// Breaking change in v0.2.3: returns (string, error) — see
+// MultiValueQueryError above. Pre-v0.2.3 callers using the
+// single-return form must adopt the two-return shape; the only
+// non-test in-repo caller is Client.DoSignedGET, updated atomically
+// in the same release.
+func CanonicalQuery(values url.Values) (string, error) {
 	if len(values) == 0 {
-		return ""
+		return "", nil
 	}
 	keys := make([]string, 0, len(values))
 	for k := range values {
@@ -57,18 +88,19 @@ func CanonicalQuery(values url.Values) string {
 		if len(vs) == 0 {
 			continue
 		}
-		ek := rfc3986Escape(k)
-		for _, v := range vs {
-			if !first {
-				b.WriteByte('&')
-			}
-			first = false
-			b.WriteString(ek)
-			b.WriteByte('=')
-			b.WriteString(rfc3986Escape(v))
+		if len(vs) > 1 {
+			return "", &MultiValueQueryError{Key: k, Count: len(vs)}
 		}
+		ek := rfc3986Escape(k)
+		if !first {
+			b.WriteByte('&')
+		}
+		first = false
+		b.WriteString(ek)
+		b.WriteByte('=')
+		b.WriteString(rfc3986Escape(vs[0]))
 	}
-	return b.String()
+	return b.String(), nil
 }
 
 // rfc3986Escape percent-encodes s such that only RFC 3986 unreserved

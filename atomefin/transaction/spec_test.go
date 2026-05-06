@@ -10,17 +10,16 @@ import (
 )
 
 // TestSpec_TransactionEndpoints drives every transaction-package
-// GET against the spec server.
+// GET against the spec server. v0.2.3 closes the rename +
+// missing-arg gaps surfaced by milestone 2 of v0.2.2:
+//   - /transactions: SDK now sends `transactionType` (was
+//     `tradeType`) and `startDate` / `endDate` in yyyyMMdd format.
+//   - /transactionDetail: TransactionDetail now takes
+//     (requestID, externalReferenceUID, transactionType) — the
+//     v0.2.0 signature took only `tradeID`, which the 2026-05-06
+//     spec snapshot eliminated entirely.
 //
-// Field-name mismatches between the SDK's query encoding and the
-// 2026-05-06 spec snapshot:
-//   - /transactions: SDK sends `tradeType`; spec requires
-//     `transactionType`. Tracked for the v0.2.x rename pass.
-//   - /transactionDetail: SDK sends `tradeId`; spec requires
-//     `requestId` + `transactionType`. Tracked for v0.2.x.
-//
-// Skip-list reflects what the SDK does NOT yet emit; closing each
-// item is a follow-up patch.
+// No SkipRequired entries needed.
 func TestSpec_TransactionEndpoints(t *testing.T) {
 	specserver.RunCases(t, []specserver.Case{
 		{
@@ -28,26 +27,19 @@ func TestSpec_TransactionEndpoints(t *testing.T) {
 			Run: func(c *atomefin.Client) error {
 				_, err := transaction.New(c).Transactions(context.Background(), &transaction.TransactionsParams{
 					ExternalReferenceUID: "u-spec-1",
-					StartDate:            "2026-04-01",
-					EndDate:              "2026-05-01",
-					TradeType:            transaction.TradeTypeAuth,
+					StartDate:            "20260401",
+					EndDate:              "20260501",
+					TransactionType:      transaction.TransactionTypePayment,
 				})
 				return err
-			},
-			SkipRequired: []string{
-				"transactionType", // SDK sends `tradeType`; rename pending v0.2.x
 			},
 		},
 		{
 			Op: "GET /transactionDetail",
 			Run: func(c *atomefin.Client) error {
-				_, err := transaction.New(c).TransactionDetail(context.Background(), "T-spec-1")
+				_, err := transaction.New(c).TransactionDetail(context.Background(),
+					"r-spec-1", "u-spec-1", transaction.TransactionTypePayment)
 				return err
-			},
-			SkipRequired: []string{
-				"externalReferenceUid", // SDK TransactionDetail signature takes only tradeID
-				"requestId",            // SDK sends `tradeId`; spec requires `requestId`
-				"transactionType",      // not present in SDK signature
 			},
 		},
 	})

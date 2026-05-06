@@ -74,7 +74,7 @@ func TestService_Transactions_Success(t *testing.T) {
 		gotQuery = r.URL.RawQuery
 		gotMethod = r.Method
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":20,"total":1,"items":[{"tradeId":"TRD-1","tradeType":"AUTH","authOrderId":"AUTH-1","currency":"IDR","amount":1000,"tradeStatus":"SUCCESS","tradeTime":1746084600000}]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":20,"total":1,"items":[{"tradeId":"TRD-1","transactionType":"PAYMENT","authOrderId":"AUTH-1","currency":"IDR","amount":1000,"tradeStatus":"SUCCESS","tradeTime":1746084600000}]}}`))
 	}))
 	defer srv.Close()
 
@@ -93,8 +93,8 @@ func TestService_Transactions_Success(t *testing.T) {
 	if resp.Data == nil || len(resp.Data.Items) != 1 {
 		t.Fatalf("Data = %#v", resp.Data)
 	}
-	if resp.Data.Items[0].TradeType != transaction.TradeTypeAuth {
-		t.Errorf("TradeType = %q", resp.Data.Items[0].TradeType)
+	if resp.Data.Items[0].TransactionType != transaction.TransactionTypePayment {
+		t.Errorf("TransactionType = %q", resp.Data.Items[0].TransactionType)
 	}
 	if gotMethod != http.MethodGet {
 		t.Errorf("method = %q, want GET", gotMethod)
@@ -123,7 +123,8 @@ func TestService_Transactions_MultiParam_R13_AtScale(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotCanonical := []byte(sign.CanonicalQuery(r.URL.Query()))
+		canonicalStr, _ := sign.CanonicalQuery(r.URL.Query())
+		gotCanonical := []byte(canonicalStr)
 		if vErr := verifier.Verify(r.Context(), gotCanonical, r.Header.Get("Authorization")); vErr != nil {
 			t.Errorf("R13 multi-param: verify failed.\nwire: %s\ncanonical: %s\nerr: %v",
 				r.URL.RawQuery, gotCanonical, vErr)
@@ -151,17 +152,17 @@ func TestService_Transactions_MultiParam_R13_AtScale(t *testing.T) {
 	}
 
 	// 7-param query: pageNumber, pageSize, externalReferenceUid,
-	// authOrderId, tradeType, startDate, endDate. Alphabetical sort
-	// shuffles them: authOrderId < endDate < externalReferenceUid <
-	// pageNumber < pageSize < startDate < tradeType.
+	// authOrderId, transactionType, startDate, endDate. Alphabetical
+	// sort shuffles them: authOrderId < endDate < externalReferenceUid <
+	// pageNumber < pageSize < startDate < transactionType.
 	if _, err := transaction.New(c).Transactions(context.Background(), &transaction.TransactionsParams{
 		PageNumber:           2,
 		PageSize:             50,
 		ExternalReferenceUID: "user-42",
 		AuthOrderID:          "AUTH-2026-0501-0001",
-		TradeType:            transaction.TradeTypeRefund,
-		StartDate:            "2026-05-01",
-		EndDate:              "2026-05-31",
+		TransactionType:      transaction.TransactionTypeRefund,
+		StartDate:            "20260501",
+		EndDate:              "20260531",
 	}); err != nil {
 		t.Fatalf("Transactions: %v", err)
 	}
@@ -175,12 +176,12 @@ func TestService_TransactionDetail_Success(t *testing.T) {
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"tradeId":"TRD-1","tradeType":"CAPTURE","authOrderId":"AUTH-1","orderId":"ORD-1","currency":"IDR","amount":1000,"tradeStatus":"SUCCESS","tradeTime":1746089800000,"billId":"202605","notes":"x"}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"tradeId":"TRD-1","transactionType":"PAYMENT","authOrderId":"AUTH-1","orderId":"ORD-1","currency":"IDR","amount":1000,"tradeStatus":"SUCCESS","tradeTime":1746089800000,"billId":"202605","notes":"x"}}`))
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	resp, err := transaction.New(c).TransactionDetail(context.Background(), "TRD-1")
+	resp, err := transaction.New(c).TransactionDetail(context.Background(), "REQ-1", "user-42", transaction.TransactionTypePayment)
 	if err != nil {
 		t.Fatalf("TransactionDetail: %v", err)
 	}
@@ -196,17 +197,35 @@ func TestService_TransactionDetail_Success(t *testing.T) {
 	if gotPath != "/transactionDetail" {
 		t.Errorf("path = %q", gotPath)
 	}
-	if gotQuery != "tradeId=TRD-1" {
-		t.Errorf("RawQuery = %q", gotQuery)
+	// Alphabetical canonical:
+	// externalReferenceUid < requestId < transactionType.
+	wantQ := "externalReferenceUid=user-42&requestId=REQ-1&transactionType=PAYMENT"
+	if gotQuery != wantQ {
+		t.Errorf("RawQuery = %q, want %q", gotQuery, wantQ)
 	}
 }
 
-func TestService_TransactionDetail_RejectsEmptyTradeID(t *testing.T) {
+func TestService_TransactionDetail_Validate(t *testing.T) {
 	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("server must NOT be reached on empty tradeID")
+		t.Error("server must NOT be reached on validation failure")
 	})))
-	_, err := transaction.New(c).TransactionDetail(context.Background(), "")
-	mustValidationError(t, err, "tradeId")
+	svc := transaction.New(c)
+
+	if _, err := svc.TransactionDetail(context.Background(), "", "u", transaction.TransactionTypePayment); err == nil {
+		t.Error("empty requestId must reject")
+	} else {
+		mustValidationError(t, err, "requestId")
+	}
+	if _, err := svc.TransactionDetail(context.Background(), "r", "", transaction.TransactionTypePayment); err == nil {
+		t.Error("empty externalReferenceUid must reject")
+	} else {
+		mustValidationError(t, err, "externalReferenceUid")
+	}
+	if _, err := svc.TransactionDetail(context.Background(), "r", "u", ""); err == nil {
+		t.Error("empty transactionType must reject")
+	} else {
+		mustValidationError(t, err, "transactionType")
+	}
 }
 
 // ---------- TransactionsAll auto-pagination ----------
@@ -219,9 +238,9 @@ func TestService_TransactionsAll_AutoPaginates(t *testing.T) {
 		w.WriteHeader(200)
 		switch page {
 		case "1":
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":2,"total":3,"items":[{"tradeId":"TRD-1","tradeType":"AUTH","authOrderId":"A","currency":"IDR","amount":1,"tradeStatus":"SUCCESS","tradeTime":1},{"tradeId":"TRD-2","tradeType":"CAPTURE","authOrderId":"A","currency":"IDR","amount":1,"tradeStatus":"SUCCESS","tradeTime":2}]}}`))
+			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":2,"total":3,"items":[{"tradeId":"TRD-1","transactionType":"PAYMENT","authOrderId":"A","currency":"IDR","amount":1,"tradeStatus":"SUCCESS","tradeTime":1},{"tradeId":"TRD-2","transactionType":"PAYMENT","authOrderId":"A","currency":"IDR","amount":1,"tradeStatus":"SUCCESS","tradeTime":2}]}}`))
 		case "2":
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":2,"pageSize":2,"total":3,"items":[{"tradeId":"TRD-3","tradeType":"REFUND","authOrderId":"A","currency":"IDR","amount":1,"tradeStatus":"SUCCESS","tradeTime":3}]}}`))
+			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":2,"pageSize":2,"total":3,"items":[{"tradeId":"TRD-3","transactionType":"REFUND","authOrderId":"A","currency":"IDR","amount":1,"tradeStatus":"SUCCESS","tradeTime":3}]}}`))
 		default:
 			t.Errorf("unexpected pageNumber=%q", page)
 		}
@@ -279,7 +298,7 @@ func TestNilService_AllMethodsReturnError(t *testing.T) {
 	if _, err := svc.Transactions(context.Background(), nil); err == nil {
 		t.Error("Transactions on nil receiver must error")
 	}
-	if _, err := svc.TransactionDetail(context.Background(), "TRD-1"); err == nil {
+	if _, err := svc.TransactionDetail(context.Background(), "REQ-1", "u", transaction.TransactionTypePayment); err == nil {
 		t.Error("TransactionDetail on nil receiver must error")
 	}
 	if _, err := svc.TransactionsAll(context.Background(), nil); err == nil {
@@ -315,29 +334,28 @@ func TestTransactions_Validate(t *testing.T) {
 	}
 }
 
-// ---------- TradeType enum ----------
+// ---------- TransactionType enum ----------
 
-func TestTradeType_IsValid(t *testing.T) {
-	for _, v := range []transaction.TradeType{
-		transaction.TradeTypeAuth,
-		transaction.TradeTypeCapture,
-		transaction.TradeTypeVoid,
-		transaction.TradeTypeRefund,
+func TestTransactionType_IsValid(t *testing.T) {
+	for _, v := range []transaction.TransactionType{
+		transaction.TransactionTypePayment,
+		transaction.TransactionTypeRefund,
+		transaction.TransactionTypeRepayment,
 	} {
 		if !v.IsValid() {
-			t.Errorf("TradeType(%q).IsValid() = false; want true", v)
+			t.Errorf("TransactionType(%q).IsValid() = false; want true", v)
 		}
 	}
-	for _, v := range []transaction.TradeType{"", "auth", "REPAYMENT", "FOO"} {
+	for _, v := range []transaction.TransactionType{"", "payment", "AUTH", "FOO"} {
 		if v.IsValid() {
-			t.Errorf("TradeType(%q).IsValid() = true; want false", v)
+			t.Errorf("TransactionType(%q).IsValid() = true; want false", v)
 		}
 	}
 }
 
-func TestTradeType_StringIsWireLiteral(t *testing.T) {
-	if got := transaction.TradeTypeRefund.String(); got != "REFUND" {
-		t.Errorf("TradeTypeRefund.String() = %q", got)
+func TestTransactionType_StringIsWireLiteral(t *testing.T) {
+	if got := transaction.TransactionTypeRefund.String(); got != "REFUND" {
+		t.Errorf("TransactionTypeRefund.String() = %q", got)
 	}
 }
 

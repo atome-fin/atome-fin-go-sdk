@@ -145,7 +145,24 @@ func (c *Client) DoSignedGET(ctx context.Context, path string, query url.Values,
 		return nil, &ValidationError{Field: "path", Message: "path must be absolute (start with '/')"}
 	}
 
-	canonical := []byte(sign.CanonicalQuery(query))
+	canonicalStr, err := sign.CanonicalQuery(query)
+	if err != nil {
+		// v0.2.3: multi-value queries hard-fail at sign time rather
+		// than producing an asymmetric canonical that the upstream
+		// gateway would reject as INVALID_SIGNATURE. Wrap the
+		// sign-package sentinel as a typed *ValidationError so the
+		// SDK's error model stays consistent with other input-side
+		// rejections.
+		var mverr *sign.MultiValueQueryError
+		if errors.As(err, &mverr) {
+			return nil, &ValidationError{
+				Field:   "query[" + mverr.Key + "]",
+				Message: err.Error(),
+			}
+		}
+		return nil, &ValidationError{Field: "query", Message: err.Error()}
+	}
+	canonical := []byte(canonicalStr)
 	urlStr := c.baseURL + path
 	return c.signAndDispatch(ctx, path, urlStr, canonical, cfg, func(reqCtx context.Context) (*http.Request, error) {
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, urlStr, nil)

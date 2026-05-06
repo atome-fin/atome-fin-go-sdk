@@ -47,10 +47,10 @@ func TestR10_RefundParam_RefundAmount(t *testing.T) {
 		return refund.RefundParam{
 			RequestID:            "r-1",
 			ExternalReferenceUID: "u-1",
-			AuthOrderID:          "AUTH-1",
+			CaptureRequestID:     "CAP-1",
 			RefundAmount:         v,
-			SubOrderRefunds: []refund.SubOrderRefundRequest{
-				{SubOrderID: "so-1", RefundAmount: v},
+			SubOrders: []refund.SubOrderRefundRequest{
+				{SubOrderID: "so-1", Amount: v},
 			},
 		}
 	})
@@ -58,19 +58,19 @@ func TestR10_RefundParam_RefundAmount(t *testing.T) {
 
 func TestR10_SubOrderRefundRequest_RefundAmount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[refund.SubOrderRefundRequest](t, func(v int64) refund.SubOrderRefundRequest {
-		return refund.SubOrderRefundRequest{SubOrderID: "so-1", RefundAmount: v}
+		return refund.SubOrderRefundRequest{SubOrderID: "so-1", Amount: v}
 	})
 }
 
 // ---------- R11 — fractional decode of an amount field fails loudly ----------
 
 func TestR11_RejectsFractionalRefundAmount(t *testing.T) {
-	body := []byte(`{"requestId":"r","externalReferenceUid":"u","authOrderId":"A","refundAmount":1.5,"subOrderRefunds":[]}`)
+	body := []byte(`{"requestId":"r","externalReferenceUid":"u","captureRequestId":"C","refundAmount":1.5,"subOrders":[]}`)
 	marshal.AssertRejectsFractionalAmount[refund.RefundParam](t, body)
 }
 
-func TestR11_RejectsFractionalSubOrderRefundAmount(t *testing.T) {
-	body := []byte(`{"subOrderId":"so-1","refundAmount":1.5}`)
+func TestR11_RejectsFractionalSubOrderAmount(t *testing.T) {
+	body := []byte(`{"subOrderId":"so-1","amount":1.5}`)
 	marshal.AssertRejectsFractionalAmount[refund.SubOrderRefundRequest](t, body)
 }
 
@@ -80,11 +80,11 @@ func TestR12_RefundParam_IntegerLiterals(t *testing.T) {
 	in := refund.RefundParam{
 		RequestID:            "r",
 		ExternalReferenceUID: "u",
-		AuthOrderID:          "A",
+		CaptureRequestID:     "C",
 		RefundAmount:         1500000,
-		SubOrderRefunds: []refund.SubOrderRefundRequest{
-			{SubOrderID: "so-1", RefundAmount: 1000000},
-			{SubOrderID: "so-2", RefundAmount: 500000},
+		SubOrders: []refund.SubOrderRefundRequest{
+			{SubOrderID: "so-1", Amount: 1000000},
+			{SubOrderID: "so-2", Amount: 500000},
 		},
 	}
 	marshal.AssertAmountKeysAreInteger[refund.RefundParam](t, in,
@@ -103,6 +103,6 @@ func TestR3_RefundParam_OmitsNothingExtra(t *testing.T) {
 
 func TestR4_RefundParam_RequiredEmitsAtZero(t *testing.T) {
 	marshal.AssertRequiredEmits[refund.RefundParam](t,
-		"requestId", "externalReferenceUid", "authOrderId", "refundAmount", "subOrderRefunds",
+		"requestId", "externalReferenceUid", "captureRequestId", "refundAmount", "subOrders",
 	)
 }

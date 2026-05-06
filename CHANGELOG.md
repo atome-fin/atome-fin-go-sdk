@@ -7,6 +7,183 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.2.3] — 2026-05-06
+
+Patch release closing the v0.1 → v0.2 spec-drift gaps surfaced by
+v0.2.2's `qa/specserver/` framework: 5 endpoints undergo
+breaking-but-pre-1.0 field renames or signature additions to match
+the 2026-05-06 spec snapshot. Plus one signing-canonical fix for a
+latent multi-value foot-gun.
+
+v0.2.0 — v0.2.2 partners: every change below is public-API
+breaking. Migration code samples follow each entry.
+
+### Fixed
+
+- **`/refund` field renames.** `RefundParam.AuthOrderID` →
+  `RefundParam.CaptureRequestID` (semantics also shift: was the
+  authOrderId returned by /auth, now the requestId of the prior
+  /capture call). `RefundParam.SubOrderRefunds` →
+  `RefundParam.SubOrders`. Per-line
+  `SubOrderRefundRequest.RefundAmount` → `SubOrderRefundRequest.Amount`.
+  Wire JSON keys move from `authOrderId` / `subOrderRefunds` /
+  `subOrderRefunds[].refundAmount` to `captureRequestId` /
+  `subOrders` / `subOrders[].amount`. Validators update in lockstep;
+  Q25 sum-rule preserved.
+
+  Migration:
+  ```go
+  // before (v0.2.0 — broken on the wire)
+  refund.New(c).Refund(ctx, &refund.RefundParam{
+      RequestID:            "r-1",
+      ExternalReferenceUID: "u-1",
+      AuthOrderID:          authOrderID,
+      RefundAmount:         500000,
+      SubOrderRefunds: []refund.SubOrderRefundRequest{
+          {SubOrderID: "so-1", RefundAmount: 500000},
+      },
+  })
+
+  // after (v0.2.3)
+  refund.New(c).Refund(ctx, &refund.RefundParam{
+      RequestID:            "r-1",
+      ExternalReferenceUID: "u-1",
+      CaptureRequestID:     captureRequestID, // was authOrderID
+      RefundAmount:         500000,
+      SubOrders: []refund.SubOrderRefundRequest{
+          {SubOrderID: "so-1", Amount: 500000}, // was RefundAmount
+      },
+  })
+  ```
+
+- **`/bills` field renames.** `BillsParams.StartDate` /
+  `BillsParams.EndDate` → `BillsParams.StartMonth` /
+  `BillsParams.EndMonth`. Wire JSON / query keys: `startDate` /
+  `endDate` → `startMonth` / `endMonth`. Value format also shifts
+  from `yyyy-MM-dd` to `yyyyMM` (per spec).
+
+  Migration:
+  ```go
+  // before
+  bill.New(c).Bills(ctx, &bill.BillsParams{
+      ExternalReferenceUID: "u-1",
+      StartDate:            "2026-04-01",
+      EndDate:              "2026-05-31",
+  })
+
+  // after (v0.2.3)
+  bill.New(c).Bills(ctx, &bill.BillsParams{
+      ExternalReferenceUID: "u-1",
+      StartMonth:           "202604",
+      EndMonth:             "202605",
+  })
+  ```
+
+- **`/billDetail` signature change — adds required
+  `externalReferenceUid`.** `Service.BillDetail(ctx, billID)` →
+  `Service.BillDetail(ctx, billID, externalReferenceUID)`. Both
+  query params are spec-required.
+
+  Migration:
+  ```go
+  // before
+  bill.New(c).BillDetail(ctx, "202605")
+
+  // after (v0.2.3)
+  bill.New(c).BillDetail(ctx, "202605", externalReferenceUID)
+  ```
+
+- **`/transactions` field rename + value-format shift.**
+  `TransactionsParams.TradeType` → `TransactionsParams.TransactionType`
+  with the underlying enum type `TradeType` renamed to
+  `TransactionType` and the constant set replaced (was AUTH /
+  CAPTURE / VOID / REFUND; now PAYMENT / REFUND / REPAYMENT per
+  spec). Wire query keys: `tradeType` → `transactionType`. The
+  spec also declares `startDate` / `endDate` in `yyyyMMdd` format
+  (no dashes). Response shape's `Transaction.TradeType` field
+  also renamed to `Transaction.TransactionType`.
+
+  Migration:
+  ```go
+  // before
+  tx.New(c).Transactions(ctx, &transaction.TransactionsParams{
+      ExternalReferenceUID: "u-1",
+      TradeType:            transaction.TradeTypeAuth,
+      StartDate:            "2026-04-01",
+      EndDate:              "2026-05-01",
+  })
+
+  // after (v0.2.3)
+  tx.New(c).Transactions(ctx, &transaction.TransactionsParams{
+      ExternalReferenceUID: "u-1",
+      TransactionType:      transaction.TransactionTypePayment,
+      StartDate:            "20260401",
+      EndDate:              "20260501",
+  })
+  ```
+
+- **`/transactionDetail` signature change — replaces `tradeID`
+  with required `requestID` + `externalReferenceUID` +
+  `transactionType`.** `Service.TransactionDetail(ctx, tradeID)` →
+  `Service.TransactionDetail(ctx, requestID, externalReferenceUID, transactionType)`.
+  The 2026-05-06 spec eliminates `tradeId` entirely; the lookup is
+  now keyed by the original payment / refund / repayment requestId
+  plus its discriminator.
+
+  Migration:
+  ```go
+  // before
+  tx.New(c).TransactionDetail(ctx, tradeID)
+
+  // after (v0.2.3)
+  tx.New(c).TransactionDetail(ctx, originatingRequestID, externalReferenceUID,
+      transaction.TransactionTypePayment) // or Refund / Repayment
+  ```
+
+- **`sign.CanonicalQuery` returns `(string, error)`; multi-value
+  queries hard-fail with `*sign.MultiValueQueryError`.** The
+  upstream gateway only retains the first value for repeated keys;
+  emitting all values silently produced an asymmetric canonical
+  that failed verification with a generic `INVALID_SIGNATURE`. The
+  v0.2.3 contract makes the rule explicit: callers must
+  pre-flatten multi-value queries before signing. `Client.DoSignedGET`
+  surfaces the failure as `*atomefin.ValidationError`. Architect's
+  recommendation in
+  `docs/internal/SIGN_VERIFY_ENCRYPT_REVIEW.md`; only in-repo
+  caller of `sign.CanonicalQuery` is `Client.DoSignedGET`, updated
+  atomically.
+
+  Migration (only affects partners that called `sign.CanonicalQuery`
+  directly):
+  ```go
+  // before
+  canonical := sign.CanonicalQuery(values)
+
+  // after (v0.2.3)
+  canonical, err := sign.CanonicalQuery(values)
+  if err != nil {
+      // multi-value input — pre-flatten before signing
+  }
+  ```
+
+### Changed — `qa/specserver/` `SkipRequired:` cleanup
+
+Each closed gap drops the matching `Case.SkipRequired` entry from
+the per-package `*_spec_test.go`:
+
+- `atomefin/refund/spec_test.go` — removed 4 entries
+  (`captureRequestId`, `subOrders`, `subOrders[].subOrderId`,
+  `subOrders[].amount`).
+- `atomefin/bill/spec_test.go` — removed 3 entries (`startMonth`,
+  `endMonth`, `externalReferenceUid` for /billDetail).
+- `atomefin/transaction/spec_test.go` — removed 4 entries
+  (`transactionType` × 2, `requestId`, `externalReferenceUid`).
+
+The remaining `SkipRequired:` entries are partner-pending fields
+on `/payment-precheck` (5) and `/payment-plan` (11). Tracked
+toward a future v0.2.x or v0.3 closure once the partner agreement
+solidifies the commerce-domain SubOrder shape.
+
 ## [0.2.2] — 2026-05-06
 
 Patch release adding the spec-driven test framework (`qa/specserver/`)
@@ -913,7 +1090,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.3
 [0.2.2]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.2
 [0.2.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.1
 [0.2.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.0

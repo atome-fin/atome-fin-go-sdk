@@ -3,7 +3,7 @@
   "message": "ok",
   "data": {
     "tradeId": "TRD-2026-0508-D",
-    "tradeType": "AUTH",
+    "transactionType": "PAYMENT",
     "authOrderId": "AUTH-2026-0508-0009",
     "externalReferenceUid": "user-42",
     "currency": "IDR",

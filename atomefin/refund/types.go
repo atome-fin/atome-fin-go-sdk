@@ -16,27 +16,41 @@ type RefundParam struct {
 	// RequestID is partner-generated; max 64 chars. Idempotency key.
 	RequestID string `json:"requestId"` // max 64
 	// ExternalReferenceUID is the partner's user identifier; matches
-	// the /auth that originated AuthOrderID.
+	// the /capture that originated CaptureRequestID.
 	ExternalReferenceUID string `json:"externalReferenceUid"`
-	// AuthOrderID is the value returned by the prior /auth.
-	AuthOrderID string `json:"authOrderId"`
+	// CaptureRequestID is the requestId of the original POST /capture
+	// call that created the loan being refunded. Per spec: refund is
+	// always issued against a captured order.
+	//
+	// Renamed v0.2.3 from `AuthOrderID` (`json:"authOrderId"`) to
+	// match the 2026-05-06 spec snapshot's RefundParam schema. v0.2.0
+	// / v0.2.1 / v0.2.2 callers must update to the new name; the
+	// underlying value semantics also shift from "the authOrderId
+	// returned by /auth" to "the requestId sent on the prior
+	// /capture" — partner-side capture-id bookkeeping is required.
+	CaptureRequestID string `json:"captureRequestId"`
 	// RefundAmount is the total refund value in minor units.
 	// Q25 (partner-pending): the SDK's validator currently enforces
-	// RefundAmount == Σ SubOrderRefunds[].RefundAmount. Relax once
-	// the spec clarifies partial-refund semantics — see doc.go.
+	// RefundAmount == Σ SubOrders[].Amount. Relax once the spec
+	// clarifies partial-refund semantics — see doc.go.
 	RefundAmount atomefin.Amount `json:"refundAmount"`
-	// SubOrderRefunds enumerates which sub-order lines to refund and
-	// how much of each. Required, non-empty.
-	SubOrderRefunds []SubOrderRefundRequest `json:"subOrderRefunds"`
+	// SubOrders enumerates which sub-order lines to refund and how
+	// much of each. Required, non-empty. Renamed v0.2.3 from
+	// `SubOrderRefunds` to match the 2026-05-06 spec snapshot.
+	SubOrders []SubOrderRefundRequest `json:"subOrders"`
 }
 
-// SubOrderRefundRequest is one line in RefundParam.SubOrderRefunds.
+// SubOrderRefundRequest is one line in RefundParam.SubOrders.
+//
+// Renamed v0.2.3: per-line `RefundAmount` (`json:"refundAmount"`) →
+// `Amount` (`json:"amount"`) to match the 2026-05-06 spec snapshot's
+// SubOrderRefundRequest component.
 type SubOrderRefundRequest struct {
 	// SubOrderID identifies the line — must match a SubOrderID that
-	// was on the original /auth.
+	// was on the original /capture.
 	SubOrderID string `json:"subOrderId"`
-	// RefundAmount is the per-line refund value in minor units.
-	RefundAmount atomefin.Amount `json:"refundAmount"`
+	// Amount is the per-line refund value in minor units.
+	Amount atomefin.Amount `json:"amount"`
 }
 
 // RefundResponse is the POST /refund (and /query-refund) outer

@@ -114,14 +114,20 @@ type BillsParams struct {
 	// PageSize is the maximum rows per page. Zero defaults to 20.
 	PageSize int
 
-	// ExternalReferenceUID filters to a single user.
+	// ExternalReferenceUID filters to a single user. REQUIRED on
+	// the wire per the 2026-05-06 spec snapshot.
 	ExternalReferenceUID string
 	// BillID filters to a specific yyyyMM bill.
 	BillID string
-	// StartDate / EndDate filter the issue window (yyyy-MM-dd, TZ
-	// open per DESIGN §13/Q11).
-	StartDate string
-	EndDate   string
+	// StartMonth / EndMonth filter the issue window (yyyyMM strings
+	// per the 2026-05-06 spec snapshot). REQUIRED on the wire.
+	//
+	// Renamed v0.2.3 from `StartDate` / `EndDate` (yyyy-MM-dd) to
+	// match the spec's `startMonth` / `endMonth` query parameters.
+	// v0.2.0 — v0.2.2 callers must update both the Go field name and
+	// the value format (yyyyMM, not yyyy-MM-dd).
+	StartMonth string
+	EndMonth   string
 }
 
 // BillsUnpaidParams are the query params for GET /billUnpaid. The

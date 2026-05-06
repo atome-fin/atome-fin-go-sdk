@@ -128,7 +128,8 @@ func TestService_Bills_MultiParam_R13_AtScale(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotCanonical := []byte(sign.CanonicalQuery(r.URL.Query()))
+		canonicalStr, _ := sign.CanonicalQuery(r.URL.Query())
+		gotCanonical := []byte(canonicalStr)
 		if vErr := verifier.Verify(r.Context(), gotCanonical, r.Header.Get("Authorization")); vErr != nil {
 			t.Errorf("R13 multi-param: verify failed.\n"+
 				"raw wire query:    %s\nrebuilt canonical: %s\nerr: %v",
@@ -161,16 +162,16 @@ func TestService_Bills_MultiParam_R13_AtScale(t *testing.T) {
 	_ = signer
 
 	// 6-param query: pageNumber, pageSize, externalReferenceUid,
-	// billId, startDate, endDate. Alphabetical sort produces
-	// billId < endDate < externalReferenceUid < pageNumber <
-	// pageSize < startDate — exercises full sort behaviour.
+	// billId, startMonth, endMonth. Alphabetical sort produces
+	// billId < endMonth < externalReferenceUid < pageNumber <
+	// pageSize < startMonth — exercises full sort behaviour.
 	if _, err := bill.New(c).Bills(context.Background(), &bill.BillsParams{
 		PageNumber:           2,
 		PageSize:             50,
 		ExternalReferenceUID: "user-42",
 		BillID:               "202605",
-		StartDate:            "2026-04-01",
-		EndDate:              "2026-05-31",
+		StartMonth:           "202604",
+		EndMonth:             "202605",
 	}); err != nil {
 		t.Fatalf("Bills: %v", err)
 	}
@@ -197,7 +198,7 @@ func TestService_BillDetail_Success(t *testing.T) {
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	resp, err := bill.New(c).BillDetail(context.Background(), "202605")
+	resp, err := bill.New(c).BillDetail(context.Background(), "202605", "u-1")
 	if err != nil {
 		t.Fatalf("BillDetail: %v", err)
 	}
@@ -213,8 +214,9 @@ func TestService_BillDetail_Success(t *testing.T) {
 	if gotPath != "/billDetail" {
 		t.Errorf("path = %q", gotPath)
 	}
-	if gotQuery != "billId=202605" {
-		t.Errorf("RawQuery = %q, want billId=202605", gotQuery)
+	// Alphabetical canonical: billId before externalReferenceUid.
+	if gotQuery != "billId=202605&externalReferenceUid=u-1" {
+		t.Errorf("RawQuery = %q, want billId=202605&externalReferenceUid=u-1", gotQuery)
 	}
 }
 
@@ -222,8 +224,16 @@ func TestService_BillDetail_RejectsEmptyBillID(t *testing.T) {
 	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("server must NOT be reached on empty billID")
 	})))
-	_, err := bill.New(c).BillDetail(context.Background(), "")
+	_, err := bill.New(c).BillDetail(context.Background(), "", "u-1")
 	mustValidationError(t, err, "billId")
+}
+
+func TestService_BillDetail_RejectsEmptyExternalReferenceUID(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server must NOT be reached on empty externalReferenceUID")
+	})))
+	_, err := bill.New(c).BillDetail(context.Background(), "202605", "")
+	mustValidationError(t, err, "externalReferenceUid")
 }
 
 // ---------- BillsUnpaid ----------
@@ -353,7 +363,7 @@ func TestNilService_AllMethodsReturnError(t *testing.T) {
 	if _, err := svc.Bills(context.Background(), nil); err == nil {
 		t.Error("Bills on nil receiver must error")
 	}
-	if _, err := svc.BillDetail(context.Background(), "202605"); err == nil {
+	if _, err := svc.BillDetail(context.Background(), "202605", "u-1"); err == nil {
 		t.Error("BillDetail on nil receiver must error")
 	}
 	if _, err := svc.BillsUnpaid(context.Background(), nil); err == nil {
