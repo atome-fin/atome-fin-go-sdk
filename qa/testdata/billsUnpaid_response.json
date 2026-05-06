@@ -1,0 +1,22 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "pageNumber": 1,
+    "pageSize": 20,
+    "total": 1,
+    "bills": [
+      {
+        "billId": "202603",
+        "billDate": "2026-03-15",
+        "dueDate": "2026-04-15",
+        "externalReferenceUid": "user-42",
+        "currency": "IDR",
+        "totalAmount": 600000,
+        "paidAmount": 0,
+        "unpaidAmount": 600000,
+        "overdueStatus": "OVERDUE"
+      }
+    ]
+  }
+}

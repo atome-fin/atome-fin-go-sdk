@@ -1,0 +1,42 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "billId": "202605",
+    "billDate": "2026-05-15",
+    "dueDate": "2026-06-15",
+    "externalReferenceUid": "user-42",
+    "currency": "IDR",
+    "totalAmount": 800000,
+    "paidAmount": 0,
+    "unpaidAmount": 800000,
+    "overdueStatus": "ON_TIME",
+    "orders": [
+      {
+        "authOrderId": "AUTH-2026-0501-0001",
+        "orderId": "ORD-2026-0501-A",
+        "amount": 500000,
+        "status": "SUCCESS"
+      },
+      {
+        "authOrderId": "AUTH-2026-0512-0007",
+        "orderId": "ORD-2026-0512-B",
+        "amount": 300000,
+        "status": "SUCCESS"
+      }
+    ],
+    "discounts": {
+      "totalDiscount": 50000,
+      "items": [
+        {
+          "discountId": "PROMO-MAY-1",
+          "amount": 50000,
+          "detail": {
+            "description": "May campaign coupon",
+            "sourceCode": "MAY2026"
+          }
+        }
+      ]
+    }
+  }
+}

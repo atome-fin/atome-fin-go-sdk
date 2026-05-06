@@ -11,6 +11,89 @@ post-1.0. Pre-1.0 minor versions may break.
 
 v0.2 work-in-progress; chunks accumulate here until tag.
 
+### Added — bill sub-package (v0.2 chunk #3)
+
+- **`atomefin/bill`** — new GET-only sub-package mirroring the
+  payment / refund Service shape. Constructor pattern: `bill.New(c)`
+  (no `c.Bill` accessor — preserves tree-shake).
+  - `Service.Bills(ctx, *BillsParams) (*BillsResponse, error)` —
+    GET `/bills`, paginated. Optional filters via `BillsParams`:
+    `ExternalReferenceUID`, `BillID`, `StartDate`, `EndDate`. Pass
+    nil for the default first page (`PageNumber=1`, `PageSize=20`).
+  - `Service.BillDetail(ctx, billID) (*BillDetailResponse, error)` —
+    GET `/billDetail?billId=<yyyyMM>`. Validator rejects empty.
+  - `Service.BillsUnpaid(ctx, *BillsUnpaidParams) (*BillsResponse, error)` —
+    GET `/billUnpaid`, paginated. Server pre-filters to unpaid
+    rows.
+  - `Service.BillsAll(ctx, *BillsParams) ([]Bill, error)` —
+    convenience auto-pagination iterator that walks every page
+    until short-page or `Total` reached. ctx-cancellable between
+    pages.
+  - Types: `Bill`, `BillDetail` (embeds `Bill` plus `Orders` /
+    `Discounts`), `BillOrder`, `BillDiscounts`, `Discount`,
+    `DiscountDetail`. Plus `OverdueStatus` enum
+    (`ON_TIME` / `GRACE_PERIOD` / `OVERDUE`) with `IsValid` +
+    `String` helpers.
+  - `BillsResponse.IsSuccess() bool` / `BillDetailResponse.IsSuccess() bool`
+    nil-safe convenience helpers.
+  - All money fields are `int64` minor units; `Currency` uses the
+    named-type from v0.1.1.
+  - Default pagination constants: `bill.DefaultPageNumber = 1`,
+    `bill.DefaultPageSize = 20`. Validators cap `PageSize <= 1000`
+    as a sanity guard (server-side cap may be stricter).
+- Pure GETs reuse `Client.DoSignedGET` from chunk #1; no signed-body
+  marshalling, no callback handler.
+
+### Tests
+
+- `atomefin/bill/service_test.go` (15 tests):
+  `TestService_Bills_Success` (asserts `Method=GET`, `Path=/bills`,
+  RawQuery sorted alphabetically),
+  **`TestService_Bills_MultiParam_R13_AtScale`** (architect's stress
+  case — 6-param query, server reconstructs canonical from
+  `r.URL.Query()`, runs verifier, also pins
+  `r.URL.RawQuery == canonical` byte-equal),
+  `TestService_BillDetail_Success`,
+  `TestService_BillDetail_RejectsEmptyBillID`,
+  `TestService_BillsUnpaid_Success`,
+  `TestService_BillsAll_AutoPaginates` (3 pages × 2 rows + 1 short
+  page → terminates correctly),
+  `TestService_BillsAll_TerminatesOnEmpty`,
+  `TestService_Bills_4xxBecomesAPIError`,
+  `TestNew_NilClient_ReturnsNil`,
+  `TestNilService_AllMethodsReturnError` (no panic on every public
+  method),
+  `TestBills_Validate` (3 rejection cases),
+  `TestBillsUnpaid_Validate` (3 rejection cases),
+  `TestOverdueStatus_IsValid`,
+  `TestOverdueStatus_StringIsWireLiteral`,
+  `TestBills_NilParamsUsesDefaults`.
+- `atomefin/bill/marshal_audit_test.go` (12 tests):
+  `GoldenRoundTrip` × 5 fixtures (bills full / empty,
+  billDetail full / no-discounts, billsUnpaid); R10 amount corpus
+  on `Bill.TotalAmount`, `BillOrder.Amount`, `Discount.Amount`;
+  R11 fractional rejection on `Bill.TotalAmount` and
+  `Discount.Amount`; R12 integer-literal-only on `Bill` and
+  `BillDiscounts`.
+
+### Fixtures
+
+- `qa/testdata/bills_response.json` — 2-row paginated response.
+- `qa/testdata/bills_response_empty.json` — empty page (preserves
+  `bills: []` shape — `BillsData.Bills` is bare `json:"bills"` so
+  empty pages don't drop to `null`).
+- `qa/testdata/billDetail_response.json` — full single-bill incl.
+  orders + discount summary.
+- `qa/testdata/billDetail_response_no_discounts.json` — variant
+  without the optional discounts block.
+- `qa/testdata/billsUnpaid_response.json` — overdue-bill row.
+
+### Documentation
+
+- `README.md` — three new endpoint table rows for `/bills` /
+  `/billDetail` / `/billUnpaid`; package map gains an
+  `atomefin/bill` row.
+
 ### Added — refund sub-package (v0.2 chunk #2)
 
 - **`atomefin/refund`** — new sub-package mirroring `atomefin/payment`.

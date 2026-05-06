@@ -73,6 +73,7 @@ Two runnable examples ship in [`examples/`](examples/):
 | `atomefin/transport` | `RetryPolicy`, `Logger`, `Observer`, `NewSlogLogger`, User-Agent assembly. |
 | `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` / `QueryAuth` / `QueryCapture` / `QueryVoidAuth` + `*PollUntilTerminal` helpers, all typed request/response structs. |
 | `atomefin/refund` | `Service` with `Refund` / `QueryRefund` / `RefundPollUntilTerminal`; types `RefundParam`, `RefundResult`, `SubOrderRefundRequest`, `SubOrderRefundInfo`. |
+| `atomefin/bill` | `Service` with `Bills` / `BillDetail` / `BillsUnpaid` + `BillsAll` auto-pagination; types `Bill`, `BillDetail`, `BillOrder`, `BillDiscounts`, `Discount`, `DiscountDetail` + `OverdueStatus` enum. |
 | `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler` / `RefundHandler`, `AckResponse`. |
 | `qa/marshal` | Generic round-trip test harness wired against `qa/testdata/` fixtures. |
 
@@ -96,6 +97,9 @@ diff against when the spec moves.
 | `POST` | `/refund` | partner → atome-fin | `refund.New(c).Refund(ctx, req)` | `*refund.RefundParam` | `*refund.RefundResponse` | refund a prior `/auth` (full or per-sub-order); validator enforces `refundAmount == Σ subOrderRefunds[].refundAmount` (Q25 conservative) |
 | `GET` | `/query-refund` | partner → atome-fin | `refund.New(c).QueryRefund(ctx, requestID)` | `requestId` query | `*refund.RefundResponse` | polling alternative to PROCESSING webhooks for refunds |
 | `POST` | `<refundNotifyUrl>` | atome-fin → partner | `callback.RefundHandler(v, fn)` | `*callback.RefundEvent` (= `refund.RefundResponse`) | `callback.AckResponse` | terminal-only; same idempotency contract as auth/capture-callback |
+| `GET` | `/bills` | partner → atome-fin | `bill.New(c).Bills(ctx, *BillsParams)` | `pageNumber`/`pageSize`/optional filters | `*bill.BillsResponse` | paginated bill list; `BillsAll` walks every page |
+| `GET` | `/billDetail` | partner → atome-fin | `bill.New(c).BillDetail(ctx, billID)` | `billId` query (yyyyMM) | `*bill.BillDetailResponse` | full single-bill view including `orders` + `discounts` |
+| `GET` | `/billUnpaid` | partner → atome-fin | `bill.New(c).BillsUnpaid(ctx, *BillsUnpaidParams)` | `pageNumber`/`pageSize` + optional UID filter | `*bill.BillsResponse` | unpaid filter view |
 
 For the async `PROCESSING` path on outbound calls (server returns the
 typed envelope without a terminal `data.status`), use

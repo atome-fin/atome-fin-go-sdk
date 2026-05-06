@@ -1,0 +1,23 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "billId": "202604",
+    "billDate": "2026-04-15",
+    "dueDate": "2026-05-15",
+    "externalReferenceUid": "user-42",
+    "currency": "IDR",
+    "totalAmount": 1500000,
+    "paidAmount": 1500000,
+    "unpaidAmount": 0,
+    "overdueStatus": "ON_TIME",
+    "orders": [
+      {
+        "authOrderId": "AUTH-2026-0401-0001",
+        "orderId": "ORD-2026-0401-A",
+        "amount": 1500000,
+        "status": "SUCCESS"
+      }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "pageNumber": 1,
+    "pageSize": 20,
+    "total": 2,
+    "bills": [
+      {
+        "billId": "202604",
+        "billDate": "2026-04-15",
+        "dueDate": "2026-05-15",
+        "externalReferenceUid": "user-42",
+        "currency": "IDR",
+        "totalAmount": 1500000,
+        "paidAmount": 1500000,
+        "unpaidAmount": 0,
+        "overdueStatus": "ON_TIME"
+      },
+      {
+        "billId": "202605",
+        "billDate": "2026-05-15",
+        "dueDate": "2026-06-15",
+        "externalReferenceUid": "user-42",
+        "currency": "IDR",
+        "totalAmount": 800000,
+        "paidAmount": 0,
+        "unpaidAmount": 800000,
+        "overdueStatus": "ON_TIME"
+      }
+    ]
+  }
+}
