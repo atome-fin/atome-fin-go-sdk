@@ -1,0 +1,13 @@
+{
+  "code": "SUCCESS",
+  "message": "refund terminal",
+  "data": {
+    "requestId": "01HRFD1234567890ABCDEFGHJK",
+    "externalReferenceUid": "user-42",
+    "authOrderId": "AUTH-2026-0501-0001",
+    "refundOrderId": "RFD-2026-0507-A",
+    "currency": "IDR",
+    "refundAmount": 1500000,
+    "status": "SUCCESS"
+  }
+}

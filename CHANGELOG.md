@@ -11,7 +11,95 @@ post-1.0. Pre-1.0 minor versions may break.
 
 v0.2 work-in-progress; chunks accumulate here until tag.
 
-### Added
+### Added — refund sub-package (v0.2 chunk #2)
+
+- **`atomefin/refund`** — new sub-package mirroring `atomefin/payment`.
+  Constructor pattern: `refund.New(c)` (no `c.Refund` accessor — keeps
+  the umbrella tree-shake-friendly for partners that only need
+  payment).
+  - `Service.Refund(ctx, req *RefundParam) (*RefundResponse, error)` —
+    POST `/refund` (signed body via `atomefin.MarshalSigning`,
+    HTML-escape OFF). Auto-mints `RequestID` via `Client.NewRequestID()`
+    when empty; mirrors `payment.Auth`'s shape.
+  - `Service.QueryRefund(ctx, requestID string) (*RefundResponse, error)` —
+    GET `/query-refund?requestId=<id>` via the new
+    `Client.DoSignedGET` (chunk #1). Same envelope as `Refund` —
+    polling alternative to the PROCESSING webhook.
+  - `Service.RefundPollUntilTerminal(ctx, req, opts)` — reuses
+    `payment.PollUntilTerminal` so backoff semantics are identical
+    across Service families.
+  - Types: `RefundParam`, `RefundResponse` (wraps `RefundResult`),
+    `SubOrderRefundRequest`, `SubOrderRefundInfo`. `RefundResult.AccountChanges`
+    re-uses `payment.AccountChanges` (no duplication; refund imports
+    payment, no cycle).
+  - `IsTerminal` / `IsProcessing` helpers on `RefundResponse`,
+    nil-safe; mirrors the payment response helpers.
+  - `(s *Service).Client()` accessor; nil-safe `checkConfigured`
+    guard at the top of every public method (mirrors payment's
+    nil-Service safety from v0.1.1).
+- **`atomefin/callback/refund_handler.go`** — new `RefundHandler`
+  reusing the generic `handle[T]` core. Type alias
+  `RefundEvent = refund.RefundResponse` so partners don't learn a
+  parallel callback schema.
+
+### Q25 — partial-refund semantics (partner-pending, conservative)
+
+- The 2026-05-06 spec snapshot is silent on whether `refundAmount`
+  may be less than the prior `authAmount` (or less than the sum of
+  the sub-order refund lines). Validator enforces the strict-equal
+  rule
+  `refundAmount == Σ subOrderRefunds[].refundAmount` mirroring
+  capture's sum-rule. Documented in `atomefin/refund/doc.go` and in
+  `atomefin/refund/refund.go`'s `validateRefund`. Partners that
+  need partial refunds should construct `subOrderRefunds` covering
+  only the lines they want refunded and set `refundAmount` =
+  Σ of those lines. The validator can relax in a minor release once
+  the spec clarifies.
+
+### Documentation
+
+- `README.md` — three new rows in the Implemented endpoints table
+  for `/refund`, `/query-refund`, `<refundNotifyUrl>`. Package map
+  gains an `atomefin/refund` entry; the existing `atomefin/payment`
+  row updated to list the v0.2 `Query*` additions; the
+  `atomefin/callback` row gains `RefundHandler`.
+
+### Tests
+
+- `atomefin/refund/service_test.go` — happy paths
+  (`TestService_Refund_Success` asserts `Method=POST`, path=`/refund`,
+  body contains the requestId), auto-mint, 4xx → `*APIError`,
+  QueryRefund happy path + 4xx, `RefundPollUntilTerminal` PROCESSING
+  → SUCCESS, `New(nil) == nil`, full nil-Service safety on every
+  public method, table-driven validation with 9 rejection cases
+  (nil request, long requestId, missing externalReferenceUid,
+  missing authOrderId, zero refundAmount, empty subOrderRefunds,
+  empty subOrderId, zero sub-refundAmount, sum-mismatch Q25),
+  QueryRefund empty/long requestId rejection.
+- `atomefin/refund/marshal_audit_test.go` — `GoldenRoundTrip` per
+  fixture × matching type (RefundParam, RefundResponse success /
+  processing / failed, query-refund response, callback body); R10
+  amount corpus on `RefundParam.RefundAmount` and
+  `SubOrderRefundRequest.RefundAmount`; R11 fractional-amount
+  rejection on both; R12 integer-literal-only assertion;
+  R3 omitempty / R4 required-emit on `RefundParam`.
+- `atomefin/callback/refund_handler_test.go` — happy path
+  (Content-Type, X-Content-Type-Options=nosniff, ack envelope
+  shape), tampered-body 401, multi-cert end-to-end (signed with old
+  key, verifier holds both), replay invokes user fn twice (partner-
+  owned dedupe contract), 500 on user error, nil-verifier / nil-
+  userFn → 500, fixture decode.
+
+### Fixtures
+
+- `qa/testdata/refund_request.json`
+- `qa/testdata/refund_response_success.json`
+- `qa/testdata/refund_response_processing.json`
+- `qa/testdata/refund_response_failed.json`
+- `qa/testdata/query_refund_response_success.json`
+- `qa/testdata/callback_refund_terminal_success.json`
+
+### Added — DoSignedGET + Query* (v0.2 chunk #1)
 
 - **`Client.DoSignedGET(ctx, path, query, opts...)`** —
   GET-equivalent of `DoSigned`. Signs `sign.CanonicalQuery(query)` and

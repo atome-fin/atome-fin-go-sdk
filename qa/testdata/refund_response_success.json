@@ -1,0 +1,30 @@
+{
+  "code": "SUCCESS",
+  "message": "refunded",
+  "data": {
+    "requestId": "01HRFD1234567890ABCDEFGHJK",
+    "externalReferenceUid": "user-42",
+    "authOrderId": "AUTH-2026-0501-0001",
+    "refundOrderId": "RFD-2026-0507-A",
+    "currency": "IDR",
+    "refundAmount": 1500000,
+    "status": "SUCCESS",
+    "subOrderRefundInfos": [
+      {"subOrderId": "so-1", "refundAmount": 1000000},
+      {"subOrderId": "so-2", "refundAmount": 500000}
+    ],
+    "accountChanges": {
+      "version": 1746662400000,
+      "externalReferenceUid": "user-42",
+      "previousStatus": "NORMAL",
+      "currentStatus": "NORMAL",
+      "totalCreditChange": 0,
+      "usedCreditChange": -1500000,
+      "frozenCreditChange": 0,
+      "availableCreditChange": 1500000,
+      "overpaidAmountChange": 0,
+      "lateFeeAmountChange": 0,
+      "interestAmountChange": 0
+    }
+  }
+}

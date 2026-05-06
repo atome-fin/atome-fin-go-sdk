@@ -71,8 +71,9 @@ Two runnable examples ship in [`examples/`](examples/):
 | `atomefin` | `Client`, functional `Option`s, error types, retry policy plumbing, `MarshalSigning`. |
 | `atomefin/sign` | RSA-2048 PKCS#1-v1.5 / PSS signer + verifier; PEM loaders; canonical-input helpers. |
 | `atomefin/transport` | `RetryPolicy`, `Logger`, `Observer`, `NewSlogLogger`, User-Agent assembly. |
-| `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` + `*PollUntilTerminal` helpers, all typed request/response structs. |
-| `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler`, `AckResponse`. |
+| `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` / `QueryAuth` / `QueryCapture` / `QueryVoidAuth` + `*PollUntilTerminal` helpers, all typed request/response structs. |
+| `atomefin/refund` | `Service` with `Refund` / `QueryRefund` / `RefundPollUntilTerminal`; types `RefundParam`, `RefundResult`, `SubOrderRefundRequest`, `SubOrderRefundInfo`. |
+| `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler` / `RefundHandler`, `AckResponse`. |
 | `qa/marshal` | Generic round-trip test harness wired against `qa/testdata/` fixtures. |
 
 ## Implemented endpoints
@@ -92,6 +93,9 @@ diff against when the spec moves.
 | `GET` | `/query-auth` | partner → atome-fin | `payment.New(c).QueryAuth(ctx, requestID)` | `requestId` query | `*payment.AuthResponse` | polling alternative to PROCESSING webhooks; sorted-canonical query per spec |
 | `GET` | `/query-capture` | partner → atome-fin | `payment.New(c).QueryCapture(ctx, requestID)` | `requestId` query | `*payment.CaptureResponse` | polling alternative to PROCESSING webhooks; sorted-canonical query per spec |
 | `GET` | `/query-voidAuth` | partner → atome-fin | `payment.New(c).QueryVoidAuth(ctx, requestID)` | `requestId` query | `*payment.VoidAuthResponse` | polling alternative to PROCESSING webhooks; sorted-canonical query per spec |
+| `POST` | `/refund` | partner → atome-fin | `refund.New(c).Refund(ctx, req)` | `*refund.RefundParam` | `*refund.RefundResponse` | refund a prior `/auth` (full or per-sub-order); validator enforces `refundAmount == Σ subOrderRefunds[].refundAmount` (Q25 conservative) |
+| `GET` | `/query-refund` | partner → atome-fin | `refund.New(c).QueryRefund(ctx, requestID)` | `requestId` query | `*refund.RefundResponse` | polling alternative to PROCESSING webhooks for refunds |
+| `POST` | `<refundNotifyUrl>` | atome-fin → partner | `callback.RefundHandler(v, fn)` | `*callback.RefundEvent` (= `refund.RefundResponse`) | `callback.AckResponse` | terminal-only; same idempotency contract as auth/capture-callback |
 
 For the async `PROCESSING` path on outbound calls (server returns the
 typed envelope without a terminal `data.status`), use
