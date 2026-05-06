@@ -200,22 +200,18 @@ to verify R10/R11/R12/R13 invariants across all new types.
   `RepaymentHandler` with type alias
   `RepaymentEvent = repayment.RepaymentResponse`. Terminal-only.
 
-### Design note — two `AccountChanges` types
+### Credit-change vectors
 
-The spec ships TWO different shapes for the credit-change vector:
-- The 11-field schema used by `auth` / `capture` / `voidAuth` /
-  `refund` responses and account-change callbacks — modelled by
-  **`payment.AccountChanges`**.
-- A *different* per-spec field set on repayment responses, which
-  notably omits `frozenCreditChange` — modelled by
-  **`repayment.CommerceAccountChanges`**.
+The spec defines two credit-change wire shapes, modelled as
+separate Go types:
+- **`payment.AccountChanges`** is the canonical credit-change vector
+  for auth / capture / voidAuth / refund responses and the
+  account-change callback.
+- **`repayment.CommerceAccountChanges`** is the canonical credit-
+  change vector for commerce-domain responses (repayment).
 
-Consolidating them into a shared type would emit a phantom-zero
-`frozenCreditChange` on every repayment row (or, with `,omitempty`,
-silently drop legitimate zero values on the other types). Two
-named types is the spec-faithful shape; this is documented in
-`atomefin/repayment/types.go` and surfaced in the README package
-map. **Future coders: do not consolidate.**
+Each carries the field set defined by the spec for its respective
+endpoint family.
 
 ### Tests
 

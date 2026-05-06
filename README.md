@@ -73,8 +73,8 @@ Two runnable examples ship in [`examples/`](examples/):
 | `atomefin/transport` | `RetryPolicy`, `Logger`, `Observer`, `NewSlogLogger`, User-Agent assembly. |
 | `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` + `QueryAuth` / `QueryCapture` / `QueryVoidAuth` + `*PollUntilTerminal` + `PaymentPreCheck` / `PaymentPlan` (v0.2 pre-checkout); typed request/response structs. |
 | `atomefin/refund` | `Service` with `Refund` / `QueryRefund` / `RefundPollUntilTerminal`; types `RefundParam`, `RefundResult`, `SubOrderRefundRequest`, `SubOrderRefundInfo`. |
-| `atomefin/repayment` | `Service` with `Repayment` / `QueryRepayment` / `RepaymentPollUntilTerminal`; types `RepaymentParam`, `RepaymentResult`, **`CommerceAccountChanges`** (intentionally distinct from `payment.AccountChanges` — see "Two AccountChanges types" below). |
-| `atomefin/credit` | `Service` for the credit lifecycle: `SubmitInformation` (KYC start), `SubmitApplication`, `QueryResult` / `QueryInformationResult`, `BalanceHistory`, `ModifyApplicationInfo`, `CloseAccount`. Account-ops are co-housed with credit by domain cohesion. |
+| `atomefin/repayment` | `Service` with `Repayment` / `QueryRepayment` / `RepaymentPollUntilTerminal`; types `RepaymentParam`, `RepaymentResult`, `CommerceAccountChanges`. |
+| `atomefin/credit` | `Service` for the credit lifecycle plus account-ops: `SubmitInformation` (KYC start), `SubmitApplication`, `QueryResult` / `QueryInformationResult`, `BalanceHistory`, `ModifyApplicationInfo`, `CloseAccount`. |
 | `atomefin/bill` | `Service` with `Bills` / `BillDetail` / `BillsUnpaid` + `BillsAll` auto-pagination; types `Bill`, `BillDetail`, `BillOrder`, `BillDiscounts`, `Discount`, `DiscountDetail` + `OverdueStatus` enum. |
 | `atomefin/transaction` | `Service` with `Transactions` / `TransactionDetail` + `TransactionsAll` auto-pagination; types `Transaction`, `TransactionDetail` + `TradeType` enum (`AUTH` / `CAPTURE` / `VOID` / `REFUND`). |
 | `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler` / `RefundHandler` / `RepaymentHandler` / `CreditApplicationHandler` / `CreditInformationHandler` / `AccountChangeHandler`, `AckResponse`. |
@@ -85,20 +85,20 @@ a one-call signed liveness probe against `GET /heart-beat`. Returns
 `nil` on 2xx, `*atomefin.APIError` on non-2xx, `*atomefin.TransportError`
 on transport failures.
 
-### Two `AccountChanges` types — by design
+### Credit-change vectors
 
-The SDK ships **two distinct credit-change types**:
+The spec defines two distinct credit-change wire shapes, modelled
+as separate Go types:
 
-- **`payment.AccountChanges`** — the 11-field schema shared by
-  `auth` / `capture` / `voidAuth` / `refund` responses and by
-  `callback.AccountChangeData`.
-- **`repayment.CommerceAccountChanges`** — repayment carries a
-  *different* per-spec field set; consolidating them into a shared
-  type would have introduced a phantom-zero on `frozenCreditChange`
-  for every repayment row.
+- **`payment.AccountChanges`** is the canonical credit-change vector
+  for `/auth`, `/capture`, `/voidAuth`, `/refund` responses and the
+  `<accountChangeNotifyUrl>` callback.
+- **`repayment.CommerceAccountChanges`** is the canonical credit-
+  change vector for commerce-domain responses (`/repayment-request`,
+  `/repayment-result`, `<repaymentNotifyUrl>`).
 
-Future coders: do not consolidate. Two types is the spec-faithful
-shape.
+Each carries the field set defined by the spec for its respective
+endpoint family.
 
 ## Implemented endpoints
 

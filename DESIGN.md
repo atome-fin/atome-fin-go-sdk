@@ -823,34 +823,27 @@ endpoints route through `DoSignedGET`.
 shortcut for the empty-canonical case (`GET /heart-beat`). It signs
 zero bytes (`sign.CanonicalQuery(nil) == ""`) and verifies cleanly.
 
-### 15.3 Two `AccountChanges` types — by design
+### 15.3 Credit-change vectors
 
-The spec carries two different credit-change wire shapes:
+The spec defines two credit-change wire shapes, each modelled as
+its own Go type:
 
-- **`payment.AccountChanges`** (11 fields incl. `frozenCreditChange`)
-  — used by `auth` / `capture` / `voidAuth` / `refund` responses
-  AND by the new `<accountChangeNotifyUrl>` callback.
-- **`repayment.CommerceAccountChanges`** — repayment carries a
-  *different* per-spec field set; consolidating into a shared type
-  would force a phantom-zero `frozenCreditChange` on every
-  repayment row (or, with `,omitempty`, silently drop legitimate
-  zero values on the other types).
+- **`payment.AccountChanges`** is the canonical credit-change
+  vector for `/auth`, `/capture`, `/voidAuth`, `/refund` responses
+  and the `<accountChangeNotifyUrl>` callback. 11 fields including
+  `frozenCreditChange`.
+- **`repayment.CommerceAccountChanges`** is the canonical credit-
+  change vector for commerce-domain responses (`/repayment-request`,
+  `/repayment-result`, `<repaymentNotifyUrl>`).
 
-Two named types is the spec-faithful shape. **Future coders: do
-not consolidate.** The distinction is also called out in
-`atomefin/repayment/types.go`'s package comment and in the README
-package map.
+Each carries the field set defined by the spec for its respective
+endpoint family. The distinction is documented in
+`atomefin/repayment/types.go`'s package comment and surfaced in the
+README package map.
 
-### 15.4 Account-ops live in `atomefin/credit/` — by domain cohesion
+### 15.4 Account-ops live in `atomefin/credit/`
 
-`/modify-application-info` and `/close-account` are spec-categorised
-as "account-ops" — distinct from the credit-onboarding lifecycle.
-They could have lived in a separate `atomefin/account/` package,
-but both endpoints operate on a credit-application identifier and
-share the same response-envelope shape with the credit-result
-endpoints. Co-housing with `credit/` keeps the import graph flat
-(no `account → credit` edge) and matches how partners think about
-the workflow ("close *the credit account*"). If a non-credit
-account-ops surface emerges later (e.g. partner-account ops), it
-would warrant its own package; until then, `atomefin/credit/` is
-the home.
+`/modify-application-info` and `/close-account` both operate on a
+credit-application identifier and share the same response-envelope
+shape with the credit-result endpoints. They live in
+`atomefin/credit/` alongside the lifecycle endpoints.

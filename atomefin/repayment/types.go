@@ -75,11 +75,8 @@ func (r *RepaymentResponse) IsProcessing() bool {
 // and identifies the channel that originated the repayment.
 //
 // AccountChanges is the optional commerce-side credit-delta vector.
-// It uses CommerceAccountChanges (defined here) — not
-// payment.AccountChanges — because the spec's CommerceAccountChanges
-// schema does NOT include `frozenCreditChange`. Using the auth/
-// capture-side shape would silently emit a phantom
-// `frozenCreditChange:0` on every repayment response.
+// It uses CommerceAccountChanges (defined here), the canonical
+// credit-change vector for commerce-domain responses per spec.
 type RepaymentResult struct {
 	RequestID       string                  `json:"requestId"`
 	RepaymentID     string                  `json:"repaymentId"`
@@ -108,13 +105,11 @@ type RepaymentSettlement struct {
 	PayableSubsidyAmount atomefin.Amount `json:"payableSubsidyAmount"`
 }
 
-// CommerceAccountChanges is the credit-delta vector emitted alongside
-// commerce-side outcomes (repayment, pre-checkout, plan, transaction).
-// It is a near-twin of payment.AccountChanges but the spec leaves out
-// `frozenCreditChange`, so emitting a payment.AccountChanges-shaped
-// struct here would deviate from the wire contract. v0.2 keeps the
-// type local to repayment/; if pre-checkout / transaction need it,
-// promote to payment/commerce.go in their own chunk (architect §4).
+// CommerceAccountChanges is the canonical credit-change vector for
+// commerce-domain responses (repayment, etc.) per spec. It carries
+// the field set defined by the spec for commerce-domain endpoints;
+// the auth / capture / voidAuth / refund family uses
+// payment.AccountChanges, which is its own canonical vector.
 //
 // All *Change fields are SIGNED int64 deltas — a repayment reduces
 // UsedCredit (negative) and increases AvailableCredit (positive).
