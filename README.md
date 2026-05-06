@@ -75,6 +75,27 @@ Two runnable examples ship in [`examples/`](examples/):
 | `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler`, `AckResponse`. |
 | `qa/marshal` | Generic round-trip test harness wired against `qa/testdata/` fixtures. |
 
+## Implemented endpoints
+
+Implementation pinned to the upstream spec snapshot dated **2026-04-22**.
+`DESIGN.md` is the canonical per-endpoint reference for fields,
+optionality, and constraints; this table is the surface inventory you
+diff against when the spec moves.
+
+| Method | Path | Direction | SDK entry point | Request | Response | Notes |
+|---|---|---|---|---|---|---|
+| `POST` | `/auth` | partner → atome-fin | `payment.New(c).Auth(ctx, req)` | `*payment.AuthRequest` | `*payment.AuthResponse` | `sessionid` header required (≤64 chars), travels via `payment.AuthRequest.Sessionid` (json:"-") |
+| `POST` | `/capture` | partner → atome-fin | `payment.New(c).Capture(ctx, req)` | `*payment.CaptureRequest` | `*payment.CaptureResponse` | `subOrders`, `totalAmount`, `periodType` MUST mirror the prior `/auth` |
+| `POST` | `/voidAuth` | partner → atome-fin | `payment.New(c).VoidAuth(ctx, req)` | `*payment.VoidAuthRequest` | `*payment.VoidAuthResponse` | three-field body: `requestId`, `externalReferenceUid`, `authOrderId` |
+| `POST` | `<authNotifyUrl>` | atome-fin → partner | `callback.AuthHandler(v, fn)` | `*callback.AuthEvent` (= `payment.AuthResponse`) | `callback.AckResponse` | terminal-only (no `PROCESSING`); at-least-once — handler must be idempotent |
+| `POST` | `<captureNotifyUrl>` | atome-fin → partner | `callback.CaptureHandler(v, fn)` | `*callback.CaptureEvent` (= `payment.CaptureResponse`) | `callback.AckResponse` | terminal-only; same idempotency contract as auth-callback |
+
+For the async `PROCESSING` path on outbound calls (server returns the
+typed envelope without a terminal `data.status`), use
+`payment.AuthPollUntilTerminal` / `CapturePollUntilTerminal` — both
+re-submit the same `RequestID` until terminal or the configured
+`PollOptions.MaxWait` / parent `ctx` deadline expires.
+
 ## Hard rules baked into the public surface
 
 The following constraints are **not** negotiable; partners writing
