@@ -1,0 +1,28 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "externalReferenceUid": "user-42",
+    "type": "OVERPAID_CHANGE",
+    "currency": "IDR",
+    "recordInfo": [
+      {
+        "requestId": "01HRPY9999999999",
+        "changeAmount": "1500000",
+        "event": "REPAYMENT",
+        "time": 1715000000000
+      },
+      {
+        "requestId": "01HRPY9999999998",
+        "changeAmount": "-500000",
+        "event": "OVERPAID_REPAYMENT",
+        "time": 1714900000000
+      }
+    ],
+    "paginator": {
+      "start": 1,
+      "count": 10,
+      "totalCount": 2
+    }
+  }
+}

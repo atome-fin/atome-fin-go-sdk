@@ -1,0 +1,10 @@
+{
+  "code": "SUCCESS",
+  "message": "credit information accepted",
+  "data": {
+    "requestId": "01HCRDIN1234567890ABCDEFGH",
+    "externalReferenceUid": "user-42",
+    "status": "DRAFT",
+    "jumpUrl": "https://h5.atome-fin.example/credit/collect?token=opaque-jwt"
+  }
+}

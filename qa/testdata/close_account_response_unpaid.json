@@ -1,0 +1,4 @@
+{
+  "code": "UNPAID_DEBT",
+  "message": "this account can't be closed because it still has outstanding bills"
+}

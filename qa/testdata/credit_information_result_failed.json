@@ -1,0 +1,10 @@
+{
+  "code": "SUCCESS",
+  "message": "credit information collect failed",
+  "data": {
+    "requestId": "01HCRDIN1234567890ABCDEFGH",
+    "externalReferenceUid": "user-42",
+    "status": "FAILED",
+    "failReason": "FACE_QUALITY_TOO_POOR"
+  }
+}

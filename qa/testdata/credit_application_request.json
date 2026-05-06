@@ -1,0 +1,38 @@
+{
+  "requestId": "01HCRDAP1234567890ABCDEFGH",
+  "externalReferenceUid": "user-42",
+  "mobileNumber": "+628129801929",
+  "email": "user42@example.com",
+  "country": "ID",
+  "applicationEssentialInfo": {
+    "individualProfile": {
+      "idType": "KTP",
+      "ocrResult": {
+        "idNumber": "233388883838383381",
+        "fullName": "Luna Zhang",
+        "ocrGender": "WOMAN",
+        "manuallyBirthDate": "1990-01-15",
+        "ocrMaritalStatus": "SINGLE"
+      },
+      "manuallyEducation": "BACHELOR"
+    },
+    "platformInformation": {
+      "userCreditScore": 0.233,
+      "creditProfile": "{\"modelScores\":[{\"scoreType\":\"application_model\",\"scoreValue\":\"-99\"}]}",
+      "deviceInfo": {
+        "platform": "ANDROID",
+        "gps": {
+          "longitude": "137.2738282",
+          "latitude": "24.2728888",
+          "time": "1620285931000"
+        },
+        "ipAddress": {
+          "trueIp": "196.127.1.1"
+        }
+      }
+    }
+  },
+  "extendInfo": {
+    "creditInformationRequestId": "01HCRDIN1234567890ABCDEFGH"
+  }
+}

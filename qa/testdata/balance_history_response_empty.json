@@ -1,0 +1,15 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "externalReferenceUid": "user-42",
+    "type": "TRADE_AVAILABLE_CREDIT_CHANGE",
+    "currency": "IDR",
+    "recordInfo": [],
+    "paginator": {
+      "start": 1,
+      "count": 10,
+      "totalCount": 0
+    }
+  }
+}

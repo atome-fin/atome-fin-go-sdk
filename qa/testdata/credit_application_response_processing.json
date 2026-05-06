@@ -1,0 +1,9 @@
+{
+  "code": "SUCCESS",
+  "message": "credit application under examination",
+  "data": {
+    "externalReferenceUid": "user-42",
+    "status": "PROCESSING",
+    "currency": "IDR"
+  }
+}

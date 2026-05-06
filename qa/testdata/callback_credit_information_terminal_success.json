@@ -1,0 +1,9 @@
+{
+  "code": "SUCCESS",
+  "message": "credit information collect terminal",
+  "data": {
+    "requestId": "01HCRDIN1234567890ABCDEFGH",
+    "externalReferenceUid": "user-42",
+    "status": "SUCCESS"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "requestId": "01HMODAP1234567890ABCDEFGH",
+  "externalReferenceUid": "user-42",
+  "mobileNumber": "+628129801930",
+  "email": "user42-new@example.com",
+  "extendInfo": {
+    "language": "id"
+  }
+}

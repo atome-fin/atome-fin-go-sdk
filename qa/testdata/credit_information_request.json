@@ -1,0 +1,10 @@
+{
+  "requestId": "01HCRDIN1234567890ABCDEFGH",
+  "externalReferenceUid": "user-42",
+  "eventType": "NEW_APPLICATION",
+  "email": "user42@example.com",
+  "country": "ID",
+  "extendInfo": {
+    "language": "id"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "code": "SUCCESS",
+  "message": "credit application approved",
+  "data": {
+    "externalReferenceUid": "user-42",
+    "status": "SUCCESS",
+    "currency": "IDR",
+    "creditInfo": {
+      "totalCredit": 30000000,
+      "availableCredit": 30000000,
+      "usedCredit": 0,
+      "userStatus": "NORMAL",
+      "version": 1715000000000
+    },
+    "loanCreditInfo": {
+      "loanStatus": "NORMAL"
+    },
+    "billDay": 1,
+    "payDay": 25
+  }
+}
