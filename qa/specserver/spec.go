@@ -81,6 +81,18 @@ type Operation struct {
 	// RequiredQuery is the set of GET query param names the spec
 	// marks as required.
 	RequiredQuery []string
+
+	// RequiredHeader is the set of header names the spec declares
+	// `in: header, required: true`. Today's spec uses this for the
+	// Encrypt header on the two credit POSTs (Q31–Q34 hybrid
+	// encryption). When the dispatcher sees an Encrypt header on a
+	// POST, body validation is bypassed because the body is
+	// AES-ECB ciphertext that the spec server cannot decrypt.
+	//
+	// The Authorization header is filtered out by the walker —
+	// every signed endpoint declares it required, but signature
+	// validation is out of scope per architect §1.7.
+	RequiredHeader []string
 }
 
 // rawSpec is the small slice of swagger.yaml the walker actually

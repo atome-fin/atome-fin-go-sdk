@@ -46,12 +46,11 @@ var outboundCovered = []string{
 	"GET /transactionDetail",
 
 	// credit/
-	// POST /credit-information and POST /credit-application are
-	// blocked locally in v0.2.x pending the v0.3 hybrid-encryption
-	// envelope (Encrypt header + AES-ECB-PKCS5 body). The blocked
-	// methods do NOT reach the wire so they cannot be exercised by
-	// the spec server; they re-join `outboundCovered` in v0.3 when
-	// the network path is restored.
+	// v0.3 re-enabled the network path on /credit-information and
+	// /credit-application via the new hybrid-encrypt envelope —
+	// both endpoints rejoin the case table.
+	"POST /credit-information",
+	"POST /credit-application",
 	"GET /credit-result",
 	"GET /credit-information-result",
 	"GET /query-balance-history",

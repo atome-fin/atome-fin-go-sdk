@@ -2,6 +2,7 @@ package atomefin
 
 import (
 	"context"
+	"crypto/rsa"
 	"errors"
 	"net/http"
 	"net/url"
@@ -35,6 +36,13 @@ type Client struct {
 	userAgent    string
 	maxRespBytes int64
 	debugBodyLog bool
+
+	// Encrypt-cert pair (v0.3, Q31–Q34). Both nilable. Required only
+	// when calling endpoints that mandate the Encrypt: header — today
+	// /credit-information and /credit-application. Other endpoints
+	// don't touch these.
+	encryptAtomePub *rsa.PublicKey
+	encryptPriv     *rsa.PrivateKey
 }
 
 // New constructs a Client.
@@ -67,24 +75,26 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	c := &Client{
-		httpClient:   cfg.httpClient,
-		baseURL:      cfg.baseURL,
-		environment:  cfg.environment,
-		timeout:      cfg.timeout,
-		signer:       cfg.signer,
-		verifier:     cfg.verifier,
-		authScheme:   cfg.authScheme,
-		keyID:        cfg.keyID,
-		partnerID:    cfg.partnerID,
-		merchantID:   cfg.merchantID,
-		retry:        cfg.retry,
-		logger:       cfg.logger,
-		observer:     cfg.observer,
-		clock:        cfg.clock,
-		requestIDGen: cfg.requestIDGen,
-		userAgent:    cfg.userAgent,
-		maxRespBytes: cfg.maxRespBytes,
-		debugBodyLog: cfg.debugBodyLog,
+		httpClient:      cfg.httpClient,
+		baseURL:         cfg.baseURL,
+		environment:     cfg.environment,
+		timeout:         cfg.timeout,
+		signer:          cfg.signer,
+		verifier:        cfg.verifier,
+		authScheme:      cfg.authScheme,
+		keyID:           cfg.keyID,
+		partnerID:       cfg.partnerID,
+		merchantID:      cfg.merchantID,
+		retry:           cfg.retry,
+		logger:          cfg.logger,
+		observer:        cfg.observer,
+		clock:           cfg.clock,
+		requestIDGen:    cfg.requestIDGen,
+		userAgent:       cfg.userAgent,
+		maxRespBytes:    cfg.maxRespBytes,
+		debugBodyLog:    cfg.debugBodyLog,
+		encryptAtomePub: cfg.encryptAtomePub,
+		encryptPriv:     cfg.encryptPriv,
 	}
 	return c, nil
 }
@@ -175,6 +185,30 @@ func (c *Client) Now() time.Time { return c.clock() }
 // use cases (custom transport instrumentation in tests). Sub-services
 // should prefer DoSigned over reaching directly to the http client.
 func (c *Client) HTTPClient() *http.Client { return c.httpClient }
+
+// EncryptAtomePublicKey returns Atome's encrypt public key (the one
+// the SDK uses to wrap per-request AES keys). nil when the client
+// was constructed without WithEncryptAtomePublicCertPEM. Required
+// for endpoints with the `Encrypt:` header (today
+// /credit-information and /credit-application).
+func (c *Client) EncryptAtomePublicKey() *rsa.PublicKey {
+	if c == nil {
+		return nil
+	}
+	return c.encryptAtomePub
+}
+
+// EncryptPrivateKey returns the partner's encrypt private key (the
+// one the SDK would use to unwrap inbound encrypted bodies). Q31
+// RESOLVED 2026-05-06: credit callbacks are plaintext today, so
+// v0.3 has no inbound caller for this. Shipped for symmetry +
+// forward-compat; nil when the option wasn't supplied.
+func (c *Client) EncryptPrivateKey() *rsa.PrivateKey {
+	if c == nil {
+		return nil
+	}
+	return c.encryptPriv
+}
 
 // Close releases resources held by the Client.
 //

@@ -71,6 +71,11 @@ type config struct {
 	requestIDGen func() string
 	maxRespBytes int64
 	debugBodyLog bool
+
+	// v0.3 hybrid-encryption keypair. Both nilable; required only by
+	// /credit-information and /credit-application.
+	encryptAtomePub *rsa.PublicKey
+	encryptPriv     *rsa.PrivateKey
 }
 
 // defaultConfig produces the initial config used by New. Each Option may
@@ -282,6 +287,62 @@ func WithAtomePublicCertPEM(pem []byte) Option {
 			return fmt.Errorf("atomefin: WithAtomePublicCertPEM: %w", err)
 		}
 		c.verifier = v
+		return nil
+	}
+}
+
+// WithEncryptAtomePublicCertPEM sets Atome's encrypt public key (the
+// key used to wrap per-request AES keys for endpoints with the
+// `Encrypt:` header). Required when calling /credit-information or
+// /credit-application; optional otherwise.
+//
+// Distinct from WithAtomePublicCertPEM (which sets the verifier
+// public key for signature checks). Q34 RESOLVED 2026-05-06: the
+// partner protocol mandates a SEPARATE certificate pair for
+// hybrid encryption versus signing — different keypairs, different
+// rotation cadence.
+//
+// Accepts CERTIFICATE / PUBLIC KEY / RSA PUBLIC KEY blocks, same as
+// WithAtomePublicCertPEM. Rejects keys < 2048 bits.
+func WithEncryptAtomePublicCertPEM(pem []byte) Option {
+	return func(c *config) error {
+		if c.encryptAtomePub != nil {
+			return errors.New("atomefin: WithEncryptAtomePublicCertPEM: encrypt public key already configured")
+		}
+		key, err := sign.LoadPublicCertPEM(pem)
+		if err != nil {
+			return fmt.Errorf("atomefin: WithEncryptAtomePublicCertPEM: %w", err)
+		}
+		if key.N.BitLen() < 2048 {
+			return fmt.Errorf("atomefin: WithEncryptAtomePublicCertPEM: RSA modulus %d < min 2048 bits", key.N.BitLen())
+		}
+		c.encryptAtomePub = key
+		return nil
+	}
+}
+
+// WithEncryptPrivateKeyPEM sets the partner's encrypt PRIVATE key
+// (used to unwrap inbound encrypted bodies). Q31 RESOLVED 2026-05-06:
+// credit callbacks are plaintext, so v0.3 has no inbound caller for
+// this. Shipped for symmetry + forward-compat — partners with custom
+// callback decryption tooling can call encrypt.Unmarshal directly
+// using EncryptPrivateKey().
+//
+// Distinct from WithPrivateKeyPEM (which sets the signing private
+// key). Accepts PKCS#1 / PKCS#8 PEM blocks. Rejects keys < 2048 bits.
+func WithEncryptPrivateKeyPEM(pem []byte, password ...[]byte) Option {
+	return func(c *config) error {
+		if c.encryptPriv != nil {
+			return errors.New("atomefin: WithEncryptPrivateKeyPEM: encrypt private key already configured")
+		}
+		key, err := sign.LoadPrivateKeyPEM(pem, password...)
+		if err != nil {
+			return fmt.Errorf("atomefin: WithEncryptPrivateKeyPEM: %w", err)
+		}
+		if key.N.BitLen() < 2048 {
+			return fmt.Errorf("atomefin: WithEncryptPrivateKeyPEM: RSA modulus %d < min 2048 bits", key.N.BitLen())
+		}
+		c.encryptPriv = key
 		return nil
 	}
 }

@@ -185,7 +185,16 @@ func TestServer_POST_RejectsMissingNestedRequired(t *testing.T) {
 		"periodType":1,
 		"subOrders":[{"amount":1000,"quantity":1}]
 	}`)
-	resp, err := http.Post(srv.URL+"/auth", "application/json", body)
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/auth", body)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	// /auth declares `sessionid` as a required header; v0.3 spec
+	// server validates header presence so we set it here to keep
+	// the body-validation path the focal point of this test.
+	req.Header.Set("sessionid", "session-test")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}

@@ -128,15 +128,16 @@ func (s *Server) SkipRequired(op string, paths ...string) {
 	}
 }
 
-// effectiveRequired returns the spec's RequiredBody / RequiredQuery
-// for op with any registered skips removed. Used by the dispatcher.
-func (s *Server) effectiveRequired(op Operation) (body, query []string) {
+// effectiveRequired returns the spec's RequiredBody / RequiredQuery /
+// RequiredHeader for op with any registered skips removed. Used by
+// the dispatcher.
+func (s *Server) effectiveRequired(op Operation) (body, query, header []string) {
 	key := opKey(op.Method, op.Path)
 	s.mu.Lock()
 	skip := s.skipReq[key]
 	s.mu.Unlock()
 	if len(skip) == 0 {
-		return op.RequiredBody, op.RequiredQuery
+		return op.RequiredBody, op.RequiredQuery, op.RequiredHeader
 	}
 	body = make([]string, 0, len(op.RequiredBody))
 	for _, p := range op.RequiredBody {
@@ -150,7 +151,13 @@ func (s *Server) effectiveRequired(op Operation) (body, query []string) {
 			query = append(query, p)
 		}
 	}
-	return body, query
+	header = make([]string, 0, len(op.RequiredHeader))
+	for _, p := range op.RequiredHeader {
+		if !skip[p] {
+			header = append(header, p)
+		}
+	}
+	return body, query, header
 }
 
 // Hits returns the invocation count for op, regardless of whether
@@ -211,7 +218,28 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requiredBody, requiredQuery := s.effectiveRequired(specOp)
+	requiredBody, requiredQuery, requiredHeader := s.effectiveRequired(specOp)
+
+	// Header presence (applies to all verbs). Encrypt is the
+	// observed required-header today; future spec revisions may
+	// add others.
+	encryptedRequest := false
+	for _, name := range requiredHeader {
+		if r.Header.Get(name) == "" {
+			s.recordFailure(Failure{
+				Op:       op,
+				Reason:   "missing required header",
+				Field:    name,
+				SpecPath: s.Spec.Path,
+			})
+			writeJSONError(w, http.StatusBadRequest, "PARAMS_MISSING",
+				fmt.Sprintf("missing required header %q", name))
+			return
+		}
+		if name == "Encrypt" {
+			encryptedRequest = true
+		}
+	}
 
 	// GET: validate query params.
 	if r.Method == http.MethodGet {
@@ -240,6 +268,15 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		_ = r.Body.Close()
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "WRONG_PARAMS_FORMAT", "read body: "+err.Error())
+			return
+		}
+		// Encrypted body: the spec server has no decryption key —
+		// the wire body is AES ciphertext. The presence of the
+		// Encrypt header was already validated above; body-shape
+		// validation is bypassed here. (R-invariants on the
+		// plaintext shape live in qa/marshal_audit_test.go.)
+		if encryptedRequest {
+			s.writeFixture(w, op)
 			return
 		}
 		if missing, ferr := validateBody(body, requiredBody); ferr != nil {

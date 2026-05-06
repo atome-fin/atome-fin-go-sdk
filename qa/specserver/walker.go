@@ -57,14 +57,26 @@ func (s *Spec) walk() error {
 func (s *Spec) parseOperation(method, path string, opNode *yaml.Node) (Operation, error) {
 	op := Operation{Method: method, Path: path}
 
-	// --- query parameters (GET-relevant) ---
+	// --- parameters: collect required query + header names ---
 	if params := mappingChild(opNode, "parameters"); params != nil {
 		for _, p := range params.Content {
 			loc := scalarChild(p, "in")
 			req := scalarChild(p, "required")
 			name := scalarChild(p, "name")
-			if loc == "query" && req == "true" && name != "" {
+			if req != "true" || name == "" {
+				continue
+			}
+			switch loc {
+			case "query":
 				op.RequiredQuery = append(op.RequiredQuery, name)
+			case "header":
+				// Authorization is on every signed endpoint; out of
+				// scope per architect §1.7 (signature validation is
+				// the sign package's job, not the spec server's).
+				if name == "Authorization" {
+					continue
+				}
+				op.RequiredHeader = append(op.RequiredHeader, name)
 			}
 		}
 	}
@@ -83,6 +95,7 @@ func (s *Spec) parseOperation(method, path string, opNode *yaml.Node) (Operation
 
 	stableSort(op.RequiredBody)
 	stableSort(op.RequiredQuery)
+	stableSort(op.RequiredHeader)
 	return op, nil
 }
 

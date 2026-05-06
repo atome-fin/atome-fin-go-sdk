@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/encrypt"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/sign"
 )
 
@@ -175,6 +176,82 @@ func (c *Client) DoSignedGET(ctx context.Context, path string, query url.Values,
 		// and breaks server-side verification (architect §1, R13).
 		req.URL.RawQuery = string(canonical)
 		return req, nil
+	})
+}
+
+// DoEncryptedSigned signs and sends a POST whose body is hybrid-
+// encrypted per the apaylater partner protocol (Q31–Q34).
+//
+// Pipeline (mirrors `~/Downloads/main.go` line 28-30):
+//
+//  1. Build the encrypt envelope: a fresh AES-256 key encrypts
+//     `plainBody` with AES-ECB-PKCS5; the key is RSA-PKCS#1 v1.5
+//     wrapped against the configured Atome encrypt public key.
+//  2. Inject the resulting `Encrypt: symmetricKey=<...>` header
+//     via `WithRequestHeader` (works because `Encrypt` is NOT in
+//     the reserved-header allowlist).
+//  3. Sign the ENCRYPTED body bytes (NOT the plaintext) — the
+//     spec's signing canonical for these endpoints is the
+//     base64 ciphertext.
+//  4. Dispatch via the shared `signAndDispatch` retry loop —
+//     identical pipeline to DoSigned. Per-retry the SDK sends the
+//     same encrypted body + same signature (idempotency keyed on
+//     the partner-supplied `requestId` inside the plaintext).
+//
+// The fresh AES key is generated ONCE per call, before signing —
+// it is re-used across retries. This matches the partner
+// reference implementation and the spec's idempotency model.
+//
+// Errors:
+//   - WithEncryptAtomePublicCertPEM not configured →
+//     *ValidationError, no network.
+//   - method != POST → *ValidationError.
+//   - encrypt.Marshal failure (rand.Read, RSA wrap) → *TransportError-class
+//     error returned verbatim.
+//   - 4xx/5xx (after retries) → *APIError; transport/signing failures
+//     follow the DoSigned conventions.
+//
+// Today's only callers are credit.SubmitInformation and
+// credit.SubmitApplication; see `docs/internal/V0.3_DESIGN.md` §3.
+func (c *Client) DoEncryptedSigned(ctx context.Context, method, path string, plainBody []byte, opts ...DoSignedOption) (*RawResponse, error) {
+	if c == nil {
+		return nil, errors.New("atomefin: DoEncryptedSigned called on nil *Client")
+	}
+	if c.encryptAtomePub == nil {
+		return nil, &ValidationError{
+			Field:   "encryptAtomePublicCert",
+			Message: "WithEncryptAtomePublicCertPEM is required for endpoints with the Encrypt: header (today /credit-information and /credit-application)",
+		}
+	}
+	if method != http.MethodPost {
+		return nil, &ValidationError{Field: "method", Message: "DoEncryptedSigned is POST-only"}
+	}
+	if path == "" || path[0] != '/' {
+		return nil, &ValidationError{Field: "path", Message: "path must be absolute (start with '/')"}
+	}
+
+	header, bodyB64, err := encrypt.Marshal(plainBody, c.encryptAtomePub)
+	if err != nil {
+		return nil, &TransportError{Op: "encrypt", URL: path, Err: fmt.Errorf("hybrid-encrypt request body: %w", err)}
+	}
+
+	// Inject the Encrypt header. WithRequestHeader is permissive on
+	// non-reserved names; Encrypt is intentionally NOT in
+	// isReservedHeader so this works without a special-case.
+	encryptOpts := append([]DoSignedOption{}, opts...)
+	encryptOpts = append(encryptOpts, WithRequestHeader(encrypt.EncryptHeaderName, header))
+
+	var cfg doSignedConfig
+	for _, o := range encryptOpts {
+		if o != nil {
+			o.applyDoSigned(&cfg)
+		}
+	}
+
+	urlStr := c.baseURL + path
+	canonical := []byte(bodyB64)
+	return c.signAndDispatch(ctx, path, urlStr, canonical, cfg, func(reqCtx context.Context) (*http.Request, error) {
+		return http.NewRequestWithContext(reqCtx, method, urlStr, bytes.NewReader(canonical))
 	})
 }
 

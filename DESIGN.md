@@ -847,3 +847,82 @@ README package map.
 credit-application identifier and share the same response-envelope
 shape with the credit-result endpoints. They live in
 `atomefin/credit/` alongside the lifecycle endpoints.
+
+## 16. v0.3 hybrid encryption (appendix, 2026-05-07)
+
+Q31 — Q34 RESOLVED 2026-05-06. `/credit-information` and
+`/credit-application` POSTs require an AES-ECB-PKCS5 +
+RSA-PKCS#1 v1.5 hybrid envelope; every other endpoint stays
+plaintext.
+
+### 16.1 Outbound: encrypt-then-sign
+
+Per the partner reference at `~/Downloads/main.go` line 28-30, the
+ordering is:
+
+```
+plaintext body
+   │
+   ├── AES-ECB-PKCS5(plaintext, fresh32CharKey)  →  encrypted body (base64)
+   │                                                       │
+   ├── RSA-PKCS#1-v1.5(fresh32CharKey, atomeEncryptPub)   ─┘
+   │      → urlEncoded(base64(...))  → "Encrypt: symmetricKey=<...>"
+   │
+   └── Authorization: base64(SHA256WithRSA(<encrypted body>))   ← SIGNS THE CIPHERTEXT
+```
+
+Critical: the signing canonical is the **encrypted** body bytes,
+NOT the plaintext. `Client.DoEncryptedSigned` (`atomefin/doer.go`)
+embodies this ordering. The fresh AES key is generated once per
+call (not per retry) so signature + body remain stable across
+PKCS#1 v1.5's deterministic retry loop.
+
+### 16.2 Two cert pairs — by design
+
+The protocol uses TWO distinct RSA keypairs:
+
+| Pair | Used for | Configured via |
+|---|---|---|
+| **Signing** (existing in v0.1) | `Authorization: <signature>` over the request body. Mutual: SDK signs outbound; verifier checks inbound callbacks. | `WithPrivateKeyPEM` + `WithAtomePublicCertPEM` |
+| **Encrypt** (new in v0.3) | RSA-wrap the per-request AES key. Atome's encrypt public key is the wrap target; the partner's encrypt private key would unwrap inbound encrypted bodies (Q31 leaves credit callbacks plaintext today, so v0.3 has no inbound caller). | `WithEncryptAtomePublicCertPEM` + `WithEncryptPrivateKeyPEM` |
+
+Distinct keys, separate rotation cadence — the partner agreement
+mandates the split (Q34). Min 2048-bit on each pair. The SDK
+enforces the floor inside `WithEncrypt*PEM` and inside
+`encrypt.Wrap/UnwrapAESKey`.
+
+### 16.3 ECB is partner-protocol-mandated, not the SDK's choice
+
+Go's `crypto/cipher` deliberately omits an ECB BlockMode — ECB
+leaks plaintext patterns at block boundaries and the Go authors
+consider it dangerous for general use. The apaylater protocol
+nonetheless requires ECB on this code path (mirrors Java's
+`Cipher.getInstance("AES/ECB/PKCS5Padding")`).
+`atomefin/encrypt/aes.go` walks the cipher block-by-block via
+`aes.NewCipher`'s `Encrypt` / `Decrypt` — preserves Go's standard-
+library invariant that ECB is opt-in-by-construction while still
+implementing the mandated mode.
+
+If the spec ever moves to AES-CBC (or any IV-bearing mode), the
+`Encrypt: symmetricKey=<...>` header value's `k=v,k=v` shape
+leaves room for an `iv=` field — `header.ParseEncryptHeader`
+returns a `map[string]string` so callers can read additional
+fields without an API churn.
+
+### 16.4 Spec server header validation (v0.3)
+
+`qa/specserver/walker.go` now collects required header
+parameters in addition to query params. The dispatcher checks
+header presence on every request; when an Encrypt header is
+required AND present, body validation is bypassed because the
+spec server has no decryption key — the wire body is opaque
+ciphertext from the spec server's perspective. R-invariants on
+the plaintext request shape continue to live in
+`qa/marshal_audit_test.go`; the `encrypted_e2e_test.go` in
+`atomefin/credit/` exercises the round-trip through a decrypting
+httptest server.
+
+The Authorization header is filtered from the walker's
+RequiredHeader collection — every signed endpoint declares it
+required, but signature validation is the sign package's job
+(architect §1.7).

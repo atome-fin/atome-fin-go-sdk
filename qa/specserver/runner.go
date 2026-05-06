@@ -98,18 +98,20 @@ func RunCases(t *testing.T, cases []Case) {
 	}
 }
 
-// MustClient builds an atomefin.Client wired to the spec server with
-// a freshly-generated test keypair. The keypair is used for both
-// signing (Client → server) and verification (server-side cert is
-// the matching public key, accepted via callback.Verifier in
-// downstream tests). For the spec server itself we don't verify
-// signatures — payload validation is the only concern — but the
-// Client still needs a valid key to sign requests.
+// MustClient builds an atomefin.Client wired to the spec server
+// with a freshly-generated test keypair AND a freshly-generated
+// encrypt keypair. The signing keypair signs outbound requests;
+// the encrypt keypair satisfies the WithEncryptAtomePublicCertPEM
+// precondition for endpoints that route through DoEncryptedSigned
+// (today /credit-information, /credit-application). The spec
+// server itself ignores signatures and ignores the encrypted body
+// shape — payload validation against the pinned spec is the only
+// concern — so the test keypair material is fine to be ephemeral.
 func MustClient(t testing.TB, srv *Server) *atomefin.Client {
 	t.Helper()
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		t.Fatalf("specserver.MustClient: rsa.GenerateKey: %v", err)
+		t.Fatalf("specserver.MustClient: rsa.GenerateKey signing: %v", err)
 	}
 	privPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PRIVATE KEY",
@@ -117,14 +119,25 @@ func MustClient(t testing.TB, srv *Server) *atomefin.Client {
 	})
 	pubDER, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
 	if err != nil {
-		t.Fatalf("specserver.MustClient: marshal public key: %v", err)
+		t.Fatalf("specserver.MustClient: marshal signing public key: %v", err)
 	}
 	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})
+
+	encKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("specserver.MustClient: rsa.GenerateKey encrypt: %v", err)
+	}
+	encPubDER, err := x509.MarshalPKIXPublicKey(&encKey.PublicKey)
+	if err != nil {
+		t.Fatalf("specserver.MustClient: marshal encrypt public key: %v", err)
+	}
+	encPubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: encPubDER})
 
 	c, err := atomefin.New(
 		atomefin.WithBaseURL(srv.URL),
 		atomefin.WithPrivateKeyPEM(privPEM),
 		atomefin.WithAtomePublicCertPEM(pubPEM),
+		atomefin.WithEncryptAtomePublicCertPEM(encPubPEM),
 	)
 	if err != nil {
 		t.Fatalf("specserver.MustClient: atomefin.New: %v", err)

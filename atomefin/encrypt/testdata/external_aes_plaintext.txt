@@ -1,0 +1,1 @@
+{"requestId":"VECTOR-1","externalReferenceUid":"vector-user","eventType":"NEW_APPLICATION","email":"u@example.com","country":"ID"}

@@ -70,6 +70,7 @@ Two runnable examples ship in [`examples/`](examples/):
 |---|---|
 | `atomefin` | `Client`, functional `Option`s, error types, retry policy plumbing, `MarshalSigning`. |
 | `atomefin/sign` | RSA-2048 PKCS#1-v1.5 / PSS signer + verifier; PEM loaders; canonical-input helpers. |
+| `atomefin/encrypt` | AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid envelope used by `/credit-information` and `/credit-application`. Stdlib-only. `Marshal` / `Unmarshal`, `RandomAESKey` (rejection-sampled A — Z), header build/parse. |
 | `atomefin/transport` | `RetryPolicy`, `Logger`, `Observer`, `NewSlogLogger`, User-Agent assembly. |
 | `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` + `QueryAuth` / `QueryCapture` / `QueryVoidAuth` + `*PollUntilTerminal` + `PaymentPreCheck` / `PaymentPlan` (v0.2 pre-checkout); typed request/response structs. |
 | `atomefin/refund` | `Service` with `Refund` / `QueryRefund` / `RefundPollUntilTerminal`; types `RefundParam`, `RefundResult`, `SubOrderRefundRequest`, `SubOrderRefundInfo`. |
@@ -85,6 +86,35 @@ The umbrella `atomefin.Client` also exposes `Client.HeartBeat(ctx)` —
 a one-call signed liveness probe against `GET /heart-beat`. Returns
 `nil` on 2xx, `*atomefin.APIError` on non-2xx, `*atomefin.TransportError`
 on transport failures.
+
+### Hard rule — hybrid encryption on the two credit POSTs
+
+`/credit-information` and `/credit-application` are the only v0.3
+endpoints that require AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid
+encryption (Q31 — Q34 RESOLVED 2026-05-06). The SDK handles it
+transparently inside `credit.SubmitInformation` and
+`credit.SubmitApplication` via `Client.DoEncryptedSigned`.
+
+You MUST construct the `Client` with the encrypt cert pair:
+
+```go
+c, err := atomefin.New(
+    atomefin.WithBaseURL(...),
+    atomefin.WithPrivateKeyPEM(signPriv),                  // signing
+    atomefin.WithAtomePublicCertPEM(atomeSignPub),         // verification
+    atomefin.WithEncryptAtomePublicCertPEM(atomeEncryptPub), // hybrid-encrypt wrap
+    atomefin.WithEncryptPrivateKeyPEM(partnerEncryptPriv),   // optional — partner-side decryption tooling
+)
+```
+
+Calling `SubmitInformation` / `SubmitApplication` without
+`WithEncryptAtomePublicCertPEM` returns
+`*atomefin.ValidationError` BEFORE any network round-trip — the
+gateway's `400 INVALID_ENCRYPTION` is surfaced locally.
+
+Algorithm details, the partner-protocol-mandated ECB block
+walker, the rejection-sampled key generator, and the external
+test vector all live in [`atomefin/encrypt`](./atomefin/encrypt/doc.go).
 
 ### Credit-change vectors
 
@@ -131,8 +161,8 @@ diff against when the spec moves.
 | `POST` | `/repayment-request` | partner → atome-fin | `repayment.New(c).Repayment(ctx, req)` | `*repayment.RepaymentParam` | `*repayment.RepaymentResponse` | apply a repayment against a prior auth + bill; uses `CommerceAccountChanges` (distinct from `payment.AccountChanges`) |
 | `GET` | `/repayment-result` | partner → atome-fin | `repayment.New(c).QueryRepayment(ctx, requestID, externalReferenceUID)` | `requestId` + `externalReferenceUid` query | `*repayment.RepaymentResponse` | polling alternative to PROCESSING webhook |
 | `POST` | `<repaymentNotifyUrl>` | atome-fin → partner | `callback.RepaymentHandler(v, fn)` | `*callback.RepaymentEvent` (= `repayment.RepaymentResponse`) | `callback.AckResponse` | terminal-only |
-| `POST` | `/credit-information` | partner → atome-fin | `credit.New(c).SubmitInformation(ctx, req)` | `*credit.CreditInformationParam` | `*credit.CreditInformationResponse` | KYC start; returns a `requestId` + jumpUrl into the Atome KYC web flow |
-| `POST` | `/credit-application` | partner → atome-fin | `credit.New(c).SubmitApplication(ctx, req)` | `*credit.CreditApplicationParam` | `*credit.CreditApplicationResponse` | submit credit application after KYC completes |
+| `POST` | `/credit-information` | partner → atome-fin | `credit.New(c).SubmitInformation(ctx, req)` | `*credit.CreditInformationParam` | `*credit.CreditInformationResponse` | KYC start; returns a `requestId` + jumpUrl into the Atome KYC web flow. **Hybrid encryption required** — see `atomefin/encrypt` |
+| `POST` | `/credit-application` | partner → atome-fin | `credit.New(c).SubmitApplication(ctx, req)` | `*credit.CreditApplicationParam` | `*credit.CreditApplicationResponse` | submit credit application after KYC completes. **Hybrid encryption required** — see `atomefin/encrypt` |
 | `GET` | `/credit-result` | partner → atome-fin | `credit.New(c).QueryResult(ctx, externalReferenceUID)` | `externalReferenceUid` query | `*credit.CreditApplicationResponse` | poll application terminal state; spec preserves the `INPROGESS` literal verbatim |
 | `GET` | `/credit-information-result` | partner → atome-fin | `credit.New(c).QueryInformationResult(ctx, externalReferenceUID, requestID)` | `externalReferenceUid` + `requestId` query | `*credit.CreditInformationCollectResponse` | poll KYC-collection terminal state |
 | `GET` | `/query-balance-history` | partner → atome-fin | `credit.New(c).BalanceHistory(ctx, *BalanceHistoryParams)` | `start`/`count` + filters | `*credit.BalanceHistoryResponse` | paginated balance ledger (uses spec's `start`/`count` rather than `pageNumber`/`pageSize`) |

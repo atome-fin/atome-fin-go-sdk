@@ -96,11 +96,14 @@ func TestSpec_PaymentEndpoints(t *testing.T) {
 			},
 			// Same partner-pending rationale as /payment-precheck above;
 			// /payment-plan layers on a deeper extendInfo.ecommerceOrder
-			// tree that the SDK does not yet model. All entries here
-			// trace back to the spec's "Initial draft" disclaimer and
-			// will close as partner integration agreements solidify the
-			// shape.
+			// tree that the SDK does not yet model. The `sessionid`
+			// header gap is also partner-pending — /auth carries it via
+			// AuthRequest.Sessionid; PaymentPlanRequest does not yet
+			// expose an equivalent. All entries here trace back to the
+			// spec's "Initial draft" disclaimer and will close as
+			// partner integration agreements solidify the shape.
 			SkipRequired: []string{
+				"sessionid",
 				"extendInfo.ecommerceOrder.ecommerceSubOrders",
 				"extendInfo.ecommerceOrder.orderAmount",
 				"extendInfo.paymentType",

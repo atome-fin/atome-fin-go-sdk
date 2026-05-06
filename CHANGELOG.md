@@ -7,6 +7,132 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.3.0] — 2026-05-07
+
+Adds AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid encryption for
+`/credit-information` and `/credit-application` POSTs (Q31 — Q34
+RESOLVED 2026-05-06). Reverts the v0.2.2 stub `*ValidationError`
+on those two methods — they now actually work, given the new
+encrypt cert option. Every other v0.2 endpoint is unchanged.
+
+### Added
+
+- **`atomefin/encrypt/`** — new sub-package, stdlib-only:
+  - `EncryptBody` / `DecryptBody` — AES-ECB-PKCS5 against a
+    32-byte key. ECB block walker is partner-protocol-mandated;
+    the SDK does not choose it. `crypto/cipher` deliberately
+    omits ECB, so `aes.go` walks the block cipher manually via
+    `aes.NewCipher`'s `Encrypt` / `Decrypt`.
+  - `WrapAESKey` / `UnwrapAESKey` — RSA-PKCS#1 v1.5 (NOT OAEP).
+    `MinKeyBits = 2048` enforced.
+  - `BuildEncryptHeader` / `ParseEncryptHeader` —
+    `Encrypt: symmetricKey=<urlEncoded(base64(...))>`. Parser
+    returns `map[string]string` for forward-compat (e.g. an
+    `iv=` field if the spec ever moves to CBC).
+  - `RandomAESKey` — 32-char A — Z key, **rejection-sampled**
+    (cutoff = 234) — fixes the modulo bias the partner sample at
+    `~/Downloads/main.go` line 367-370 carries. Statistical
+    uniformity test in `key_test.go` over 100k keys / 3.2M chars
+    asserts each letter falls within ±1% of 1/26.
+  - `Marshal` / `Unmarshal` — high-level envelope; what
+    `Client.DoEncryptedSigned` reaches for.
+  - External vector test (`external_vector_test.go`,
+    hermetic): pre-computed AES ciphertext + key + plaintext +
+    encrypt key pair committed under `testdata/`. Pins the AES
+    output byte-for-byte; round-trip the RSA wrap (non-
+    deterministic). NO `os/exec`.
+
+- **`Client.DoEncryptedSigned(ctx, method, path, plainBody, opts...)`** —
+  sibling of `DoSigned`. Hybrid-encrypts the body via
+  `encrypt.Marshal`, injects the `Encrypt:` header through
+  `WithRequestHeader` (works because `Encrypt` is NOT in the
+  reserved-header allowlist), signs the encrypted body bytes,
+  and dispatches via the shared `signAndDispatch` retry loop.
+  Per-retry the SDK sends the same encrypted body + same
+  signature (idempotency keyed on the partner-supplied
+  `requestId` inside the plaintext).
+
+- **Two new options** (`atomefin/options.go`):
+  - `WithEncryptAtomePublicCertPEM(pem []byte)` — Atome's
+    encrypt public key, used to wrap per-request AES keys.
+    Required for `/credit-information` and `/credit-application`.
+  - `WithEncryptPrivateKeyPEM(pem []byte, password ...[]byte)` —
+    partner's encrypt private key, used to unwrap inbound
+    encrypted bodies. Q31 RESOLVED 2026-05-06: credit callbacks
+    are plaintext today, so v0.3 has no inbound caller — shipped
+    for symmetry + forward-compat.
+  - Both reuse `sign.LoadPublicCertPEM` / `sign.LoadPrivateKeyPEM`
+    (PKCS#1 / PKCS#8 / PKIX / X.509 CERTIFICATE blocks). 2048-bit
+    floor enforced.
+
+- **`Client.EncryptAtomePublicKey()` / `Client.EncryptPrivateKey()`** —
+  accessors for partners that need to call `encrypt.Marshal` /
+  `encrypt.Unmarshal` directly (e.g. custom callback decryption
+  tooling).
+
+- **`qa/specserver` v0.3 extension** — walker now collects
+  required header parameters from the spec; dispatcher checks
+  header presence on every request. When an `Encrypt` header is
+  required AND present, body validation is bypassed because the
+  spec server has no decryption key. The Authorization header is
+  filtered out (signature validation is the sign package's job,
+  not the spec server's). `qa/specserver/runner.go`'s `MustClient`
+  now ships an encrypt keypair so credit-flow cases run cleanly.
+
+### Changed
+
+- **`credit.SubmitInformation` / `credit.SubmitApplication`** —
+  reverts the v0.2.2 `*ValidationError` stubs. Both methods now
+  marshal the request, route through `Client.DoEncryptedSigned`,
+  and decode the plaintext response normally. The validators
+  (`validateCreditInformation`, `validateCreditApplication`) are
+  re-wired into the call path — `validation_internal_test.go`
+  continues to exercise them white-box.
+- **Test rewires** — `TestSubmitInformation_BlockedUntilV0_3` /
+  `TestSubmitApplication_BlockedUntilV0_3` removed; replaced by
+  `TestSubmitInformation_RejectsMissingEncryptOption` /
+  `TestSubmitApplication_RejectsMissingEncryptOption` that pin
+  the new precondition guard (no encrypt key → typed
+  `*ValidationError`, no network).
+- **`qa/specserver/coverage_test.go`** — `outboundCovered`
+  re-adds `POST /credit-information` and `POST /credit-application`.
+  `TestSpec_AllOutboundEndpointsCovered` no longer skip-warns
+  them.
+- **New end-to-end test** —
+  `atomefin/credit/encrypted_e2e_test.go` drives a decrypting
+  httptest server end-to-end through `SubmitInformation` and
+  `SubmitApplication`: the server unwraps the AES key, decrypts
+  the body, decodes the plaintext into the spec-defined struct,
+  and asserts the SDK sent the right shape.
+
+### Migration
+
+```go
+// before (v0.2.2 / v0.2.3 — guaranteed *ValidationError)
+c, _ := atomefin.New(
+    atomefin.WithBaseURL(...),
+    atomefin.WithPrivateKeyPEM(signPriv),
+)
+_, err := credit.New(c).SubmitInformation(ctx, req)
+// err = *ValidationError "requires AES+RSA hybrid encryption — lands in v0.3"
+
+// after (v0.3.0 — works on the wire)
+c, _ := atomefin.New(
+    atomefin.WithBaseURL(...),
+    atomefin.WithPrivateKeyPEM(signPriv),
+    atomefin.WithAtomePublicCertPEM(atomeSignPub),
+    atomefin.WithEncryptAtomePublicCertPEM(atomeEncryptPub), // NEW
+)
+resp, err := credit.New(c).SubmitInformation(ctx, req)
+// err = nil; resp.Data.JumpURL is the KYC web flow.
+```
+
+Partners that had the v0.2.2 / v0.2.3 stubs flowing through their
+error-handling tree must now treat `*ValidationError` from these
+methods as a configuration bug (missing
+`WithEncryptAtomePublicCertPEM`) rather than a "this method is
+blocked" signal.
+
 ## [0.2.3] — 2026-05-06
 
 Patch release closing the v0.1 → v0.2 spec-drift gaps surfaced by
@@ -1090,7 +1216,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.3.0
 [0.2.3]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.3
 [0.2.2]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.2
 [0.2.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.1

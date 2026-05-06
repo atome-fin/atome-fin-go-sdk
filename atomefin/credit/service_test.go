@@ -98,55 +98,45 @@ func ptrFloat64(v float64) *float64 { return &v }
 
 // ---------- POST /credit-information + /credit-application — BLOCKED in v0.2.x ----------
 
-// TestSubmitInformation_BlockedUntilV0_3 pins that the method
-// returns a typed *ValidationError without making a network call.
-// The 2026-05-06 spec requires AES+RSA hybrid encryption on this
-// path (Encrypt header + AES-ECB-PKCS5 body); v0.2.x does not yet
-// implement the envelope, so the method short-circuits locally
-// rather than producing a guaranteed `400 INVALID_ENCRYPTION` from
-// upstream. Re-enables in v0.3.
-func TestSubmitInformation_BlockedUntilV0_3(t *testing.T) {
+// TestSubmitInformation_RejectsMissingEncryptOption pins that
+// calling /credit-information on a Client constructed without
+// WithEncryptAtomePublicCertPEM fails LOCALLY (no network) with a
+// typed *ValidationError pointing the partner at the missing
+// option. v0.3 re-enabled the network path; the precondition
+// guard moves from method-body to Client.DoEncryptedSigned.
+func TestSubmitInformation_RejectsMissingEncryptOption(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("server must NOT be reached — SubmitInformation is blocked in v0.2.x")
+		t.Errorf("server must NOT be reached when encrypt key is unconfigured")
 	}))
 	defer srv.Close()
 
-	c := mustClient(t, srv)
+	c := mustClient(t, srv) // no WithEncryptAtomePublicCertPEM
 	_, err := credit.New(c).SubmitInformation(context.Background(), validInformationParam())
 	var ve *atomefin.ValidationError
 	if !errors.As(err, &ve) {
 		t.Fatalf("err = %v; want *ValidationError", err)
 	}
-	if ve.Field != "/credit-information" {
-		t.Errorf("Field = %q; want /credit-information", ve.Field)
-	}
-	if !strings.Contains(ve.Message, "v0.3") {
-		t.Errorf("Message = %q; want pointer to v0.3 in migration message", ve.Message)
-	}
-	if !strings.Contains(ve.Message, "AES") || !strings.Contains(ve.Message, "RSA") {
-		t.Errorf("Message = %q; want AES+RSA hybrid encryption mentioned", ve.Message)
+	if ve.Field != "encryptAtomePublicCert" {
+		t.Errorf("Field = %q; want encryptAtomePublicCert", ve.Field)
 	}
 }
 
-// TestSubmitApplication_BlockedUntilV0_3 pins the matching block
-// for POST /credit-application.
-func TestSubmitApplication_BlockedUntilV0_3(t *testing.T) {
+// TestSubmitApplication_RejectsMissingEncryptOption is the
+// matching guard for /credit-application.
+func TestSubmitApplication_RejectsMissingEncryptOption(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("server must NOT be reached — SubmitApplication is blocked in v0.2.x")
+		t.Errorf("server must NOT be reached when encrypt key is unconfigured")
 	}))
 	defer srv.Close()
 
-	c := mustClient(t, srv)
+	c := mustClient(t, srv) // no WithEncryptAtomePublicCertPEM
 	_, err := credit.New(c).SubmitApplication(context.Background(), validApplicationParam())
 	var ve *atomefin.ValidationError
 	if !errors.As(err, &ve) {
 		t.Fatalf("err = %v; want *ValidationError", err)
 	}
-	if ve.Field != "/credit-application" {
-		t.Errorf("Field = %q; want /credit-application", ve.Field)
-	}
-	if !strings.Contains(ve.Message, "v0.3") {
-		t.Errorf("Message = %q; want v0.3 migration pointer", ve.Message)
+	if ve.Field != "encryptAtomePublicCert" {
+		t.Errorf("Field = %q; want encryptAtomePublicCert", ve.Field)
 	}
 }
 
