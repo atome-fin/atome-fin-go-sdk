@@ -1,0 +1,26 @@
+{
+  "code": "SUCCESS",
+  "message": "account state changed",
+  "data": {
+    "eventId": "ACE-2026-0506-002",
+    "externalReferenceUid": "user-42",
+    "eventTime": 1746835200000,
+    "accountChanges": {
+      "version": 1746835200000,
+      "externalReferenceUid": "user-42",
+      "previousStatus": "ACCOUNT_BLOCKED_OVERDUE",
+      "currentStatus": "ACCOUNT_CLOSED",
+      "totalCreditChange": -2000000,
+      "usedCreditChange": 0,
+      "frozenCreditChange": 0,
+      "availableCreditChange": -2000000,
+      "overpaidAmountChange": 0,
+      "lateFeeAmountChange": 0,
+      "interestAmountChange": 0
+    },
+    "extendInfo": {
+      "reason": "auto-close-after-overdue",
+      "triggerSource": "OPS_MANUAL"
+    }
+  }
+}

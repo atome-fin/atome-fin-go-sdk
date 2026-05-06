@@ -1,0 +1,26 @@
+{
+  "code": "SUCCESS",
+  "message": "account state changed",
+  "data": {
+    "eventId": "ACE-2026-0506-001",
+    "externalReferenceUid": "user-42",
+    "eventTime": 1746748800000,
+    "accountChanges": {
+      "version": 1746748800000,
+      "externalReferenceUid": "user-42",
+      "previousStatus": "NORMAL",
+      "currentStatus": "NORMAL",
+      "totalCreditChange": 5000000,
+      "usedCreditChange": 0,
+      "frozenCreditChange": 0,
+      "availableCreditChange": 5000000,
+      "overpaidAmountChange": 0,
+      "lateFeeAmountChange": 0,
+      "interestAmountChange": 0
+    },
+    "extendInfo": {
+      "reason": "credit-limit-increase",
+      "triggerSource": "RISK_ENGINE"
+    }
+  }
+}
