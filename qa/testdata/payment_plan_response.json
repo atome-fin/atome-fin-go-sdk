@@ -1,0 +1,35 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "requestId": "01HPLN1234567890ABCDEFGHJK",
+    "externalReferenceUid": "user-42",
+    "plans": [
+      {
+        "periodType": 3,
+        "currency": "IDR",
+        "totalAmount": 1545000,
+        "totalFee": 45000,
+        "installments": [
+          {"installmentId": "INS-3-1", "dueDate": "2026-06-15", "principal": 500000, "fee": 15000, "interest": 0, "amount": 515000},
+          {"installmentId": "INS-3-2", "dueDate": "2026-07-15", "principal": 500000, "fee": 15000, "interest": 0, "amount": 515000},
+          {"installmentId": "INS-3-3", "dueDate": "2026-08-15", "principal": 500000, "fee": 15000, "interest": 0, "amount": 515000}
+        ]
+      },
+      {
+        "periodType": 6,
+        "currency": "IDR",
+        "totalAmount": 1590000,
+        "totalFee": 90000,
+        "installments": [
+          {"installmentId": "INS-6-1", "dueDate": "2026-06-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
+          {"installmentId": "INS-6-2", "dueDate": "2026-07-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
+          {"installmentId": "INS-6-3", "dueDate": "2026-08-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
+          {"installmentId": "INS-6-4", "dueDate": "2026-09-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
+          {"installmentId": "INS-6-5", "dueDate": "2026-10-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
+          {"installmentId": "INS-6-6", "dueDate": "2026-11-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000}
+        ]
+      }
+    ]
+  }
+}

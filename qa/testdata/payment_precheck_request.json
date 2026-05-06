@@ -1,0 +1,10 @@
+{
+  "requestId": "01HPRC1234567890ABCDEFGHJK",
+  "externalReferenceUid": "user-42",
+  "totalAmount": 1500000,
+  "currency": "IDR",
+  "subOrders": [
+    {"subOrderId": "so-1", "amount": 1000000, "quantity": 1, "skuName": "Widget Pro"},
+    {"subOrderId": "so-2", "amount": 500000, "quantity": 2}
+  ]
+}

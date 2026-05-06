@@ -1,0 +1,10 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "requestId": "01HPRC1234567890ABCDEFGHJK",
+    "externalReferenceUid": "user-42",
+    "eligible": true,
+    "availableCredit": 5000000
+  }
+}
