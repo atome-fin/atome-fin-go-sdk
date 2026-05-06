@@ -1,0 +1,30 @@
+{
+  "code": "SUCCESS",
+  "message": "repaid",
+  "data": {
+    "requestId": "01HRPM1234567890ABCDEFGHJK",
+    "repaymentId": "RPM-2026-0507-A",
+    "status": "SUCCESS",
+    "currency": "IDR",
+    "repaymentAmount": 1500000,
+    "repaymentTime": 1746662410000,
+    "event": "NORMAL",
+    "accountChanges": {
+      "externalReferenceUid": "user-42",
+      "previousStatus": "NORMAL",
+      "currentStatus": "NORMAL",
+      "totalCreditChange": 0,
+      "usedCreditChange": -1500000,
+      "availableCreditChange": 1500000,
+      "overpaidAmountChange": 0,
+      "lateFeeAmountChange": 0,
+      "interestAmountChange": 0,
+      "version": 1746662410000
+    },
+    "extendInfo": {
+      "settlement": {
+        "payableSubsidyAmount": 0
+      }
+    }
+  }
+}

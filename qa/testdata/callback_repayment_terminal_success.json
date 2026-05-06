@@ -1,0 +1,13 @@
+{
+  "code": "SUCCESS",
+  "message": "repayment terminal",
+  "data": {
+    "requestId": "01HRPM1234567890ABCDEFGHJK",
+    "repaymentId": "RPM-2026-0507-A",
+    "status": "SUCCESS",
+    "currency": "IDR",
+    "repaymentAmount": 1500000,
+    "repaymentTime": 1746662410000,
+    "event": "OVERPAID_REPAYMENT"
+  }
+}
