@@ -7,6 +7,112 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.2.2] — 2026-05-06
+
+Patch release adding the spec-driven test framework (`qa/specserver/`)
+that v0.2.0 should have shipped with: every outbound SDK call is now
+re-validated against the pinned upstream `swagger.yaml`'s
+required-field set on every CI run, so the next §2.1-class regression
+fails locally rather than at production first-call. Also pre-emptively
+blocks the two credit-flow methods that today require a hybrid-
+encryption envelope the SDK does not yet implement.
+
+### Added
+
+- **`qa/specserver/`** — spec-assertion test framework per
+  `docs/internal/SPEC_ASSERTION_TEST_DESIGN.md`. Loads a pinned
+  `swagger-{date}-{sha-prefix}.yaml`, walks the schema tree to
+  extract per-endpoint required-body / required-query sets
+  (resolves `$ref` and recurses into array `items` schemas), and
+  stands up a strict `httptest.NewServer` wrapper that emits
+  `400 PARAMS_MISSING` when the SDK omits a spec-required field.
+  `specserver.RunCases(t, []Case{…})` is the per-package entry
+  point; `Case.SkipRequired` provides an inline allowlist for
+  partner-pending fields the SDK is knowingly not yet emitting.
+  Single test-only dep: `gopkg.in/yaml.v3`.
+- **Per-package `*_spec_test.go` coverage of all 25 outbound SDK
+  endpoints** — exercises every `payment.*`, `refund.*`,
+  `repayment.*`, `bill.*`, `transaction.*`, `credit.*` (account-ops
+  and the GETs), and `Client.HeartBeat` method against the
+  spec-server on each test pass. The seven inbound callback paths
+  are out of scope per the framework's outbound-only design.
+- **`TestSpec_AllOutboundEndpointsCovered`** — cross-checks
+  `outboundCovered` against the pinned spec's path inventory.
+  Stale entries (covered claims an endpoint the spec doesn't
+  declare) hard-fail; uncovered outbound spec endpoints skip-warn.
+- **Drift-detection sentinel** — `TestSpec_PinnedMatchesUpstream`
+  in `qa/specserver/drift_test.go` (build-tagged
+  `//go:build specnetwork`). Fetches `https://doc.apaylater.net/white-label/G/swagger.yaml`,
+  SHA-256s it, and fails if the upstream digest no longer matches
+  the SHA prefix in the pinned filename. Allowlist via
+  `qa/specserver/spec_drift_allowlist.txt` for in-flight transitions.
+  Wired as `make test-spec-drift`; default `make ci` stays
+  hermetic (offline).
+- **`make test-spec-drift`** — Makefile target invoking the
+  network-fetching drift sentinel.
+
+### Changed
+
+- **`credit.SubmitInformation` and `credit.SubmitApplication` are
+  blocked in v0.2.x.** Both methods now return a typed
+  `*atomefin.ValidationError` ("requires AES+RSA hybrid encryption
+  — lands in v0.3") *before* any network attempt. The 2026-05-06
+  spec mandates an `Encrypt` header plus an AES-ECB-PKCS5 body
+  sealed with an RSA-encrypted session key on these two endpoints;
+  v0.2.x does not yet implement that envelope, so unblocked calls
+  would have produced a guaranteed `400 INVALID_ENCRYPTION` from
+  upstream. Surfacing the failure locally with a clear migration
+  message means partners that had v0.2.0 / v0.2.1 wired against
+  the network path see the issue in their dev loop, not in
+  production. Validators (`validateCreditInformation`,
+  `validateCreditApplication`), request structs, and round-trip
+  fixtures are preserved verbatim — v0.3 re-enables the path with
+  one edit per method. White-box internal tests
+  (`validation_internal_test.go`, package `credit`) continue to
+  exercise the validators directly.
+- **`atomefin/credit/service_test.go`** — drops the four tests
+  that proved a network call against the now-blocked methods
+  (`TestService_SubmitInformation_Success` /
+  `_AutoMintsRequestID` / `_4xxBecomesAPIError`,
+  `TestService_SubmitApplication_Success`); replaced by
+  `TestSubmitInformation_BlockedUntilV0_3` and
+  `TestSubmitApplication_BlockedUntilV0_3` that pin the typed
+  `*ValidationError` shape.
+  The retry, ctx-cancellation, and reserved-header semantics
+  tests now probe via `ModifyApplicationInfo` (same `invokePost`
+  pipeline), since the blocked methods can no longer be used as
+  wire-touching probes.
+
+### Known gaps surfaced by `qa/specserver/` (queued for v0.2.3)
+
+The new framework picked up a number of v0.1 → v0.2 spec drifts
+that v0.2.0 didn't catch. Each is acknowledged inline at the
+`*_spec_test.go` call site via `Case.SkipRequired` so CI stays
+green; closing each is a v0.2.3 patch:
+
+- **`/refund`** — SDK sends `authOrderId` / `subOrderRefunds` /
+  `subOrderRefunds[].refundAmount`; spec wants `captureRequestId`
+  / `subOrders` / `subOrders[].amount`.
+- **`/bills`** — SDK sends `startDate` / `endDate`; spec wants
+  `startMonth` / `endMonth`.
+- **`/billDetail`** — SDK signature takes only `billID`; spec
+  also requires `externalReferenceUid`.
+- **`/transactions`** — SDK sends `tradeType`; spec wants
+  `transactionType`.
+- **`/transactionDetail`** — SDK signature takes only `tradeID`;
+  spec requires `requestId` + `externalReferenceUid` +
+  `transactionType`.
+- **`/payment-precheck`** — SDK `PaymentPreCheckSubOrder` lacks
+  `categoryId` / `categoryOneName` / `merchantId` / `skuId`; spec
+  also requires a top-level `event` field.
+- **`/payment-plan`** — SDK lacks the
+  `extendInfo.ecommerceOrder` tree (11 fields incl.
+  `ecommerceSubOrders`, `orderAmount`, `paymentType`) plus the
+  same commerce-side SubOrder fields as `/payment-precheck`.
+
+These are real production-side mismatches, not test-framework
+artefacts; v0.2.3 will land the rename + missing-arg pass.
+
 ## [0.2.1] — 2026-05-06
 
 Patch release fixing two issues caught by the post-tag completeness
@@ -807,7 +913,9 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.2
+[0.2.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.1
 [0.2.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.0
 [0.1.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.1.1
 [0.1.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.1.0

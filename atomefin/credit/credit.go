@@ -123,25 +123,24 @@ func (s *Service) invokeGet(ctx context.Context, op string, q url.Values, out an
 // Atome's KYC web flow plus the requestId the partner echoes on the
 // subsequent POST /credit-application.
 //
-// RequestID is auto-minted from the Client's generator when empty.
+// BLOCKED in v0.2.x. The 2026-05-06 spec snapshot requires the
+// /credit-information request body and `Encrypt` header to use an
+// AES-ECB-PKCS5 envelope sealed with an RSA-encrypted session key
+// (the partner-pending hybrid-encryption tag in DESIGN §13). v0.2.x
+// does not implement that envelope, so an unblocked call would be
+// rejected upstream with `400 INVALID_ENCRYPTION` on the first
+// production hit. Returning a typed *ValidationError surfaces the
+// gap locally with a clear migration message; the underlying
+// request struct, validators, and round-trip fixtures all stay in
+// place so v0.3 can re-enable the path with one edit.
 func (s *Service) SubmitInformation(ctx context.Context, req *CreditInformationParam) (*CreditInformationResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
-	if req == nil {
-		return nil, &atomefin.ValidationError{Field: "request", Message: "nil CreditInformationParam"}
+	return nil, &atomefin.ValidationError{
+		Field:   "/credit-information",
+		Message: "requires AES+RSA hybrid encryption (Encrypt header + AES-ECB-PKCS5 body); not yet implemented in v0.2.x — lands in v0.3. See CHANGELOG.",
 	}
-	if req.RequestID == "" {
-		req.RequestID = s.c.NewRequestID()
-	}
-	if err := validateCreditInformation(req); err != nil {
-		return nil, err
-	}
-	var out CreditInformationResponse
-	if err := s.invokePost(ctx, "/credit-information", req, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }
 
 // ---------- POST /credit-application ----------
@@ -150,25 +149,18 @@ func (s *Service) SubmitInformation(ctx context.Context, req *CreditInformationP
 // payload. Must reference a prior successful /credit-information's
 // requestId via ExtendInfo.CreditInformationRequestID.
 //
-// RequestID is auto-minted from the Client's generator when empty.
+// BLOCKED in v0.2.x. Same hybrid-encryption requirement as
+// SubmitInformation above; see that method's doc-comment for the
+// rationale. Returns a typed *ValidationError; v0.3 re-enables the
+// network path once the encryption envelope ships.
 func (s *Service) SubmitApplication(ctx context.Context, req *CreditApplicationParam) (*CreditApplicationResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
-	if req == nil {
-		return nil, &atomefin.ValidationError{Field: "request", Message: "nil CreditApplicationParam"}
+	return nil, &atomefin.ValidationError{
+		Field:   "/credit-application",
+		Message: "requires AES+RSA hybrid encryption (Encrypt header + AES-ECB-PKCS5 body); not yet implemented in v0.2.x — lands in v0.3. See CHANGELOG.",
 	}
-	if req.RequestID == "" {
-		req.RequestID = s.c.NewRequestID()
-	}
-	if err := validateCreditApplication(req); err != nil {
-		return nil, err
-	}
-	var out CreditApplicationResponse
-	if err := s.invokePost(ctx, "/credit-application", req, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }
 
 // ---------- GET /credit-result ----------

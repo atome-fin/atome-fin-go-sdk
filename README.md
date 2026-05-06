@@ -79,6 +79,7 @@ Two runnable examples ship in [`examples/`](examples/):
 | `atomefin/transaction` | `Service` with `Transactions` / `TransactionDetail` + `TransactionsAll` auto-pagination; types `Transaction`, `TransactionDetail` + `TradeType` enum (`AUTH` / `CAPTURE` / `VOID` / `REFUND`). |
 | `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler` / `RefundHandler` / `RepaymentHandler` / `CreditApplicationHandler` / `CreditInformationHandler` / `AccountChangeHandler`, `AckResponse`. |
 | `qa/marshal` | Generic round-trip test harness wired against `qa/testdata/` fixtures. |
+| `qa/specserver` | Spec-driven test framework — loads the pinned upstream `swagger.yaml`, walks the schema tree, and stands up an `httptest` server that rejects requests that omit any spec-required field. Per-package `*_spec_test.go` files cover all 25 outbound endpoints; `make test-spec-drift` runs the live upstream-drift sentinel. |
 
 The umbrella `atomefin.Client` also exposes `Client.HeartBeat(ctx)` —
 a one-call signed liveness probe against `GET /heart-beat`. Returns

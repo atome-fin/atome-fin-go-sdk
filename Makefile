@@ -13,7 +13,7 @@ GOVULN   ?= govulncheck
 GOLINT_VERSION ?= v1.64.8
 GOVULN_VERSION ?= latest
 
-.PHONY: help build test test-race lint vet fmt fmtcheck cover examples \
+.PHONY: help build test test-race test-spec-drift lint vet fmt fmtcheck cover examples \
         sandbox-smoke sandbox-webhook clean ci govulncheck
 
 # Self-documenting help: each target carries its docstring INLINE after
@@ -31,6 +31,9 @@ test: ## run the full test suite
 
 test-race: ## run the suite with the race detector
 	$(GO) test -race $(PKG)
+
+test-spec-drift: ## run the upstream spec-drift sentinel (qa/specserver, build-tag specnetwork)
+	$(GO) test -tags specnetwork -run TestSpec_PinnedMatchesUpstream -v ./qa/specserver/
 
 lint: ## golangci-lint run (REQUIRED — install hint printed if missing)
 	@if ! command -v $(GOLINT) >/dev/null 2>&1; then \

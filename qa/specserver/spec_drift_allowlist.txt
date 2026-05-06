@@ -1,0 +1,17 @@
+# qa/specserver — spec-drift allowlist
+#
+# One SHA-256 prefix per line. Each entry suppresses the drift test
+# (TestSpec_PinnedMatchesUpstream, build-tag specnetwork) when the
+# upstream swagger.yaml hashes to a value starting with that prefix.
+# Use sparingly — the allowlist is ESCAPE-VALVE, NOT a hiding
+# mechanism. Every entry should carry a `# rationale` comment
+# pointing at the partner conversation / hotfix window the entry
+# closes.
+#
+# Format:
+#   <8-or-more-hex-chars>  # short rationale, ticket / PR link
+#
+# Example:
+#   01234567               # 2026-06-01 partner hotfix; bump scheduled in PR #N
+#
+# Empty file ⇒ strict pinned-only check.

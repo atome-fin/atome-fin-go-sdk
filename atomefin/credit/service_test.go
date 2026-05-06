@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -97,103 +96,57 @@ func validApplicationParam() *credit.CreditApplicationParam {
 // that 0.0 round-trips faithfully.
 func ptrFloat64(v float64) *float64 { return &v }
 
-// ---------- POST /credit-information happy path ----------
+// ---------- POST /credit-information + /credit-application — BLOCKED in v0.2.x ----------
 
-func TestService_SubmitInformation_Success(t *testing.T) {
-	var gotPath, gotMethod string
-	var gotBody []byte
+// TestSubmitInformation_BlockedUntilV0_3 pins that the method
+// returns a typed *ValidationError without making a network call.
+// The 2026-05-06 spec requires AES+RSA hybrid encryption on this
+// path (Encrypt header + AES-ECB-PKCS5 body); v0.2.x does not yet
+// implement the envelope, so the method short-circuits locally
+// rather than producing a guaranteed `400 INVALID_ENCRYPTION` from
+// upstream. Re-enables in v0.3.
+func TestSubmitInformation_BlockedUntilV0_3(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		gotMethod = r.Method
-		gotBody, _ = io.ReadAll(r.Body)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"info-1","externalReferenceUid":"user-42","status":"DRAFT","jumpUrl":"https://x"}}`))
-	}))
-	defer srv.Close()
-
-	c := mustClient(t, srv)
-	resp, err := credit.New(c).SubmitInformation(context.Background(), validInformationParam())
-	if err != nil {
-		t.Fatalf("SubmitInformation: %v", err)
-	}
-	if !resp.IsSuccess() {
-		t.Errorf("expected SUCCESS code, got %q", resp.Code)
-	}
-	if resp.Data == nil || resp.Data.JumpURL != "https://x" {
-		t.Errorf("Data = %#v", resp.Data)
-	}
-	if gotMethod != http.MethodPost || gotPath != "/credit-information" {
-		t.Errorf("method/path = %s %s", gotMethod, gotPath)
-	}
-	if !strings.Contains(string(gotBody), `"requestId":"info-1"`) {
-		t.Errorf("body missing requestId: %s", gotBody)
-	}
-}
-
-func TestService_SubmitInformation_AutoMintsRequestID(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok"}`))
-	}))
-	defer srv.Close()
-
-	c := mustClient(t, srv)
-	req := validInformationParam()
-	req.RequestID = ""
-	if _, err := credit.New(c).SubmitInformation(context.Background(), req); err != nil {
-		t.Fatalf("SubmitInformation: %v", err)
-	}
-	if req.RequestID == "" {
-		t.Error("RequestID was not auto-minted")
-	}
-	if len(req.RequestID) > 64 {
-		t.Errorf("auto-minted requestId exceeds spec maxlength 64: %d", len(req.RequestID))
-	}
-}
-
-func TestService_SubmitInformation_4xxBecomesAPIError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(400)
-		_, _ = w.Write([]byte(`{"code":"PARAMS_MISSING","message":"x"}`))
+		t.Errorf("server must NOT be reached — SubmitInformation is blocked in v0.2.x")
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
 	_, err := credit.New(c).SubmitInformation(context.Background(), validInformationParam())
-	var ae *atomefin.APIError
-	if !errors.As(err, &ae) {
-		t.Fatalf("err = %v; want *APIError", err)
+	var ve *atomefin.ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("err = %v; want *ValidationError", err)
 	}
-	if ae.Code != atomefin.CodeParamsMissing {
-		t.Errorf("Code = %q", ae.Code)
+	if ve.Field != "/credit-information" {
+		t.Errorf("Field = %q; want /credit-information", ve.Field)
+	}
+	if !strings.Contains(ve.Message, "v0.3") {
+		t.Errorf("Message = %q; want pointer to v0.3 in migration message", ve.Message)
+	}
+	if !strings.Contains(ve.Message, "AES") || !strings.Contains(ve.Message, "RSA") {
+		t.Errorf("Message = %q; want AES+RSA hybrid encryption mentioned", ve.Message)
 	}
 }
 
-// ---------- POST /credit-application happy path ----------
-
-func TestService_SubmitApplication_Success(t *testing.T) {
-	var gotPath, gotMethod string
+// TestSubmitApplication_BlockedUntilV0_3 pins the matching block
+// for POST /credit-application.
+func TestSubmitApplication_BlockedUntilV0_3(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		gotMethod = r.Method
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"externalReferenceUid":"user-42","status":"PROCESSING","currency":"IDR"}}`))
+		t.Errorf("server must NOT be reached — SubmitApplication is blocked in v0.2.x")
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	resp, err := credit.New(c).SubmitApplication(context.Background(), validApplicationParam())
-	if err != nil {
-		t.Fatalf("SubmitApplication: %v", err)
+	_, err := credit.New(c).SubmitApplication(context.Background(), validApplicationParam())
+	var ve *atomefin.ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("err = %v; want *ValidationError", err)
 	}
-	if !resp.IsProcessing() {
-		t.Errorf("expected PROCESSING, got %#v", resp.Data)
+	if ve.Field != "/credit-application" {
+		t.Errorf("Field = %q; want /credit-application", ve.Field)
 	}
-	if gotMethod != http.MethodPost || gotPath != "/credit-application" {
-		t.Errorf("method/path = %s %s", gotMethod, gotPath)
+	if !strings.Contains(ve.Message, "v0.3") {
+		t.Errorf("Message = %q; want v0.3 migration pointer", ve.Message)
 	}
 }
 
@@ -434,6 +387,13 @@ func TestService_CloseAccount_UnpaidDebt(t *testing.T) {
 }
 
 // ---------- Retry on 5xx ----------
+//
+// Probe via ModifyApplicationInfo (POST /modify-application-info) —
+// SubmitInformation / SubmitApplication are blocked locally in
+// v0.2.x and never reach the wire. Both paths share the same
+// invokePost / DoSigned pipeline, so retry / ctx-cancel /
+// reserved-header semantics observed via ModifyApplicationInfo
+// apply uniformly.
 
 func TestService_Retries_5xx_ThenSucceeds(t *testing.T) {
 	var hits int32
@@ -445,13 +405,17 @@ func TestService_Retries_5xx_ThenSucceeds(t *testing.T) {
 			return
 		}
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"info-1","externalReferenceUid":"user-42","status":"DRAFT","jumpUrl":"https://x"}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok"}`))
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	if _, err := credit.New(c).SubmitInformation(context.Background(), validInformationParam()); err != nil {
-		t.Fatalf("SubmitInformation: %v", err)
+	if _, err := credit.New(c).ModifyApplicationInfo(context.Background(), &credit.CreditApplicationChangeParam{
+		RequestID:            "r-1",
+		ExternalReferenceUID: "user-42",
+		MobileNumber:         "+6281298000000",
+	}); err != nil {
+		t.Fatalf("ModifyApplicationInfo: %v", err)
 	}
 	if got := atomic.LoadInt32(&hits); got < 2 {
 		t.Errorf("hits = %d, want >= 2 (retry expected)", got)
@@ -475,7 +439,11 @@ func TestService_RespectsContextCancellation(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 		cancel()
 	}()
-	_, err := credit.New(c).SubmitInformation(ctx, validInformationParam())
+	_, err := credit.New(c).ModifyApplicationInfo(ctx, &credit.CreditApplicationChangeParam{
+		RequestID:            "r-1",
+		ExternalReferenceUID: "user-42",
+		MobileNumber:         "+6281298000000",
+	})
 	if err == nil {
 		t.Fatal("expected error from ctx cancellation")
 	}
@@ -486,16 +454,12 @@ func TestService_RespectsContextCancellation(t *testing.T) {
 
 // ---------- Reserved-header allowlist ----------
 
-// Custom GET option type to inject a per-request header.
-// (Mirrors the bill / refund pattern; uses atomefin.WithRequestHeader
-// indirectly by exercising the public SubmitInformation path with
-// a partner-supplied header that should NOT override Authorization.)
-//
-// We can't reach into invokePost from outside the package; the test
-// instead asserts the SDK's reserved-header semantics via a custom
-// SubmitInformation call where the server inspects the inbound
-// Authorization header and confirms it is the SDK-generated
-// signature, not anything else.
+// Asserts the SDK's reserved-header semantics via a public POST
+// path: the server inspects the inbound Authorization header and
+// confirms it is the SDK-generated signature, not anything else.
+// Probes via ModifyApplicationInfo for the same reason as the
+// retry / ctx tests above (the blocked Submit* methods are no
+// longer suitable wire-touching probes).
 func TestService_ReservedHeaderAllowlist_AuthorizationSDKControlled(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
@@ -518,8 +482,12 @@ func TestService_ReservedHeaderAllowlist_AuthorizationSDKControlled(t *testing.T
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	if _, err := credit.New(c).SubmitInformation(context.Background(), validInformationParam()); err != nil {
-		t.Fatalf("SubmitInformation: %v", err)
+	if _, err := credit.New(c).ModifyApplicationInfo(context.Background(), &credit.CreditApplicationChangeParam{
+		RequestID:            "r-1",
+		ExternalReferenceUID: "user-42",
+		MobileNumber:         "+6281298000000",
+	}); err != nil {
+		t.Fatalf("ModifyApplicationInfo: %v", err)
 	}
 }
 

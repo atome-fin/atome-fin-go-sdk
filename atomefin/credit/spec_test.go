@@ -13,22 +13,14 @@ import (
 // method against the spec server. Account-ops endpoints
 // (modify-application-info, close-account) are co-located here per
 // the v0.2 design choice and tested alongside the lifecycle ops.
+//
+// /credit-information and /credit-application are NOT covered here
+// — both are blocked locally in v0.2.x pending the v0.3
+// hybrid-encryption envelope (see TestSubmitInformation_BlockedUntilV0_3
+// in service_test.go). They will rejoin this case table when v0.3
+// re-enables the network path.
 func TestSpec_CreditEndpoints(t *testing.T) {
 	specserver.RunCases(t, []specserver.Case{
-		{
-			Op: "POST /credit-information",
-			Run: func(c *atomefin.Client) error {
-				_, err := credit.New(c).SubmitInformation(context.Background(), specSampleCreditInformationParam())
-				return err
-			},
-		},
-		{
-			Op: "POST /credit-application",
-			Run: func(c *atomefin.Client) error {
-				_, err := credit.New(c).SubmitApplication(context.Background(), specSampleCreditApplicationParam())
-				return err
-			},
-		},
 		{
 			Op: "GET /credit-result",
 			Run: func(c *atomefin.Client) error {
@@ -77,34 +69,6 @@ func TestSpec_CreditEndpoints(t *testing.T) {
 	})
 }
 
-// ---------- minimal request constructors ----------
-
-func specSampleCreditInformationParam() *credit.CreditInformationParam {
-	return &credit.CreditInformationParam{
-		RequestID:            "r-spec-info",
-		ExternalReferenceUID: "u-spec-1",
-		EventType:            credit.EventTypeNewApplication,
-		Email:                "spec@example.com",
-		Country:              credit.CountryIndonesia,
-		ExtendInfo: &credit.CreditInformationExtendInfo{
-			Language: credit.LanguageEnglish,
-		},
-	}
-}
-
-func specSampleCreditApplicationParam() *credit.CreditApplicationParam {
-	return &credit.CreditApplicationParam{
-		RequestID:            "r-spec-app",
-		ExternalReferenceUID: "u-spec-1",
-		MobileNumber:         "+6281298000000",
-		Email:                "spec@example.com",
-		Country:              credit.CountryIndonesia,
-		ApplicationEssentialInfo: &credit.ApplicationEssentialInfo{
-			IndividualProfile:   &credit.IndividualProfile{IDType: "KTP"},
-			PlatformInformation: &credit.PlatformInformation{},
-		},
-		ExtendInfo: &credit.CreditApplicationExtendInfo{
-			CreditInformationRequestID: "r-spec-info",
-		},
-	}
-}
+// (No constructors needed — POST /credit-information and POST
+// /credit-application are blocked in v0.2.x; their case-rows above
+// have been removed.)
