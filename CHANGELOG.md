@@ -7,6 +7,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.2.1] — 2026-05-06
+
+Patch release fixing two issues caught by the post-tag completeness
+review (`docs/internal/COMPLETENESS_REVIEW_V0.2.md`). v0.2.0 partners
+should upgrade — the first issue causes guaranteed `400 PARAMS_MISSING`
+on every call to four query GET methods.
+
+### Fixed
+
+- **Four query GET methods now take spec-required `externalReferenceUid`
+  param.** v0.2.0 shipped `payment.QueryAuth(ctx, requestID)`,
+  `payment.QueryCapture(ctx, requestID)`, `payment.QueryVoidAuth(ctx,
+  requestID)`, and `refund.QueryRefund(ctx, requestID)` — but the spec
+  requires BOTH `requestId` AND `externalReferenceUid` query params on
+  each. First production call would have returned `400 PARAMS_MISSING`.
+  Signatures are now `(ctx, requestID, externalReferenceUID)` for all
+  four; `repayment.QueryRepayment` and `credit.QueryInformationResult`
+  already had the correct shape and are unchanged.
+- **`credit.PlatformInformation.UserCreditScore` is `*float64`.**
+  v0.2.0 declared it as bare `float64` with `,omitempty` — a
+  worst-case `0.0` score silently disappeared on the wire. Now matches
+  the v0.1 precedent set by `payment.RequestExtendInfo.UserCreditScore`
+  (pointer; pointer-nil signals absence; `0.0` round-trips visibly).
+
+### Migration
+
+Both fixes are public-API breaking but pre-1.0. Adapt callers:
+
+```go
+// before (v0.2.0 — broken)
+resp, err := payment.New(c).QueryAuth(ctx, "req-1")
+
+// after (v0.2.1)
+resp, err := payment.New(c).QueryAuth(ctx, "req-1", externalRefUID)
+```
+
+```go
+// before (v0.2.0 — silent zero loss)
+score := 0.0
+info.UserCreditScore = score
+
+// after (v0.2.1)
+score := 0.0
+info.UserCreditScore = &score
+```
+
 ## [0.2.0] — 2026-05-06
 
 **28 new endpoints across 6 chunks.** v0.2 lights up the rest of the
