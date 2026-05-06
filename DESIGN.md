@@ -273,15 +273,17 @@ Canonical string rules (per spec §Signature, §1.3 verbatim quote):
   `sign.CanonicalQuery(url.Values)` for partners building extension
   calls.
 
-> **GET path is reserved, not exercised, in v1.** All five spec
-> endpoints (DESIGN §1.1) are POST. The SDK's outbound
-> `Client.DoSigned` rejects non-POST verbs at the call site
-> (`*ValidationError`) — partners writing forward-compat code that
-> needs a GET would build the canonical bytes via `CanonicalQuery`,
-> sign them via `Signer.Sign`, and dispatch through the partner's
-> own HTTP plumbing until the SDK adds first-class GET support. The
-> Signer is verb-agnostic: it signs whatever bytes it's handed, so
-> `CanonicalQuery` is a drop-in canonical for the GET branch.
+> **GET path is now first-class as of v0.2** — the SDK exposes
+> `Client.DoSignedGET(ctx, path, query, opts...)` for partners
+> integrating the `/query-auth` / `/query-capture` / `/query-voidAuth`
+> polling endpoints. `DoSignedGET` signs `sign.CanonicalQuery(query)`
+> and assigns the SAME bytes to `req.URL.RawQuery` so the wire is
+> byte-equal to the signing canonical (R13 invariant — exercised by
+> `atomefin/dosigned_get_test.go`'s `TestDoSignedGET_R13_WireEqualsCanonical`).
+> The typed wrappers `payment.QueryAuth` / `QueryCapture` / `QueryVoidAuth`
+> consume this path; partners writing extension calls can call
+> `DoSignedGET` directly. `Client.DoSigned` remains POST-only and
+> returns `*ValidationError` on non-POST verbs.
 
 Output is base64-standard-encoded; placed verbatim in the `Authorization`
 header. We do not invent a custom auth scheme prefix until §10/Q2 is resolved.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/sign"
@@ -195,5 +196,6 @@ func (c *Client) Close() error { return nil }
 // the exported API).
 var _ interface {
 	DoSigned(ctx context.Context, method, path string, body []byte, opts ...DoSignedOption) (*RawResponse, error)
+	DoSignedGET(ctx context.Context, path string, query url.Values, opts ...DoSignedOption) (*RawResponse, error)
 	NewRequestID() string
 } = (*Client)(nil)

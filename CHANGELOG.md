@@ -9,6 +9,58 @@ post-1.0. Pre-1.0 minor versions may break.
 
 ## [Unreleased]
 
+v0.2 work-in-progress; chunks accumulate here until tag.
+
+### Added
+
+- **`Client.DoSignedGET(ctx, path, query, opts...)`** —
+  GET-equivalent of `DoSigned`. Signs `sign.CanonicalQuery(query)` and
+  assigns the SAME bytes to `req.URL.RawQuery` so the wire is
+  byte-equal to the signing canonical (architect §1 R13 invariant —
+  prevents `+`-vs-`%20` drift that `url.Values.Encode()` would
+  introduce). Same retry/observer/headers/error-envelope/limit-
+  reader pipeline as `DoSigned`. ctx cancellation is honoured
+  during backoff sleeps. `DoSigned` and `DoSignedGET` now share a
+  private `signAndDispatch` helper — no behaviour change to the
+  POST path.
+- **`payment.New(c).QueryAuth(ctx, requestID)`** /
+  **`QueryCapture(ctx, requestID)`** / **`QueryVoidAuth(ctx, requestID)`**
+  — typed wrappers around `DoSignedGET` for the spec's polling
+  endpoints (`GET /query-auth` / `GET /query-capture` /
+  `GET /query-voidAuth`). Each returns the SAME envelope shape as
+  the POST counterpart (`*payment.AuthResponse` etc.) so partners
+  can switch between webhook-driven and poll-driven completion
+  detection without learning a parallel response schema. Validators
+  reject empty / >64-char `requestID` before the network round-trip.
+
+### Changed
+
+- `Client.DoSigned`'s `ValidationError` message on non-POST verbs
+  updated to point at `DoSignedGET` for the GET path.
+
+### Documentation
+
+- `README.md` — three new rows in the Implemented endpoints table
+  for the `/query-*` GET endpoints.
+- `DESIGN.md` §5 — GET-path note rewritten: GET is no longer
+  reserved-only, `DoSignedGET` is the first-class entry point,
+  `payment.QueryX` are the typed wrappers; cross-reference to the
+  R13 wire-≡-canonical invariant test.
+
+### Tests
+
+- `atomefin/dosigned_get_test.go` — 9 tests covering R13
+  (`TestDoSignedGET_R13_WireEqualsCanonical` — server-side rebuild
+  of canonical from `r.URL.Query()` + verifier round-trip),
+  4xx → APIError, 5xx retries, retry idempotency (canonical bytes
+  identical across attempts), ctx-cancel-in-sleep, reserved-header
+  allowlist, custom-header passthrough, bad-path validation,
+  nil-client safety, empty-query passthrough.
+- `atomefin/payment/query_test.go` — 7 tests: happy path per
+  endpoint (asserts Method=GET, Path, RawQuery byte-shape),
+  empty-requestID rejection, >64-char requestID rejection,
+  nil-Service safety, 4xx-becomes-APIError.
+
 ## [0.1.1] — 2026-05-06
 
 Patch release tracking the upstream spec snapshot dated 2026-05-06:

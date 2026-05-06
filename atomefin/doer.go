@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/sign"
 )
 
 // RawResponse is the unparsed response handed back from Client.DoSigned on
@@ -84,38 +87,111 @@ func (c *Client) DoSigned(ctx context.Context, method, path string, body []byte,
 		}
 	}
 	if method != http.MethodPost {
-		// All five v1 spec endpoints are POST (DESIGN.md §1.1). The spec
-		// reserves a GET signing canonical (sign the alphabetically
-		// sorted query string — see sign.CanonicalQuery), but no
-		// endpoint exercises it today, so DoSigned is POST-only by
-		// design. When the spec adds a GET, partners can build the
-		// canonical bytes via sign.CanonicalQuery and feed them to
-		// Signer.Sign directly (the Signer is verb-agnostic).
-		return nil, &ValidationError{Field: "method", Message: "only POST is supported in v1 (GET signing canonical lives in sign.CanonicalQuery; no GET endpoints in v1)"}
+		// DoSigned is the POST entry point. GET requests use DoSignedGET
+		// (different signing canonical: the alphabetically-sorted query
+		// string per spec §Signature, not the body).
+		return nil, &ValidationError{Field: "method", Message: "DoSigned is POST-only; use DoSignedGET for GET requests"}
 	}
 	if path == "" || path[0] != '/' {
 		return nil, &ValidationError{Field: "path", Message: "path must be absolute (start with '/')"}
 	}
 
-	// Sign once: deterministic PKCS#1-v1.5 produces identical bytes per
-	// retry, and PSS produces fresh bytes — either way the canonical input
-	// (the body) is unchanged, so re-signing is unnecessary in the common
-	// case. We still sign once up front to fail fast on configuration
-	// errors before paying the network cost.
-	sig, err := c.signer.Sign(ctx, body)
+	urlStr := c.baseURL + path
+	return c.signAndDispatch(ctx, path, urlStr, body, cfg, func(reqCtx context.Context) (*http.Request, error) {
+		// Fresh body reader per attempt — bytes.NewReader is single-use.
+		return http.NewRequestWithContext(reqCtx, method, urlStr, bytes.NewReader(body))
+	})
+}
+
+// DoSignedGET signs and sends a GET request to <baseURL><path> with the
+// given query parameters. Mirror of DoSigned for the GET branch of the
+// spec's signature section:
+//
+//	"GET: Sign the request parameters which parameter names are sorted
+//	 in alphabetical natural order"
+//
+// (DESIGN.md §1.3 verbatim quote, §5 canonical rules).
+//
+// Behaviour:
+//   - The signing canonical is sign.CanonicalQuery(query) — keys in
+//     lexicographic order, RFC 3986 percent-encoding (space → %20, NOT
+//     +). The Signer is fed those bytes; the wire RawQuery is set to
+//     the SAME bytes verbatim so server-side reconstruction (parse +
+//     re-canonicalise) verifies against the partner's signature
+//     byte-for-byte.
+//   - opts pass through identically to DoSigned (sessionid headers,
+//     custom traces, etc.). Reserved headers
+//     (Authorization/Content-Type/User-Agent/Accept) cannot be
+//     overridden.
+//   - On 2xx: returns (*RawResponse, nil).
+//   - On 4xx/5xx (after retries): returns (nil, *APIError).
+//   - On transport / signing failure: (nil, *TransportError) or
+//     (nil, *SignatureError).
+//   - Same retry / observer / body-cap pipeline as DoSigned. ctx
+//     cancellation is honoured DURING backoff sleeps.
+//
+// op (used by Observer hooks and log lines) is the path argument.
+func (c *Client) DoSignedGET(ctx context.Context, path string, query url.Values, opts ...DoSignedOption) (*RawResponse, error) {
+	if c == nil {
+		return nil, errors.New("atomefin: DoSignedGET called on nil *Client")
+	}
+	var cfg doSignedConfig
+	for _, o := range opts {
+		if o != nil {
+			o.applyDoSigned(&cfg)
+		}
+	}
+	if path == "" || path[0] != '/' {
+		return nil, &ValidationError{Field: "path", Message: "path must be absolute (start with '/')"}
+	}
+
+	canonical := []byte(sign.CanonicalQuery(query))
+	urlStr := c.baseURL + path
+	return c.signAndDispatch(ctx, path, urlStr, canonical, cfg, func(reqCtx context.Context) (*http.Request, error) {
+		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, urlStr, nil)
+		if err != nil {
+			return nil, err
+		}
+		// Wire ≡ canonical. Critical: do NOT call query.Encode() —
+		// that uses "+" for space (form encoding), producing a wire
+		// query that diverges from sign.CanonicalQuery's "%20" form
+		// and breaks server-side verification (architect §1, R13).
+		req.URL.RawQuery = string(canonical)
+		return req, nil
+	})
+}
+
+// signAndDispatch is the shared sign + retry-loop pipeline used by
+// DoSigned (POST/body) and DoSignedGET (GET/query). Caller supplies:
+//
+//   - op:        Observer / log label (typically the path)
+//   - urlStr:    full URL for error annotation (no query)
+//   - canonical: bytes fed to the Signer
+//   - cfg:       parsed DoSignedOption config
+//   - buildReq:  closure invoked once per attempt to build a fresh
+//     *http.Request. The closure is responsible for setting RawQuery
+//     (GET) or Body (POST). Headers are populated by the loop AFTER
+//     the closure returns, so callers should not pre-fill any header
+//     the SDK owns.
+//
+// Retries on 5xx + transport errors per c.retry. ctx cancellation is
+// honoured during backoff sleeps via RetryPolicy.Sleep.
+func (c *Client) signAndDispatch(
+	ctx context.Context,
+	op, urlStr string,
+	canonical []byte,
+	cfg doSignedConfig,
+	buildReq func(reqCtx context.Context) (*http.Request, error),
+) (*RawResponse, error) {
+	sig, err := c.signer.Sign(ctx, canonical)
 	if err != nil {
-		// ctx errors propagate as TransportError so callers can errors.Is
-		// against context.Canceled / DeadlineExceeded uniformly.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return nil, &TransportError{Op: "sign", URL: c.baseURL + path, Err: err}
+			return nil, &TransportError{Op: "sign", URL: urlStr, Err: err}
 		}
 		return nil, &SignatureError{Reason: "sign", Err: err}
 	}
 	authValue := c.authScheme(sig, c.signer.KeyID())
 
-	op := path
-
-	// Apply per-request timeout if configured. The parent ctx still wins.
 	reqCtx := ctx
 	if c.timeout > 0 {
 		var cancel context.CancelFunc
@@ -123,21 +199,19 @@ func (c *Client) DoSigned(ctx context.Context, method, path string, body []byte,
 		defer cancel()
 	}
 
-	url := c.baseURL + path
-
 	var lastErr error
 	for attempt := 1; attempt <= c.retry.MaxAttempts; attempt++ {
 		c.safeObsRequest(reqCtx, op, attempt)
 
-		req, err := http.NewRequestWithContext(reqCtx, method, url, bytes.NewReader(body))
+		req, err := buildReq(reqCtx)
 		if err != nil {
-			return nil, &TransportError{Op: "build", URL: url, Err: err}
+			return nil, &TransportError{Op: "build", URL: urlStr, Err: err}
 		}
 		c.populateHeaders(req.Header, authValue)
 		// Partner-supplied per-request headers are applied AFTER the
 		// SDK-controlled ones, but the SDK rejects collisions on
 		// reserved headers so callers cannot override Authorization /
-		// Content-Type / User-Agent.
+		// Content-Type / User-Agent / Accept.
 		for k, vs := range cfg.extraHeaders {
 			if isReservedHeader(k) {
 				continue
@@ -151,7 +225,7 @@ func (c *Client) DoSigned(ctx context.Context, method, path string, body []byte,
 
 		if err != nil {
 			retryable := c.retry.RetryOnTransportError(err) && IsRetryableTransport(err)
-			te := &TransportError{Op: "do", URL: url, Err: err, Retry: retryable}
+			te := &TransportError{Op: "do", URL: urlStr, Err: err, Retry: retryable}
 			c.safeObsRetry(reqCtx, op, attempt, te)
 			c.logger.Warn("atomefin: request failed",
 				"op", op, "attempt", attempt, "err", err, "dur", dur)
@@ -160,7 +234,7 @@ func (c *Client) DoSigned(ctx context.Context, method, path string, body []byte,
 				return nil, te
 			}
 			if sleepErr := c.retry.Sleep(reqCtx, attempt); sleepErr != nil {
-				return nil, &TransportError{Op: "sleep", URL: url, Err: sleepErr}
+				return nil, &TransportError{Op: "sleep", URL: urlStr, Err: sleepErr}
 			}
 			continue
 		}
@@ -168,7 +242,7 @@ func (c *Client) DoSigned(ctx context.Context, method, path string, body []byte,
 		respBody, readErr := readAndClose(resp.Body, c.maxRespBytes)
 		c.safeObsResponse(reqCtx, op, resp.StatusCode, dur)
 		if readErr != nil {
-			te := &TransportError{Op: "read", URL: url, Err: readErr, Retry: false}
+			te := &TransportError{Op: "read", URL: urlStr, Err: readErr, Retry: false}
 			c.logger.Error("atomefin: response body read failed",
 				"op", op, "attempt", attempt, "err", readErr)
 			return nil, te
@@ -180,7 +254,6 @@ func (c *Client) DoSigned(ctx context.Context, method, path string, body []byte,
 				"body_size", len(respBody))
 		}
 
-		// Retry on 5xx per policy.
 		if c.retry.RetryOnStatus(resp.StatusCode) && attempt < c.retry.MaxAttempts {
 			apiErr := decodeAPIError(resp.StatusCode, op, respBody)
 			c.safeObsRetry(reqCtx, op, attempt, apiErr)
@@ -188,7 +261,7 @@ func (c *Client) DoSigned(ctx context.Context, method, path string, body []byte,
 				"op", op, "attempt", attempt, "status", resp.StatusCode, "code", string(apiErr.Code))
 			lastErr = apiErr
 			if sleepErr := c.retry.Sleep(reqCtx, attempt); sleepErr != nil {
-				return nil, &TransportError{Op: "sleep", URL: url, Err: sleepErr}
+				return nil, &TransportError{Op: "sleep", URL: urlStr, Err: sleepErr}
 			}
 			continue
 		}
@@ -208,7 +281,7 @@ func (c *Client) DoSigned(ctx context.Context, method, path string, body []byte,
 	// MaxAttempts >= 1 and every branch returns or continues, but Go
 	// can't prove that.
 	if lastErr == nil {
-		lastErr = &TransportError{Op: "do", URL: url, Err: errors.New("retry loop exhausted with no error captured")}
+		lastErr = &TransportError{Op: "do", URL: urlStr, Err: errors.New("retry loop exhausted with no error captured")}
 	}
 	return nil, lastErr
 }

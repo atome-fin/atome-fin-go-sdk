@@ -89,6 +89,9 @@ diff against when the spec moves.
 | `POST` | `/voidAuth` | partner → atome-fin | `payment.New(c).VoidAuth(ctx, req)` | `*payment.VoidAuthRequest` | `*payment.VoidAuthResponse` | three-field body: `requestId`, `externalReferenceUid`, `authOrderId` |
 | `POST` | `<authNotifyUrl>` | atome-fin → partner | `callback.AuthHandler(v, fn)` | `*callback.AuthEvent` (= `payment.AuthResponse`) | `callback.AckResponse` | terminal-only (no `PROCESSING`); at-least-once — handler must be idempotent |
 | `POST` | `<captureNotifyUrl>` | atome-fin → partner | `callback.CaptureHandler(v, fn)` | `*callback.CaptureEvent` (= `payment.CaptureResponse`) | `callback.AckResponse` | terminal-only; same idempotency contract as auth-callback |
+| `GET` | `/query-auth` | partner → atome-fin | `payment.New(c).QueryAuth(ctx, requestID)` | `requestId` query | `*payment.AuthResponse` | polling alternative to PROCESSING webhooks; sorted-canonical query per spec |
+| `GET` | `/query-capture` | partner → atome-fin | `payment.New(c).QueryCapture(ctx, requestID)` | `requestId` query | `*payment.CaptureResponse` | polling alternative to PROCESSING webhooks; sorted-canonical query per spec |
+| `GET` | `/query-voidAuth` | partner → atome-fin | `payment.New(c).QueryVoidAuth(ctx, requestID)` | `requestId` query | `*payment.VoidAuthResponse` | polling alternative to PROCESSING webhooks; sorted-canonical query per spec |
 
 For the async `PROCESSING` path on outbound calls (server returns the
 typed envelope without a terminal `data.status`), use
