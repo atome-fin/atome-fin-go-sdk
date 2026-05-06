@@ -417,8 +417,11 @@ type Residential struct {
 // PlatformInformation carries partner-side risk signals.
 type PlatformInformation struct {
 	// UserCreditScore is a partner-side credit score in [0, 1].
-	// Optional.
-	UserCreditScore float64 `json:"userCreditScore,omitempty"`
+	// Optional. Pointer-typed so a worst-case 0.0 score round-trips
+	// faithfully (a bare float64 with `,omitempty` would silently
+	// drop 0.0 on encode); matches the v0.1 precedent set by
+	// payment.RequestExtendInfo.UserCreditScore.
+	UserCreditScore *float64 `json:"userCreditScore,omitempty"`
 	// CreditProfile is a JSON string carrying partner risk model
 	// scores and engineered features.
 	CreditProfile string `json:"creditProfile,omitempty"`

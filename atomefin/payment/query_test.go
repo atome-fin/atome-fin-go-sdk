@@ -29,7 +29,7 @@ func TestQueryAuth_Success(t *testing.T) {
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	resp, err := payment.New(c).QueryAuth(context.Background(), "r-1")
+	resp, err := payment.New(c).QueryAuth(context.Background(), "r-1", "u-1")
 	if err != nil {
 		t.Fatalf("QueryAuth: %v", err)
 	}
@@ -42,14 +42,16 @@ func TestQueryAuth_Success(t *testing.T) {
 	if gotPath != "/query-auth" {
 		t.Errorf("path = %q, want /query-auth", gotPath)
 	}
-	// Single-key query → canonical is `requestId=r-1`.
-	if gotQuery != "requestId=r-1" {
-		t.Errorf("RawQuery = %q, want requestId=r-1", gotQuery)
+	// Alphabetical canonical → externalReferenceUid before requestId.
+	if gotQuery != "externalReferenceUid=u-1&requestId=r-1" {
+		t.Errorf("RawQuery = %q, want externalReferenceUid=u-1&requestId=r-1", gotQuery)
 	}
 }
 
 func TestQueryCapture_Success(t *testing.T) {
+	var gotQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
 		if r.URL.Path != "/query-capture" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
@@ -59,7 +61,7 @@ func TestQueryCapture_Success(t *testing.T) {
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	resp, err := payment.New(c).QueryCapture(context.Background(), "c-1")
+	resp, err := payment.New(c).QueryCapture(context.Background(), "c-1", "u-1")
 	if err != nil {
 		t.Fatalf("QueryCapture: %v", err)
 	}
@@ -69,10 +71,15 @@ func TestQueryCapture_Success(t *testing.T) {
 	if resp.Data.OrderID != "O-1" {
 		t.Errorf("OrderID = %q", resp.Data.OrderID)
 	}
+	if gotQuery != "externalReferenceUid=u-1&requestId=c-1" {
+		t.Errorf("RawQuery = %q, want externalReferenceUid=u-1&requestId=c-1", gotQuery)
+	}
 }
 
 func TestQueryVoidAuth_Success(t *testing.T) {
+	var gotQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
 		if r.URL.Path != "/query-voidAuth" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
@@ -82,12 +89,15 @@ func TestQueryVoidAuth_Success(t *testing.T) {
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	resp, err := payment.New(c).QueryVoidAuth(context.Background(), "v-1")
+	resp, err := payment.New(c).QueryVoidAuth(context.Background(), "v-1", "u-1")
 	if err != nil {
 		t.Fatalf("QueryVoidAuth: %v", err)
 	}
 	if !resp.IsTerminal() {
 		t.Error("expected terminal response")
+	}
+	if gotQuery != "externalReferenceUid=u-1&requestId=v-1" {
+		t.Errorf("RawQuery = %q, want externalReferenceUid=u-1&requestId=v-1", gotQuery)
 	}
 }
 
@@ -100,9 +110,9 @@ func TestQuery_RejectsEmptyRequestID(t *testing.T) {
 	svc := payment.New(c)
 
 	for name, fn := range map[string]func() error{
-		"QueryAuth":     func() error { _, e := svc.QueryAuth(context.Background(), ""); return e },
-		"QueryCapture":  func() error { _, e := svc.QueryCapture(context.Background(), ""); return e },
-		"QueryVoidAuth": func() error { _, e := svc.QueryVoidAuth(context.Background(), ""); return e },
+		"QueryAuth":     func() error { _, e := svc.QueryAuth(context.Background(), "", "u-1"); return e },
+		"QueryCapture":  func() error { _, e := svc.QueryCapture(context.Background(), "", "u-1"); return e },
+		"QueryVoidAuth": func() error { _, e := svc.QueryVoidAuth(context.Background(), "", "u-1"); return e },
 	} {
 		err := fn()
 		var ve *atomefin.ValidationError
@@ -124,9 +134,9 @@ func TestQuery_RejectsLongRequestID(t *testing.T) {
 	longID := strings.Repeat("a", 65)
 
 	for name, fn := range map[string]func() error{
-		"QueryAuth":     func() error { _, e := svc.QueryAuth(context.Background(), longID); return e },
-		"QueryCapture":  func() error { _, e := svc.QueryCapture(context.Background(), longID); return e },
-		"QueryVoidAuth": func() error { _, e := svc.QueryVoidAuth(context.Background(), longID); return e },
+		"QueryAuth":     func() error { _, e := svc.QueryAuth(context.Background(), longID, "u-1"); return e },
+		"QueryCapture":  func() error { _, e := svc.QueryCapture(context.Background(), longID, "u-1"); return e },
+		"QueryVoidAuth": func() error { _, e := svc.QueryVoidAuth(context.Background(), longID, "u-1"); return e },
 	} {
 		err := fn()
 		var ve *atomefin.ValidationError
@@ -140,17 +150,43 @@ func TestQuery_RejectsLongRequestID(t *testing.T) {
 	}
 }
 
+// TestQuery_RejectsEmptyExternalReferenceUID exercises the v0.2 fix —
+// externalReferenceUid is spec-required on each Query* GET. Passing
+// empty must be rejected before the network round-trip.
+func TestQuery_RejectsEmptyExternalReferenceUID(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server must NOT be reached on empty externalReferenceUid")
+	})))
+	svc := payment.New(c)
+
+	for name, fn := range map[string]func() error{
+		"QueryAuth":     func() error { _, e := svc.QueryAuth(context.Background(), "r-1", ""); return e },
+		"QueryCapture":  func() error { _, e := svc.QueryCapture(context.Background(), "r-1", ""); return e },
+		"QueryVoidAuth": func() error { _, e := svc.QueryVoidAuth(context.Background(), "r-1", ""); return e },
+	} {
+		err := fn()
+		var ve *atomefin.ValidationError
+		if !errors.As(err, &ve) {
+			t.Errorf("%s: err = %v; want *ValidationError", name, err)
+			continue
+		}
+		if !strings.Contains(ve.Field, "externalReferenceUid") {
+			t.Errorf("%s: err.Field = %q; want externalReferenceUid", name, ve.Field)
+		}
+	}
+}
+
 // ---------- Nil-service safety ----------
 
 func TestQuery_NilService(t *testing.T) {
 	var svc *payment.Service
-	if _, err := svc.QueryAuth(context.Background(), "r"); err == nil {
+	if _, err := svc.QueryAuth(context.Background(), "r", "u"); err == nil {
 		t.Error("QueryAuth on nil service must error")
 	}
-	if _, err := svc.QueryCapture(context.Background(), "r"); err == nil {
+	if _, err := svc.QueryCapture(context.Background(), "r", "u"); err == nil {
 		t.Error("QueryCapture on nil service must error")
 	}
-	if _, err := svc.QueryVoidAuth(context.Background(), "r"); err == nil {
+	if _, err := svc.QueryVoidAuth(context.Background(), "r", "u"); err == nil {
 		t.Error("QueryVoidAuth on nil service must error")
 	}
 }
@@ -166,7 +202,7 @@ func TestQueryAuth_4xxBecomesAPIError(t *testing.T) {
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	_, err := payment.New(c).QueryAuth(context.Background(), "r-missing")
+	_, err := payment.New(c).QueryAuth(context.Background(), "r-missing", "u-1")
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
 		t.Fatalf("err = %v; want *APIError", err)

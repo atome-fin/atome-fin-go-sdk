@@ -13,10 +13,11 @@ import (
 // Query endpoints (GET) — added in v0.2 for the polling alternative
 // to the PROCESSING webhook flow. Each method retrieves the current
 // state of a prior outbound submission keyed by the partner-supplied
-// `requestId`. Responses use the SAME typed envelopes as the POST
-// counterparts (the spec wire shape is identical), so partner code
-// can switch between webhook-driven and poll-driven completion
-// detection without learning a parallel response schema.
+// `requestId` AND `externalReferenceUid` (both are spec-required).
+// Responses use the SAME typed envelopes as the POST counterparts
+// (the spec wire shape is identical), so partner code can switch
+// between webhook-driven and poll-driven completion detection
+// without learning a parallel response schema.
 //
 // Spec quote (DESIGN.md §1.3 verbatim):
 //
@@ -26,21 +27,26 @@ import (
 // Wire ≡ canonical: Client.DoSignedGET sets RawQuery to the same
 // bytes it signs (sign.CanonicalQuery output, RFC 3986 percent-
 // encoded), so server-side reconstruction verifies byte-for-byte.
+// Alphabetical sort places `externalReferenceUid` before `requestId`.
 
 // QueryAuth retrieves the current state of a prior /auth submission
-// keyed by `requestID`. Returns the same envelope shape as
-// (*Service).Auth — partners can substitute QueryAuth into a polling
-// loop in place of the PROCESSING webhook listener.
+// keyed by `requestID` + `externalReferenceUID`. Returns the same
+// envelope shape as (*Service).Auth — partners can substitute
+// QueryAuth into a polling loop in place of the PROCESSING webhook
+// listener.
 //
-// Spec endpoint: GET /query-auth?requestId=<id>
-func (s *Service) QueryAuth(ctx context.Context, requestID string) (*AuthResponse, error) {
+// Spec endpoint: GET /query-auth?externalReferenceUid=<x>&requestId=<y>
+func (s *Service) QueryAuth(ctx context.Context, requestID, externalReferenceUID string) (*AuthResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
-	if err := validateQueryRequestID(requestID); err != nil {
+	if err := validateQueryParams(requestID, externalReferenceUID); err != nil {
 		return nil, err
 	}
-	q := url.Values{"requestId": []string{requestID}}
+	q := url.Values{
+		"requestId":            []string{requestID},
+		"externalReferenceUid": []string{externalReferenceUID},
+	}
 	var resp AuthResponse
 	if err := s.invokeGET(ctx, "/query-auth", q, &resp); err != nil {
 		return nil, err
@@ -49,17 +55,21 @@ func (s *Service) QueryAuth(ctx context.Context, requestID string) (*AuthRespons
 }
 
 // QueryCapture retrieves the current state of a prior /capture
-// submission keyed by `requestID`. Same envelope as (*Service).Capture.
+// submission keyed by `requestID` + `externalReferenceUID`. Same
+// envelope as (*Service).Capture.
 //
-// Spec endpoint: GET /query-capture?requestId=<id>
-func (s *Service) QueryCapture(ctx context.Context, requestID string) (*CaptureResponse, error) {
+// Spec endpoint: GET /query-capture?externalReferenceUid=<x>&requestId=<y>
+func (s *Service) QueryCapture(ctx context.Context, requestID, externalReferenceUID string) (*CaptureResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
-	if err := validateQueryRequestID(requestID); err != nil {
+	if err := validateQueryParams(requestID, externalReferenceUID); err != nil {
 		return nil, err
 	}
-	q := url.Values{"requestId": []string{requestID}}
+	q := url.Values{
+		"requestId":            []string{requestID},
+		"externalReferenceUid": []string{externalReferenceUID},
+	}
 	var resp CaptureResponse
 	if err := s.invokeGET(ctx, "/query-capture", q, &resp); err != nil {
 		return nil, err
@@ -68,18 +78,21 @@ func (s *Service) QueryCapture(ctx context.Context, requestID string) (*CaptureR
 }
 
 // QueryVoidAuth retrieves the current state of a prior /voidAuth
-// submission keyed by `requestID`. Same envelope as
-// (*Service).VoidAuth.
+// submission keyed by `requestID` + `externalReferenceUID`. Same
+// envelope as (*Service).VoidAuth.
 //
-// Spec endpoint: GET /query-voidAuth?requestId=<id>
-func (s *Service) QueryVoidAuth(ctx context.Context, requestID string) (*VoidAuthResponse, error) {
+// Spec endpoint: GET /query-voidAuth?externalReferenceUid=<x>&requestId=<y>
+func (s *Service) QueryVoidAuth(ctx context.Context, requestID, externalReferenceUID string) (*VoidAuthResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
-	if err := validateQueryRequestID(requestID); err != nil {
+	if err := validateQueryParams(requestID, externalReferenceUID); err != nil {
 		return nil, err
 	}
-	q := url.Values{"requestId": []string{requestID}}
+	q := url.Values{
+		"requestId":            []string{requestID},
+		"externalReferenceUid": []string{externalReferenceUID},
+	}
 	var resp VoidAuthResponse
 	if err := s.invokeGET(ctx, "/query-voidAuth", q, &resp); err != nil {
 		return nil, err
@@ -87,10 +100,10 @@ func (s *Service) QueryVoidAuth(ctx context.Context, requestID string) (*VoidAut
 	return &resp, nil
 }
 
-// validateQueryRequestID enforces the spec's `requestId` constraint
-// (≤64 chars, non-empty). Same rule the POST validators apply to
-// the request body's `requestId`.
-func validateQueryRequestID(requestID string) error {
+// validateQueryParams enforces the spec's `requestId` (≤64 chars,
+// non-empty) and `externalReferenceUid` (non-empty) constraints.
+// Both are spec-required on the Query* GETs.
+func validateQueryParams(requestID, externalReferenceUID string) error {
 	if requestID == "" {
 		return &atomefin.ValidationError{
 			Field:   "requestId",
@@ -101,6 +114,12 @@ func validateQueryRequestID(requestID string) error {
 		return &atomefin.ValidationError{
 			Field:   "requestId",
 			Message: "exceeds spec maxlength 64",
+		}
+	}
+	if externalReferenceUID == "" {
+		return &atomefin.ValidationError{
+			Field:   "externalReferenceUid",
+			Message: "required (the partner-side user/account identifier from the prior outbound submission)",
 		}
 	}
 	return nil

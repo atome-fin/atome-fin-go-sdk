@@ -84,13 +84,18 @@ func validApplicationParam() *credit.CreditApplicationParam {
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.ApplicationEssentialInfo{
 			IndividualProfile:   &credit.IndividualProfile{IDType: "KTP"},
-			PlatformInformation: &credit.PlatformInformation{UserCreditScore: 0.5},
+			PlatformInformation: &credit.PlatformInformation{UserCreditScore: ptrFloat64(0.5)},
 		},
 		ExtendInfo: &credit.CreditApplicationExtendInfo{
 			CreditInformationRequestID: "info-1",
 		},
 	}
 }
+
+// ptrFloat64 is a tiny helper for the *float64 fields on credit
+// types (e.g. PlatformInformation.UserCreditScore). Pointer-typed so
+// that 0.0 round-trips faithfully.
+func ptrFloat64(v float64) *float64 { return &v }
 
 // ---------- POST /credit-information happy path ----------
 

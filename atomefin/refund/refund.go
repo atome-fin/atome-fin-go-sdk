@@ -98,12 +98,15 @@ func (s *Service) Refund(ctx context.Context, req *RefundParam) (*RefundResponse
 }
 
 // QueryRefund retrieves the current state of a prior /refund keyed
-// by `requestID`. Returns the same envelope shape as Refund —
-// partners can substitute QueryRefund into a polling loop in place
-// of the PROCESSING webhook listener.
+// by `requestID` + `externalReferenceUID` (both spec-required).
+// Returns the same envelope shape as Refund — partners can
+// substitute QueryRefund into a polling loop in place of the
+// PROCESSING webhook listener.
 //
-// Spec endpoint: GET /query-refund?requestId=<id>
-func (s *Service) QueryRefund(ctx context.Context, requestID string) (*RefundResponse, error) {
+// Spec endpoint: GET /query-refund?externalReferenceUid=<x>&requestId=<y>
+// (alphabetical sort places externalReferenceUid before requestId in
+// the canonical query.)
+func (s *Service) QueryRefund(ctx context.Context, requestID, externalReferenceUID string) (*RefundResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
@@ -119,8 +122,17 @@ func (s *Service) QueryRefund(ctx context.Context, requestID string) (*RefundRes
 			Message: "exceeds spec maxlength 64",
 		}
 	}
+	if externalReferenceUID == "" {
+		return nil, &atomefin.ValidationError{
+			Field:   "externalReferenceUid",
+			Message: "required (the partner-side user/account identifier from the prior /refund submission)",
+		}
+	}
 
-	q := url.Values{"requestId": []string{requestID}}
+	q := url.Values{
+		"requestId":            []string{requestID},
+		"externalReferenceUid": []string{externalReferenceUID},
+	}
 	resp, err := s.c.DoSignedGET(ctx, "/query-refund", q)
 	if err != nil {
 		return nil, err

@@ -1,6 +1,9 @@
 package credit
 
-import "github.com/atome-fin/atome-fin-go-sdk/atomefin"
+import (
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/payment"
+)
 
 // Spec-stamped maxLength constraints. Used by the validators to
 // match the swagger.yaml-declared schema bounds; unstamped fields
@@ -131,9 +134,11 @@ func validateCreditApplication(req *CreditApplicationParam) error {
 			Message: "required",
 		}
 	}
-	// userCreditScore is in [0, 1] when set (mirrors payment.IsValidScore).
+	// userCreditScore is in [0, 1] when set; reuse payment.IsValidScore
+	// so the rule cannot drift between credit-application and
+	// auth/capture/precheck/plan validators.
 	if pi := req.ApplicationEssentialInfo.PlatformInformation; pi != nil {
-		if pi.UserCreditScore < 0 || pi.UserCreditScore > 1 {
+		if !payment.IsValidScore(pi.UserCreditScore) {
 			return &atomefin.ValidationError{
 				Field:   "applicationEssentialInfo.platformInformation.userCreditScore",
 				Message: "must be in [0, 1] (per spec)",

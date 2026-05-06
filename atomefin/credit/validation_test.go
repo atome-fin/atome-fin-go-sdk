@@ -158,7 +158,8 @@ func TestSubmitApplication_Validate(t *testing.T) {
 			return req
 		}, "platformInformation"},
 		{"out-of-range-userCreditScore", func(req *credit.CreditApplicationParam) *credit.CreditApplicationParam {
-			req.ApplicationEssentialInfo.PlatformInformation.UserCreditScore = 1.5
+			score := 1.5
+			req.ApplicationEssentialInfo.PlatformInformation.UserCreditScore = &score
 			return req
 		}, "userCreditScore"},
 		{"missing-extendInfo", func(req *credit.CreditApplicationParam) *credit.CreditApplicationParam {

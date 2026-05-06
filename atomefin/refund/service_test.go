@@ -179,7 +179,7 @@ func TestService_QueryRefund_Success(t *testing.T) {
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	resp, err := refund.New(c).QueryRefund(context.Background(), "r-1")
+	resp, err := refund.New(c).QueryRefund(context.Background(), "r-1", "u-1")
 	if err != nil {
 		t.Fatalf("QueryRefund: %v", err)
 	}
@@ -189,8 +189,9 @@ func TestService_QueryRefund_Success(t *testing.T) {
 	if gotPath != "/query-refund" {
 		t.Errorf("path = %q, want /query-refund", gotPath)
 	}
-	if gotQuery != "requestId=r-1" {
-		t.Errorf("RawQuery = %q, want requestId=r-1", gotQuery)
+	// Alphabetical canonical → externalReferenceUid before requestId.
+	if gotQuery != "externalReferenceUid=u-1&requestId=r-1" {
+		t.Errorf("RawQuery = %q, want externalReferenceUid=u-1&requestId=r-1", gotQuery)
 	}
 }
 
@@ -202,7 +203,7 @@ func TestService_QueryRefund_4xxBecomesAPIError(t *testing.T) {
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	_, err := refund.New(c).QueryRefund(context.Background(), "r-missing")
+	_, err := refund.New(c).QueryRefund(context.Background(), "r-missing", "u-1")
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
 		t.Fatalf("err = %v; want *APIError", err)
@@ -276,7 +277,7 @@ func TestNilService_AllMethodsReturnError(t *testing.T) {
 	if _, err := svc.Refund(context.Background(), &refund.RefundParam{}); err == nil {
 		t.Error("Refund on nil receiver: want error, got nil")
 	}
-	if _, err := svc.QueryRefund(context.Background(), "r"); err == nil {
+	if _, err := svc.QueryRefund(context.Background(), "r", "u"); err == nil {
 		t.Error("QueryRefund on nil receiver: want error, got nil")
 	}
 	if _, err := svc.RefundPollUntilTerminal(context.Background(), &refund.RefundParam{}, payment.PollOptions{MaxWait: time.Second}); err == nil {
@@ -372,16 +373,23 @@ func TestQueryRefund_Validate(t *testing.T) {
 	})))
 	svc := refund.New(c)
 
-	if _, err := svc.QueryRefund(context.Background(), ""); err == nil {
-		t.Error("QueryRefund(\"\") must reject")
+	if _, err := svc.QueryRefund(context.Background(), "", "u-1"); err == nil {
+		t.Error("QueryRefund(\"\", \"u-1\") must reject")
 	} else {
 		mustValidationError(t, err, "requestId")
 	}
 
 	long := strings.Repeat("a", 65)
-	if _, err := svc.QueryRefund(context.Background(), long); err == nil {
-		t.Error("QueryRefund(>64) must reject")
+	if _, err := svc.QueryRefund(context.Background(), long, "u-1"); err == nil {
+		t.Error("QueryRefund(>64, \"u-1\") must reject")
 	} else {
 		mustValidationError(t, err, "requestId")
+	}
+
+	// v0.2 fix: externalReferenceUid is spec-required.
+	if _, err := svc.QueryRefund(context.Background(), "r-1", ""); err == nil {
+		t.Error("QueryRefund(\"r-1\", \"\") must reject")
+	} else {
+		mustValidationError(t, err, "externalReferenceUid")
 	}
 }
