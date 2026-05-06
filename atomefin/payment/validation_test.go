@@ -135,13 +135,32 @@ func TestCapture_Validate_NilRequest(t *testing.T) {
 	}
 }
 
-func TestCapture_Validate_MissingAuthOrderID(t *testing.T) {
-	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
+func TestCapture_Validate_RejectsEmptyExternalReferenceUID(t *testing.T) {
+	// v0.1.1 fix: capture now requires externalReferenceUid (latent
+	// non-compliance in v0.1.0). The validator must reject before the
+	// network round-trip.
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server must NOT be reached when externalReferenceUid is empty")
+	})))
 	req := &payment.CaptureRequest{
 		RequestID:   "c-1",
+		AuthOrderID: "AUTH-1",
 		TotalAmount: 1,
 		PeriodType:  1,
 		SubOrders:   []payment.SubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
+	}
+	_, err := payment.New(c).Capture(context.Background(), req)
+	mustValidationError(t, err, "externalReferenceUid")
+}
+
+func TestCapture_Validate_MissingAuthOrderID(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
+	req := &payment.CaptureRequest{
+		RequestID:            "c-1",
+		ExternalReferenceUID: "user-42",
+		TotalAmount:          1,
+		PeriodType:           1,
+		SubOrders:            []payment.SubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
 	}
 	_, err := payment.New(c).Capture(context.Background(), req)
 	mustValidationError(t, err, "authOrderId")
@@ -150,11 +169,12 @@ func TestCapture_Validate_MissingAuthOrderID(t *testing.T) {
 func TestCapture_Validate_SumMismatch(t *testing.T) {
 	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
 	req := &payment.CaptureRequest{
-		RequestID:   "c-1",
-		AuthOrderID: "AUTH-1",
-		TotalAmount: 1000,
-		PeriodType:  1,
-		SubOrders:   []payment.SubOrder{{SubOrderID: "s", Amount: 999, Quantity: 1}},
+		RequestID:            "c-1",
+		ExternalReferenceUID: "user-42",
+		AuthOrderID:          "AUTH-1",
+		TotalAmount:          1000,
+		PeriodType:           1,
+		SubOrders:            []payment.SubOrder{{SubOrderID: "s", Amount: 999, Quantity: 1}},
 	}
 	_, err := payment.New(c).Capture(context.Background(), req)
 	mustValidationError(t, err, "totalAmount")

@@ -707,9 +707,15 @@ list APIs land.
    body?).
 9. **Rate limits.** Not documented. Need numeric limits per endpoint and the
    429 / "rate limited" error contract.
-10. **Currency set.** Spec says supported currencies are agreed per partner;
+10. **Currency set.** ~~Spec says supported currencies are agreed per partner;
     we need the concrete list to validate `Currency` and pick `Amount`
-    minor-unit scale.
+    minor-unit scale.~~ **RESOLVED 2026-05-06** — the spec enum-locks
+    the supported set to **IDR** (Indonesian rupiah) for v0.1.1. The
+    SDK promotes `atomefin.Currency` from a string alias to a named
+    type with `CurrencyIDR` constant and `(Currency).IsValid()` helper.
+    Decode policy is permissive (any string accepted on inbound for
+    forward-compat with v2 currencies); validators on outbound request
+    types reject non-IDR via `IsValid` before the network round-trip.
 11. **Time zone for `billDate` / `dueDate`** (`yyyy-MM-dd`). Bills and
     dueDates without a TZ are ambiguous near midnight — is it user-local TZ,
     Atome operational TZ, or UTC?
@@ -736,7 +742,7 @@ list APIs land.
     `github.com/atome-fin/atome-fin-go-sdk`, `github.com/atome/...`, or a
     partner-owned org? Affects import path baked into examples and tests.
 20. **Spec stability.** Spec is tagged `partner-order-draft` /
-    `Draft from Auth-Capture` (2026-04-22). What is the schedule for the
+    `Draft from Auth-Capture` (2026-05-06). What is the schedule for the
     non-draft cut, and will fields like `version` (currently described as
     "monotonic version or event time in Unix ms") be tightened?
 

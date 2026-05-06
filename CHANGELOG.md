@@ -9,6 +9,61 @@ post-1.0. Pre-1.0 minor versions may break.
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-06
+
+Patch release tracking the upstream spec snapshot dated 2026-05-06:
+one latent-bug fix, one tightening, and the snapshot stamp updates.
+Non-breaking on the wire and on the public API surface (named-type
+Currency promotion is the one micro-break — `string(c)` casts are
+the only callers affected).
+
+### Fixed
+
+- **`payment.CaptureRequest.ExternalReferenceUID`** is now a required
+  field on the request body. v0.1.0 shipped without it, which made
+  `/capture` non-compliant against both the v1-draft and the
+  2026-05-06 snapshot of the upstream spec. The validator rejects
+  empty values before the network round-trip; the QA fixture
+  `qa/testdata/capture_request.json` is updated to include the field;
+  `examples/auth_capture/main.go` now mirrors the auth request's
+  `ExternalReferenceUID` into the capture request, matching the
+  expected partner pattern.
+
+### Changed
+
+- **`atomefin.Currency` is now a named type, enum-locked to `IDR`.**
+  v0.1.0 shipped `type Currency = string` (transparent alias) and
+  flagged Q10 (currency set) as open. The 2026-05-06 spec snapshot
+  resolves Q10 to a single supported currency: Indonesian rupiah.
+  v0.1.1 promotes the type to `type Currency string` (named) and
+  adds:
+  - `const CurrencyIDR Currency = "IDR"`
+  - `(Currency).IsValid() bool` — strict, returns true only for IDR
+  - `(Currency).String() string` — wire-literal passthrough
+
+  Decode policy stays **permissive** (any string accepted on inbound
+  for forward-compat with v2 currencies); outbound validators reject
+  non-IDR via `IsValid`. Migration: code that used to pass `string`
+  values directly to a `Currency` field via raw `string(...)` casts
+  now needs an explicit `atomefin.Currency(s)` conversion. String
+  literals (`var c atomefin.Currency = "IDR"`) continue to work
+  unchanged.
+
+### Documentation
+
+- **Spec snapshot stamp updated** from 2026-04-22 → **2026-05-06**
+  in `README.md` (Implemented endpoints section) and `DESIGN.md`
+  (§13/Q20 spec-stability note).
+- **`DESIGN.md` §13/Q10` annotated **RESOLVED 2026-05-06** with the
+  IDR-only resolution and a pointer to the new `Currency` named-type
+  + `CurrencyIDR` constant + `IsValid` helper.
+
+### Coming next
+
+v0.2 is currently scoped for the partner-pending Q-set (separate
+PSS cert exchange, Q5 timestamp/nonce header, Q9 rate-limit/Retry-
+After handling). No timeline yet; behind any of those landing.
+
 ## [0.1.0] — 2026-05-05
 
 First feature-complete cut covering the atome-fin white-label "G"

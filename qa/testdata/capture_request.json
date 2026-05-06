@@ -1,5 +1,6 @@
 {
   "requestId": "01HCAP1234567890ABCDEFGHJK",
+  "externalReferenceUid": "user-42",
   "authOrderId": "AUTH-2026-0501-0001",
   "totalAmount": 1500000,
   "periodType": 3,

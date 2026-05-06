@@ -77,7 +77,7 @@ Two runnable examples ship in [`examples/`](examples/):
 
 ## Implemented endpoints
 
-Implementation pinned to the upstream spec snapshot dated **2026-04-22**.
+Implementation pinned to the upstream spec snapshot dated **2026-05-06**.
 `DESIGN.md` is the canonical per-endpoint reference for fields,
 optionality, and constraints; this table is the surface inventory you
 diff against when the spec moves.

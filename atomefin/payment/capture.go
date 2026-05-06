@@ -18,6 +18,11 @@ type CaptureRequest struct {
 	// RequestID is partner-generated; max 64 chars. New per capture call
 	// (idempotency key).
 	RequestID string `json:"requestId"` // max 64
+	// ExternalReferenceUID is the partner's identifier for the user.
+	// Required by the spec (both v1-draft and v1.1 list it on
+	// /capture); v0.1.0 shipped without it which made our /capture
+	// non-compliant. Mirrors AuthRequest.ExternalReferenceUID.
+	ExternalReferenceUID string `json:"externalReferenceUid"`
 	// AuthOrderID is the value returned by /auth.
 	AuthOrderID string `json:"authOrderId"`
 	// TotalAmount must equal the prior /auth TotalAmount.
@@ -135,6 +140,9 @@ func validateCaptureRequest(req *CaptureRequest) error {
 	}
 	if len(req.RequestID) > 64 {
 		return &atomefin.ValidationError{Field: "requestId", Message: "exceeds spec maxlength 64"}
+	}
+	if req.ExternalReferenceUID == "" {
+		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "required (must mirror the /auth request that produced authOrderId)"}
 	}
 	if req.AuthOrderID == "" {
 		return &atomefin.ValidationError{Field: "authOrderId", Message: "required (from prior /auth response)"}

@@ -190,11 +190,12 @@ func TestService_Capture_Success(t *testing.T) {
 
 	c := mustClient(t, srv)
 	resp, err := payment.New(c).Capture(context.Background(), &payment.CaptureRequest{
-		RequestID:   "c-1",
-		AuthOrderID: "AUTH-1",
-		TotalAmount: 1000,
-		PeriodType:  1,
-		SubOrders:   []payment.SubOrder{{SubOrderID: "so-1", Amount: 1000, Quantity: 1}},
+		RequestID:            "c-1",
+		ExternalReferenceUID: "user-42",
+		AuthOrderID:          "AUTH-1",
+		TotalAmount:          1000,
+		PeriodType:           1,
+		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1000, Quantity: 1}},
 	})
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
@@ -328,11 +329,12 @@ func TestService_CapturePollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 
 	c := mustClient(t, srv)
 	resp, err := payment.New(c).CapturePollUntilTerminal(context.Background(), &payment.CaptureRequest{
-		RequestID:   "c-1",
-		AuthOrderID: "AUTH-1",
-		TotalAmount: 1,
-		PeriodType:  1,
-		SubOrders:   []payment.SubOrder{{SubOrderID: "so-1", Amount: 1, Quantity: 1}},
+		RequestID:            "c-1",
+		ExternalReferenceUID: "user-42",
+		AuthOrderID:          "AUTH-1",
+		TotalAmount:          1,
+		PeriodType:           1,
+		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1, Quantity: 1}},
 	}, payment.PollOptions{
 		MaxWait:      2 * time.Second,
 		InitialDelay: 1 * time.Millisecond,

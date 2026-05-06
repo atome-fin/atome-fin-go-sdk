@@ -127,10 +127,11 @@ func main() {
 	}
 
 	captureReq := &payment.CaptureRequest{
-		AuthOrderID: authResp.Data.AuthOrderID,
-		TotalAmount: authReq.TotalAmount,
-		PeriodType:  authReq.PeriodType,
-		SubOrders:   authReq.SubOrders,
+		ExternalReferenceUID: authReq.ExternalReferenceUID,
+		AuthOrderID:          authResp.Data.AuthOrderID,
+		TotalAmount:          authReq.TotalAmount,
+		PeriodType:           authReq.PeriodType,
+		SubOrders:            authReq.SubOrders,
 	}
 	captureResp, err := svc.Capture(ctx, captureReq)
 	if err != nil {
