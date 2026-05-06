@@ -779,3 +779,78 @@ QA scope (for `qa`):
 - Static check: no PII fields appear in default log output.
 - Check race/data-races under `go test -race` for the Client (concurrent
   callers).
+
+## 15. v0.2 changes (appendix, 2026-05-06)
+
+v0.2 ships **28 new endpoints across 6 chunks**, all pure additions
+on top of the v0.1.x surface. The architecture stayed within the
+shapes set out in §§1–8; this appendix records what's new and the
+two design decisions worth flagging for future coders.
+
+### 15.1 New sub-packages (mirror the §2 / §5 pattern)
+
+Each ships its own `Service` struct constructed by `pkg.New(c)` (no
+`client.X` accessor — preserves tree-shake), its own `types.go` /
+`validation.go` / `service_test.go` / `marshal_audit_test.go`, and
+imports `atomefin/payment` for any shared types it can borrow
+without owning.
+
+| Package | Endpoints | Notes |
+|---|---|---|
+| `atomefin/refund` | `/refund`, `/query-refund`, `<refundNotifyUrl>` | re-uses `payment.AccountChanges` (the 11-field shape) |
+| `atomefin/bill` | `/bills`, `/billDetail`, `/billUnpaid` + `BillsAll` auto-pagination | GET-only; codified the **paginated-list pattern** (bare `json:"bills"`, no `,omitempty`) — empty pages round-trip as `[]` rather than dropping to `null` |
+| `atomefin/transaction` | `/transactions`, `/transactionDetail` + `TransactionsAll` | GET-only; same paginated-list pattern on `TransactionsData.Items` |
+| `atomefin/repayment` | `/repayment-request`, `/repayment-result`, `<repaymentNotifyUrl>` | uses **`CommerceAccountChanges`** — *not* `payment.AccountChanges` (see §15.3) |
+| `atomefin/credit` | `/credit-information`, `/credit-application`, `/credit-result`, `/credit-information-result`, `/query-balance-history`, `/modify-application-info`, `/close-account`, plus 2 callbacks | account-ops co-housed by domain cohesion (see §15.4); `INPROGESS` literal preserved verbatim from spec |
+
+`atomefin/payment` also gained `PaymentPreCheck` + `PaymentPlan`
+(pre-checkout chunk #7) and the `Query*` GETs from chunk #1.
+
+### 15.2 GET handling pattern (`Client.DoSignedGET`)
+
+§5's GET note is now first-class: `Client.DoSignedGET(ctx, path,
+query, opts...)` is the GET-equivalent of `DoSigned`, sharing a
+private `signAndDispatch` helper with the POST path. The R13
+invariant — wire query bytes ≡ signing canonical bytes — is
+enforced by assigning `sign.CanonicalQuery(query)` directly to
+`req.URL.RawQuery` so `+`-vs-`%20` drift cannot happen. Pinned by
+`TestDoSignedGET_R13_WireEqualsCanonical` and re-asserted at scale
+(6+ params) by the bill / transaction stress tests. All paginated
+GETs (bill, transaction, query-balance-history) and all `Query*`
+endpoints route through `DoSignedGET`.
+
+`Client.HeartBeat(ctx) error` — added in chunk #9 — is the umbrella
+shortcut for the empty-canonical case (`GET /heart-beat`). It signs
+zero bytes (`sign.CanonicalQuery(nil) == ""`) and verifies cleanly.
+
+### 15.3 Two `AccountChanges` types — by design
+
+The spec carries two different credit-change wire shapes:
+
+- **`payment.AccountChanges`** (11 fields incl. `frozenCreditChange`)
+  — used by `auth` / `capture` / `voidAuth` / `refund` responses
+  AND by the new `<accountChangeNotifyUrl>` callback.
+- **`repayment.CommerceAccountChanges`** — repayment carries a
+  *different* per-spec field set; consolidating into a shared type
+  would force a phantom-zero `frozenCreditChange` on every
+  repayment row (or, with `,omitempty`, silently drop legitimate
+  zero values on the other types).
+
+Two named types is the spec-faithful shape. **Future coders: do
+not consolidate.** The distinction is also called out in
+`atomefin/repayment/types.go`'s package comment and in the README
+package map.
+
+### 15.4 Account-ops live in `atomefin/credit/` — by domain cohesion
+
+`/modify-application-info` and `/close-account` are spec-categorised
+as "account-ops" — distinct from the credit-onboarding lifecycle.
+They could have lived in a separate `atomefin/account/` package,
+but both endpoints operate on a credit-application identifier and
+share the same response-envelope shape with the credit-result
+endpoints. Co-housing with `credit/` keeps the import graph flat
+(no `account → credit` edge) and matches how partners think about
+the workflow ("close *the credit account*"). If a non-credit
+account-ops surface emerges later (e.g. partner-account ops), it
+would warrant its own package; until then, `atomefin/credit/` is
+the home.

@@ -7,9 +7,240 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
-## [Unreleased]
+## [0.2.0] — 2026-05-06
 
-v0.2 work-in-progress; chunks accumulate here until tag.
+**28 new endpoints across 6 chunks.** v0.2 lights up the rest of the
+spec surface: refund, bill, transaction, repayment, credit, plus
+pre-checkout helpers, three new callback handlers, and a one-line
+liveness probe. Eight sub-packages now mirror the `atomefin/payment`
+shape; the umbrella `atomefin.Client` exposes `DoSignedGET` (signed
+GET path with R13 wire-≡-canonical guarantee) and `HeartBeat`. Every
+`v0.1.x` import path and field surface is preserved verbatim — pure
+additions.
+
+CI is green at tag time; openssl-anchored signing vectors continue
+to verify R10/R11/R12/R13 invariants across all new types.
+
+### Added — heart-beat liveness probe (v0.2 chunk #9)
+
+- **`Client.HeartBeat(ctx context.Context) error`** — one-call signed
+  liveness probe against `GET /heart-beat`. Returns `nil` on 2xx,
+  `*atomefin.APIError` on non-2xx (envelope decoded where present),
+  `*atomefin.TransportError` on transport failure. Body is read and
+  drained but not surfaced — the spec does not define a stable
+  response payload, so partners that need response inspection can
+  call `Client.DoSignedGET(ctx, "/heart-beat", nil)` directly until
+  the spec stabilises.
+- Routed through `DoSignedGET` so retry policy, observer hooks, and
+  ctx cancellation in backoff sleeps all apply uniformly. The empty
+  canonical query (`sign.CanonicalQuery(nil) == ""`) signs cleanly
+  and verifies — pinned by an openssl-anchored test.
+
+### Tests
+
+- `atomefin/heartbeat_test.go` — happy path (Method=GET,
+  Path=`/heart-beat`, empty RawQuery), 4xx → `*APIError`, 5xx-then-
+  200 retry, ctx-cancel-in-sleep, transport-error pass-through,
+  nil-Client safety.
+
+### Added — account-change callback handler (v0.2 chunk #8)
+
+- **`atomefin/callback/account_change_handler.go`** —
+  `AccountChangeHandler(v *Verifier, fn func(context.Context, *AccountChangeEvent) error)`
+  inbound-only handler for `<accountChangeNotifyUrl>`. Same generic
+  `handle[T]` core as RefundHandler — Content-Type, nosniff, full
+  ack-envelope semantics, multi-cert verifier support.
+- **`atomefin/callback/account_change_types.go`** —
+  `AccountChangeEvent` (full callback envelope) wrapping
+  `AccountChangeData` with `payment.AccountChanges` (the 11-field
+  shared shape), event-type discriminator (`balance.adjust` /
+  `account.status.change` / etc.), and a Q24-position-scoped
+  `currentStatus` validator that accepts `ACCOUNT_CLOSED` (whereas
+  `previousStatus` must reject it).
+- Reuses `payment.AccountChanges` deliberately — account-change
+  callbacks ride the same credit-change wire shape that
+  `auth` / `capture` / `voidAuth` / `refund` responses already emit.
+  Repayment, by contrast, gets its own `CommerceAccountChanges` —
+  see chunk #5 below for the rationale.
+
+### Tests
+
+- `atomefin/callback/account_change_handler_test.go` — happy paths
+  for both event types (balance increase, status close), tampered-
+  body 401, multi-cert e2e, replay invokes user fn twice (partner-
+  owned dedupe contract), 500 on user error / nil-verifier / nil-
+  userFn, fixture-decode round-trip.
+
+### Added — pre-checkout endpoints (v0.2 chunk #7)
+
+- **`payment.New(c).PaymentPreCheck(ctx, *PaymentPreCheckRequest)`** —
+  POST `/payment-precheck`. Eligibility / risk pre-flight before
+  `/auth`; returns `*PaymentPreCheckResponse` with `Eligible` /
+  `AvailableCredit` / `DeniedReason`. Auto-mints `RequestID` when
+  empty (mirrors `payment.Auth`'s shape); table-driven validator
+  rejects empty `externalReferenceUid`, zero `totalAmount`, non-IDR
+  currency.
+- **`payment.New(c).PaymentPlan(ctx, *PaymentPlanRequest)`** —
+  POST `/payment-plan`. Returns the available installment-plan
+  options (1/3/6/9/12 tenors per spec) with per-month
+  `CommerceInstallmentDetail` breakdowns. `PaymentPlanData.Plans` is
+  bare `json:"plans"` (NOT omitempty) — codifies the paginated-list
+  pattern from chunks #3 / #4 so a 0-tenor response round-trips as
+  `"plans":[]` rather than dropping to `null`. Validator enforces
+  sub-order amount sum == `totalAmount`.
+
+### Tests
+
+- `atomefin/payment/precheck_test.go` (8 tests): success, auto-mint
+  request-id, 4xx → APIError, validation table (5 rejection cases),
+  R10 amount round-trip, R11 fractional rejection, R12 integer-
+  literal-only emission.
+- `atomefin/payment/plan_test.go` (10 tests): success (asserts
+  `Method=POST`, `Path=/payment-plan`, body shape, plan ordering),
+  auto-mint, 4xx → APIError, validation table (6 rejection cases
+  including sum-mismatch), `GoldenRoundTrip` × 3 fixtures (full,
+  empty, response-only), R10 on `totalAmount` / `principal` / `fee`
+  / `interest` / `amount`, R11 fractional rejection, R12
+  integer-literal-only across 6 amount keys.
+
+### Added — credit lifecycle + account-ops (v0.2 chunk #6)
+
+- **`atomefin/credit`** — new sub-package covering the spec's
+  credit-onboarding lifecycle plus the two account-ops endpoints.
+  Constructor: `credit.New(c)`. Account-ops live here (rather than
+  in a separate `atomefin/account/` package) by domain cohesion —
+  modify-application-info and close-account both operate on a
+  credit-application identifier and share the same response
+  envelope shape.
+  - `Service.SubmitInformation(ctx, *CreditInformationParam) (*CreditInformationResponse, error)` —
+    POST `/credit-information`. KYC start; returns a `requestId` +
+    `jumpUrl` into the Atome KYC web flow.
+  - `Service.SubmitApplication(ctx, *CreditApplicationParam) (*CreditApplicationResponse, error)` —
+    POST `/credit-application`. Submit the credit application after
+    KYC completes.
+  - `Service.QueryResult(ctx, externalReferenceUID) (*CreditApplicationResponse, error)` —
+    GET `/credit-result?externalReferenceUid=<id>`. Polls
+    application terminal state. **Note:** the spec's `INPROGESS`
+    literal (sic — missing R) is preserved verbatim on the wire to
+    stay byte-compatible.
+  - `Service.QueryInformationResult(ctx, externalReferenceUID, requestID) (*CreditInformationCollectResponse, error)` —
+    GET `/credit-information-result`. Polls KYC-collection
+    terminal state.
+  - `Service.BalanceHistory(ctx, *BalanceHistoryParams) (*BalanceHistoryResponse, error)` —
+    GET `/query-balance-history`. Paginated balance ledger.
+    **Pagination uses `start`/`count` (per spec), NOT
+    `pageNumber`/`pageSize`** — the server's pagination dialect
+    differs here from bill / transaction. Auto-pagination wrapper
+    deferred to a later chunk.
+  - `Service.ModifyApplicationInfo(ctx, *CreditApplicationChangeParam) (*ModifyApplicationInfoResponse, error)` —
+    POST `/modify-application-info`. Account-ops: edit a submitted
+    credit application.
+  - `Service.CloseAccount(ctx, *CloseAccountParam) (*CloseAccountResponse, error)` —
+    POST `/close-account`. Account-ops: terminate the account.
+- **`atomefin/callback/credit_application_handler.go`** — new
+  `CreditApplicationHandler` with type alias
+  `CreditApplicationEvent = credit.CreditApplicationResponse`
+  (full-envelope alias matching `RefundEvent`). Terminal-only.
+- **`atomefin/callback/credit_information_handler.go`** — new
+  `CreditInformationHandler` with type alias
+  `CreditInformationEvent = credit.CreditInformationCollectResponse`.
+  Terminal-only.
+
+### Tests
+
+- `atomefin/credit/service_test.go` — happy path per endpoint
+  (asserts method, path, body / query shape), 4xx → `*APIError`,
+  nil-Client / nil-Service safety, `New(nil) == nil`.
+- `atomefin/credit/validation_test.go` — table-driven rejections
+  for every method (empty externalReferenceUid, oversize requestId,
+  invalid pagination ranges, etc.).
+- `atomefin/credit/marshal_audit_test.go` — `GoldenRoundTrip` ×
+  fixtures for every wire shape (information request / response,
+  application request / response success / processing / failed,
+  query-result, information-result, change request, callbacks);
+  R10 / R11 / R12 audits across every amount-bearing type.
+- `atomefin/callback/credit_application_handler_test.go` /
+  `credit_information_handler_test.go` — happy path, tampered-body
+  401, multi-cert e2e, replay, 500 on user error, fixture decode.
+
+### Fixtures
+
+- `qa/testdata/credit_information_request.json`
+- `qa/testdata/credit_information_response_success.json`
+- `qa/testdata/credit_information_result_response.json`
+- `qa/testdata/credit_information_result_failed.json`
+- `qa/testdata/credit_application_request.json`
+- `qa/testdata/credit_application_response_success.json`
+- `qa/testdata/credit_application_response_processing.json`
+- `qa/testdata/credit_application_response_failed.json`
+- `qa/testdata/credit_application_change_request.json`
+- `qa/testdata/callback_credit_application_terminal_success.json`
+- `qa/testdata/callback_credit_information_terminal_success.json`
+
+### Added — repayment sub-package (v0.2 chunk #5)
+
+- **`atomefin/repayment`** — new sub-package mirroring the
+  payment / refund Service shape. Constructor: `repayment.New(c)`.
+  - `Service.Repayment(ctx, *RepaymentParam) (*RepaymentResponse, error)` —
+    POST `/repayment-request` (signed body via
+    `atomefin.MarshalSigning`, HTML-escape OFF). Auto-mints
+    `RequestID` when empty.
+  - `Service.QueryRepayment(ctx, requestID, externalReferenceUID) (*RepaymentResponse, error)` —
+    GET `/repayment-result?requestId=...&externalReferenceUid=...`
+    via `Client.DoSignedGET`. Polling alternative to the PROCESSING
+    webhook.
+  - `Service.RepaymentPollUntilTerminal(ctx, req, opts)` — reuses
+    `payment.PollUntilTerminal` so backoff semantics are identical
+    across Service families.
+  - Types: `RepaymentParam`, `RepaymentResponse`, `RepaymentResult`,
+    `RepaymentExtendInfo`, `RepaymentSettlement`, `SubOrderRepayment`,
+    `RepaymentEvent` enum, `RepaymentStatus` enum, and —
+    deliberately — **`CommerceAccountChanges`**.
+- **`atomefin/callback/repayment_handler.go`** — new
+  `RepaymentHandler` with type alias
+  `RepaymentEvent = repayment.RepaymentResponse`. Terminal-only.
+
+### Design note — two `AccountChanges` types
+
+The spec ships TWO different shapes for the credit-change vector:
+- The 11-field schema used by `auth` / `capture` / `voidAuth` /
+  `refund` responses and account-change callbacks — modelled by
+  **`payment.AccountChanges`**.
+- A *different* per-spec field set on repayment responses, which
+  notably omits `frozenCreditChange` — modelled by
+  **`repayment.CommerceAccountChanges`**.
+
+Consolidating them into a shared type would emit a phantom-zero
+`frozenCreditChange` on every repayment row (or, with `,omitempty`,
+silently drop legitimate zero values on the other types). Two
+named types is the spec-faithful shape; this is documented in
+`atomefin/repayment/types.go` and surfaced in the README package
+map. **Future coders: do not consolidate.**
+
+### Tests
+
+- `atomefin/repayment/service_test.go` — happy paths (`Repayment`,
+  `QueryRepayment`), auto-mint, 4xx → `*APIError`,
+  `RepaymentPollUntilTerminal` PROCESSING → SUCCESS, `New(nil) ==
+  nil`, full nil-Service safety on every public method.
+- `atomefin/repayment/validation_test.go` — table-driven rejections
+  (nil request, oversize requestId, missing externalReferenceUid /
+  authOrderId, zero repaymentAmount, sum-mismatch on sub-orders).
+- `atomefin/repayment/marshal_audit_test.go` — `GoldenRoundTrip`
+  per fixture, R10 on `RepaymentParam.RepaymentAmount` and
+  `CommerceAccountChanges` deltas, R11 fractional rejection, R12
+  integer-literal-only.
+- `atomefin/callback/repayment_handler_test.go` — happy path,
+  tampered-body 401, multi-cert e2e, replay invokes user fn twice,
+  500 on user error / nil-verifier / nil-userFn, fixture decode.
+
+### Fixtures
+
+- `qa/testdata/repayment_request.json`
+- `qa/testdata/repayment_response_success.json`
+- `qa/testdata/repayment_response_processing.json`
+- `qa/testdata/query_repayment_response.json`
+- `qa/testdata/callback_repayment_terminal_success.json`
 
 ### Added — transaction sub-package (v0.2 chunk #4)
 
@@ -534,5 +765,7 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.0
+[0.1.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.1.1
 [0.1.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.1.0

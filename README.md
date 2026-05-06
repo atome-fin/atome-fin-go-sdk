@@ -71,12 +71,34 @@ Two runnable examples ship in [`examples/`](examples/):
 | `atomefin` | `Client`, functional `Option`s, error types, retry policy plumbing, `MarshalSigning`. |
 | `atomefin/sign` | RSA-2048 PKCS#1-v1.5 / PSS signer + verifier; PEM loaders; canonical-input helpers. |
 | `atomefin/transport` | `RetryPolicy`, `Logger`, `Observer`, `NewSlogLogger`, User-Agent assembly. |
-| `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` / `QueryAuth` / `QueryCapture` / `QueryVoidAuth` + `*PollUntilTerminal` helpers, all typed request/response structs. |
+| `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` + `QueryAuth` / `QueryCapture` / `QueryVoidAuth` + `*PollUntilTerminal` + `PaymentPreCheck` / `PaymentPlan` (v0.2 pre-checkout); typed request/response structs. |
 | `atomefin/refund` | `Service` with `Refund` / `QueryRefund` / `RefundPollUntilTerminal`; types `RefundParam`, `RefundResult`, `SubOrderRefundRequest`, `SubOrderRefundInfo`. |
+| `atomefin/repayment` | `Service` with `Repayment` / `QueryRepayment` / `RepaymentPollUntilTerminal`; types `RepaymentParam`, `RepaymentResult`, **`CommerceAccountChanges`** (intentionally distinct from `payment.AccountChanges` — see "Two AccountChanges types" below). |
+| `atomefin/credit` | `Service` for the credit lifecycle: `SubmitInformation` (KYC start), `SubmitApplication`, `QueryResult` / `QueryInformationResult`, `BalanceHistory`, `ModifyApplicationInfo`, `CloseAccount`. Account-ops are co-housed with credit by domain cohesion. |
 | `atomefin/bill` | `Service` with `Bills` / `BillDetail` / `BillsUnpaid` + `BillsAll` auto-pagination; types `Bill`, `BillDetail`, `BillOrder`, `BillDiscounts`, `Discount`, `DiscountDetail` + `OverdueStatus` enum. |
 | `atomefin/transaction` | `Service` with `Transactions` / `TransactionDetail` + `TransactionsAll` auto-pagination; types `Transaction`, `TransactionDetail` + `TradeType` enum (`AUTH` / `CAPTURE` / `VOID` / `REFUND`). |
-| `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler` / `RefundHandler`, `AckResponse`. |
+| `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler` / `RefundHandler` / `RepaymentHandler` / `CreditApplicationHandler` / `CreditInformationHandler` / `AccountChangeHandler`, `AckResponse`. |
 | `qa/marshal` | Generic round-trip test harness wired against `qa/testdata/` fixtures. |
+
+The umbrella `atomefin.Client` also exposes `Client.HeartBeat(ctx)` —
+a one-call signed liveness probe against `GET /heart-beat`. Returns
+`nil` on 2xx, `*atomefin.APIError` on non-2xx, `*atomefin.TransportError`
+on transport failures.
+
+### Two `AccountChanges` types — by design
+
+The SDK ships **two distinct credit-change types**:
+
+- **`payment.AccountChanges`** — the 11-field schema shared by
+  `auth` / `capture` / `voidAuth` / `refund` responses and by
+  `callback.AccountChangeData`.
+- **`repayment.CommerceAccountChanges`** — repayment carries a
+  *different* per-spec field set; consolidating them into a shared
+  type would have introduced a phantom-zero on `frozenCreditChange`
+  for every repayment row.
+
+Future coders: do not consolidate. Two types is the spec-faithful
+shape.
 
 ## Implemented endpoints
 
@@ -103,6 +125,22 @@ diff against when the spec moves.
 | `GET` | `/billUnpaid` | partner → atome-fin | `bill.New(c).BillsUnpaid(ctx, *BillsUnpaidParams)` | `pageNumber`/`pageSize` + optional UID filter | `*bill.BillsResponse` | unpaid filter view |
 | `GET` | `/transactions` | partner → atome-fin | `transaction.New(c).Transactions(ctx, *TransactionsParams)` | `pageNumber`/`pageSize` + optional `externalReferenceUid`/`authOrderId`/`tradeType`/date-range filters | `*transaction.TransactionsResponse` | paginated trade ledger; `TransactionsAll` walks every page |
 | `GET` | `/transactionDetail` | partner → atome-fin | `transaction.New(c).TransactionDetail(ctx, tradeID)` | `tradeId` query | `*transaction.TransactionDetailResponse` | full single-transaction view (linked `billId`, `failureCode`, free-form `notes`) |
+| `POST` | `/payment-precheck` | partner → atome-fin | `payment.New(c).PaymentPreCheck(ctx, req)` | `*payment.PaymentPreCheckRequest` | `*payment.PaymentPreCheckResponse` | eligibility / risk pre-flight before `/auth`; returns `Eligible` + `AvailableCredit` + `DeniedReason` |
+| `POST` | `/payment-plan` | partner → atome-fin | `payment.New(c).PaymentPlan(ctx, req)` | `*payment.PaymentPlanRequest` | `*payment.PaymentPlanResponse` | installment-plan options (1/3/6/9/12 tenors) + per-month breakdown; partner surfaces choice to user |
+| `POST` | `/repayment-request` | partner → atome-fin | `repayment.New(c).Repayment(ctx, req)` | `*repayment.RepaymentParam` | `*repayment.RepaymentResponse` | apply a repayment against a prior auth + bill; uses `CommerceAccountChanges` (distinct from `payment.AccountChanges`) |
+| `GET` | `/repayment-result` | partner → atome-fin | `repayment.New(c).QueryRepayment(ctx, requestID, externalReferenceUID)` | `requestId` + `externalReferenceUid` query | `*repayment.RepaymentResponse` | polling alternative to PROCESSING webhook |
+| `POST` | `<repaymentNotifyUrl>` | atome-fin → partner | `callback.RepaymentHandler(v, fn)` | `*callback.RepaymentEvent` (= `repayment.RepaymentResponse`) | `callback.AckResponse` | terminal-only |
+| `POST` | `/credit-information` | partner → atome-fin | `credit.New(c).SubmitInformation(ctx, req)` | `*credit.CreditInformationParam` | `*credit.CreditInformationResponse` | KYC start; returns a `requestId` + jumpUrl into the Atome KYC web flow |
+| `POST` | `/credit-application` | partner → atome-fin | `credit.New(c).SubmitApplication(ctx, req)` | `*credit.CreditApplicationParam` | `*credit.CreditApplicationResponse` | submit credit application after KYC completes |
+| `GET` | `/credit-result` | partner → atome-fin | `credit.New(c).QueryResult(ctx, externalReferenceUID)` | `externalReferenceUid` query | `*credit.CreditApplicationResponse` | poll application terminal state; spec preserves the `INPROGESS` literal verbatim |
+| `GET` | `/credit-information-result` | partner → atome-fin | `credit.New(c).QueryInformationResult(ctx, externalReferenceUID, requestID)` | `externalReferenceUid` + `requestId` query | `*credit.CreditInformationCollectResponse` | poll KYC-collection terminal state |
+| `GET` | `/query-balance-history` | partner → atome-fin | `credit.New(c).BalanceHistory(ctx, *BalanceHistoryParams)` | `start`/`count` + filters | `*credit.BalanceHistoryResponse` | paginated balance ledger (uses spec's `start`/`count` rather than `pageNumber`/`pageSize`) |
+| `POST` | `/modify-application-info` | partner → atome-fin | `credit.New(c).ModifyApplicationInfo(ctx, req)` | `*credit.CreditApplicationChangeParam` | `*credit.ModifyApplicationInfoResponse` | account-ops: edit a submitted credit application |
+| `POST` | `/close-account` | partner → atome-fin | `credit.New(c).CloseAccount(ctx, req)` | `*credit.CloseAccountParam` | `*credit.CloseAccountResponse` | account-ops: terminate the account |
+| `POST` | `<creditApplicationNotifyUrl>` | atome-fin → partner | `callback.CreditApplicationHandler(v, fn)` | `*callback.CreditApplicationEvent` (= `credit.CreditApplicationResponse`) | `callback.AckResponse` | terminal-only credit-application webhook |
+| `POST` | `<creditInformationNotifyUrl>` | atome-fin → partner | `callback.CreditInformationHandler(v, fn)` | `*callback.CreditInformationEvent` (= `credit.CreditInformationCollectResponse`) | `callback.AckResponse` | terminal-only KYC-collection webhook |
+| `POST` | `<accountChangeNotifyUrl>` | atome-fin → partner | `callback.AccountChangeHandler(v, fn)` | `*callback.AccountChangeEvent` | `callback.AckResponse` | inbound-only — atome-fin pushes credit-limit / account-status mutations; carries `payment.AccountChanges` for the credit-change vector |
+| `GET` | `/heart-beat` | partner → atome-fin | `c.HeartBeat(ctx)` | (none) | `error` (nil on 2xx) | one-call liveness probe; signed via `DoSignedGET` with empty canonical |
 
 For the async `PROCESSING` path on outbound calls (server returns the
 typed envelope without a terminal `data.status`), use
