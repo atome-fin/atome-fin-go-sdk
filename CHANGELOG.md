@@ -11,6 +11,74 @@ post-1.0. Pre-1.0 minor versions may break.
 
 v0.2 work-in-progress; chunks accumulate here until tag.
 
+### Added — transaction sub-package (v0.2 chunk #4)
+
+- **`atomefin/transaction`** — new GET-only sub-package, smaller
+  mirror of bill. Constructor: `transaction.New(c)` (no
+  `c.Transaction` accessor — preserves tree-shake).
+  - `Service.Transactions(ctx, *TransactionsParams) (*TransactionsResponse, error)`
+    — GET `/transactions`, paginated. Optional filters:
+    `ExternalReferenceUID`, `AuthOrderID`, `TradeType`,
+    `StartDate`, `EndDate`. Pass nil for default first page
+    (`PageNumber=1`, `PageSize=20`).
+  - `Service.TransactionDetail(ctx, tradeID) (*TransactionDetailResponse, error)`
+    — GET `/transactionDetail?tradeId=<id>`. Validator rejects
+    empty.
+  - `Service.TransactionsAll(ctx, *TransactionsParams) ([]Transaction, error)`
+    — auto-pagination iterator (mirrors `bill.BillsAll`).
+  - Types (selective per architect's chunk-scoping note — only the
+    types reachable from these two endpoints): `Transaction`
+    (list-row), `TransactionDetail` (embeds Transaction + optional
+    `BillID` / `FailureCode` / `Notes`).
+  - `TradeType` enum (closed) — `AUTH` / `CAPTURE` / `VOID` /
+    `REFUND` — with `IsValid` + `String`. Reuses `atomefin.Status`
+    for the lifecycle field (`tradeStatus`).
+  - `TransactionsResponse.IsSuccess() bool` /
+    `TransactionDetailResponse.IsSuccess() bool` nil-safe helpers.
+  - **`TransactionsData.Items` is bare `json:"items"` (NOT
+    omitempty)** — codifies the paginated-list pattern from
+    chunk #3 (bill): empty pages round-trip as `[]` rather than
+    disappearing to `null`.
+- Pure GETs reuse `Client.DoSignedGET` from chunk #1; no signed-body
+  marshalling, no callback handler, no new openssl vector.
+
+### Tests
+
+- `atomefin/transaction/service_test.go` (13 tests):
+  `TestService_Transactions_Success`,
+  **`TestService_Transactions_MultiParam_R13_AtScale`** (7-param
+  query, server reconstructs canonical, runs verifier, pins
+  `r.URL.RawQuery == canonical` byte-equal),
+  `TestService_TransactionDetail_Success` +
+  `RejectsEmptyTradeID`, `TestService_TransactionsAll_AutoPaginates`,
+  `TestService_Transactions_4xxBecomesAPIError`,
+  `TestNew_NilClient_ReturnsNil`,
+  `TestNilService_AllMethodsReturnError`,
+  `TestTransactions_Validate` (3 rejection cases),
+  `TestTradeType_IsValid` (4 valid + 4 invalid),
+  `TestTradeType_StringIsWireLiteral`,
+  `TestTransactions_NilParamsUsesDefaults`.
+- `atomefin/transaction/marshal_audit_test.go` (8 tests):
+  `GoldenRoundTrip` × 5 fixtures, R10 corpus on
+  `Transaction.Amount`, R11 fractional rejection, R12
+  integer-literal-only.
+
+### Fixtures
+
+- `qa/testdata/transactions_response.json` (3-row: AUTH+CAPTURE+REFUND)
+- `qa/testdata/transactions_response_empty.json` (preserves `items: []`)
+- `qa/testdata/transactionDetail_response.json` (CAPTURE with
+  `billId` + `notes`)
+- `qa/testdata/transactionDetail_response_minimal.json` (bare AUTH)
+- `qa/testdata/transactionDetail_response_failed.json` (FAILED +
+  `failureCode = RISK_REJECT`)
+
+### Documentation
+
+- `README.md` — two new endpoint table rows for `/transactions`
+  and `/transactionDetail`; package map gains
+  `atomefin/transaction`.
+
 ### Added — bill sub-package (v0.2 chunk #3)
 
 - **`atomefin/bill`** — new GET-only sub-package mirroring the

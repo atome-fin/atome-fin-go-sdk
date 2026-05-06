@@ -1,0 +1,14 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "tradeId": "TRD-2026-0501-A",
+    "tradeType": "AUTH",
+    "authOrderId": "AUTH-2026-0501-0001",
+    "externalReferenceUid": "user-42",
+    "currency": "IDR",
+    "amount": 1500000,
+    "tradeStatus": "SUCCESS",
+    "tradeTime": 1746084600000
+  }
+}

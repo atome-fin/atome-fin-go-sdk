@@ -74,6 +74,7 @@ Two runnable examples ship in [`examples/`](examples/):
 | `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` / `QueryAuth` / `QueryCapture` / `QueryVoidAuth` + `*PollUntilTerminal` helpers, all typed request/response structs. |
 | `atomefin/refund` | `Service` with `Refund` / `QueryRefund` / `RefundPollUntilTerminal`; types `RefundParam`, `RefundResult`, `SubOrderRefundRequest`, `SubOrderRefundInfo`. |
 | `atomefin/bill` | `Service` with `Bills` / `BillDetail` / `BillsUnpaid` + `BillsAll` auto-pagination; types `Bill`, `BillDetail`, `BillOrder`, `BillDiscounts`, `Discount`, `DiscountDetail` + `OverdueStatus` enum. |
+| `atomefin/transaction` | `Service` with `Transactions` / `TransactionDetail` + `TransactionsAll` auto-pagination; types `Transaction`, `TransactionDetail` + `TradeType` enum (`AUTH` / `CAPTURE` / `VOID` / `REFUND`). |
 | `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler` / `RefundHandler`, `AckResponse`. |
 | `qa/marshal` | Generic round-trip test harness wired against `qa/testdata/` fixtures. |
 
@@ -100,6 +101,8 @@ diff against when the spec moves.
 | `GET` | `/bills` | partner → atome-fin | `bill.New(c).Bills(ctx, *BillsParams)` | `pageNumber`/`pageSize`/optional filters | `*bill.BillsResponse` | paginated bill list; `BillsAll` walks every page |
 | `GET` | `/billDetail` | partner → atome-fin | `bill.New(c).BillDetail(ctx, billID)` | `billId` query (yyyyMM) | `*bill.BillDetailResponse` | full single-bill view including `orders` + `discounts` |
 | `GET` | `/billUnpaid` | partner → atome-fin | `bill.New(c).BillsUnpaid(ctx, *BillsUnpaidParams)` | `pageNumber`/`pageSize` + optional UID filter | `*bill.BillsResponse` | unpaid filter view |
+| `GET` | `/transactions` | partner → atome-fin | `transaction.New(c).Transactions(ctx, *TransactionsParams)` | `pageNumber`/`pageSize` + optional `externalReferenceUid`/`authOrderId`/`tradeType`/date-range filters | `*transaction.TransactionsResponse` | paginated trade ledger; `TransactionsAll` walks every page |
+| `GET` | `/transactionDetail` | partner → atome-fin | `transaction.New(c).TransactionDetail(ctx, tradeID)` | `tradeId` query | `*transaction.TransactionDetailResponse` | full single-transaction view (linked `billId`, `failureCode`, free-form `notes`) |
 
 For the async `PROCESSING` path on outbound calls (server returns the
 typed envelope without a terminal `data.status`), use

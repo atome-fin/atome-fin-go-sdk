@@ -1,0 +1,17 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "tradeId": "TRD-2026-0501-B",
+    "tradeType": "CAPTURE",
+    "authOrderId": "AUTH-2026-0501-0001",
+    "orderId": "ORD-2026-0501-A",
+    "externalReferenceUid": "user-42",
+    "currency": "IDR",
+    "amount": 1500000,
+    "tradeStatus": "SUCCESS",
+    "tradeTime": 1746089800000,
+    "billId": "202605",
+    "notes": "Captured via partner-initiated checkout flow"
+  }
+}
