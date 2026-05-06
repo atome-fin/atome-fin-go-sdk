@@ -23,6 +23,7 @@ type Server struct {
 	fixtures map[string]json.RawMessage // op-key → response body
 	hits     map[string]int             // op-key → invocation count
 	failures []Failure                  // structured spec-validation failures
+	skipReq  map[string]map[string]bool // op-key → set of required-paths to skip
 }
 
 // Failure is the structured record emitted when a request fails the
@@ -60,6 +61,7 @@ func NewWithSpec(t testing.TB, spec *Spec) *Server {
 		Spec:     spec,
 		fixtures: make(map[string]json.RawMessage),
 		hits:     make(map[string]int),
+		skipReq:  make(map[string]map[string]bool),
 	}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.handle))
 	t.Cleanup(s.Server.Close)
@@ -92,6 +94,63 @@ func (s *Server) SetFixtureRaw(op string, body json.RawMessage) {
 	s.mu.Lock()
 	s.fixtures[normalizeOpKey(op)] = body
 	s.mu.Unlock()
+}
+
+// SkipRequired registers a per-op allowlist of required field paths
+// (body or query) that the spec server should skip when validating
+// requests for that op. Use sparingly — it is a knowing
+// acknowledgement that the SDK does not yet emit a spec-required
+// field, typically because the field is partner-pending or the
+// spec is "Initial draft" and the upstream gateway is known not to
+// enforce it. Each call APPENDS to the existing skip set.
+//
+// Document the reason for each skip in the calling test alongside
+// the SkipRequired call so the next reviewer sees the intent.
+//
+// Example:
+//
+//	srv.SkipRequired("POST /payment-plan",
+//	    "subOrders[].categoryId",      // spec "Initial draft" — partner Q-set
+//	    "subOrders[].merchantId",      // same
+//	    "extendInfo.paymentType",      // not yet declared in v0.2 surface
+//	)
+func (s *Server) SkipRequired(op string, paths ...string) {
+	key := normalizeOpKey(op)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	set, ok := s.skipReq[key]
+	if !ok {
+		set = make(map[string]bool, len(paths))
+		s.skipReq[key] = set
+	}
+	for _, p := range paths {
+		set[p] = true
+	}
+}
+
+// effectiveRequired returns the spec's RequiredBody / RequiredQuery
+// for op with any registered skips removed. Used by the dispatcher.
+func (s *Server) effectiveRequired(op Operation) (body, query []string) {
+	key := opKey(op.Method, op.Path)
+	s.mu.Lock()
+	skip := s.skipReq[key]
+	s.mu.Unlock()
+	if len(skip) == 0 {
+		return op.RequiredBody, op.RequiredQuery
+	}
+	body = make([]string, 0, len(op.RequiredBody))
+	for _, p := range op.RequiredBody {
+		if !skip[p] {
+			body = append(body, p)
+		}
+	}
+	query = make([]string, 0, len(op.RequiredQuery))
+	for _, p := range op.RequiredQuery {
+		if !skip[p] {
+			query = append(query, p)
+		}
+	}
+	return body, query
 }
 
 // Hits returns the invocation count for op, regardless of whether
@@ -152,10 +211,12 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	requiredBody, requiredQuery := s.effectiveRequired(specOp)
+
 	// GET: validate query params.
 	if r.Method == http.MethodGet {
 		gotQ := r.URL.Query()
-		for _, name := range specOp.RequiredQuery {
+		for _, name := range requiredQuery {
 			if gotQ.Get(name) == "" {
 				s.recordFailure(Failure{
 					Op:       op,
@@ -181,7 +242,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusBadRequest, "WRONG_PARAMS_FORMAT", "read body: "+err.Error())
 			return
 		}
-		if missing, ferr := validateBody(body, specOp.RequiredBody); ferr != nil {
+		if missing, ferr := validateBody(body, requiredBody); ferr != nil {
 			s.recordFailure(Failure{
 				Op:       op,
 				Reason:   "request body is not valid JSON",

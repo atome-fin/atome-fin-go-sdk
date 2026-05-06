@@ -34,6 +34,14 @@ type Case struct {
 	// response body for this op (path relative to module root).
 	// Leave empty to use the default {"code":"SUCCESS"} envelope.
 	Fixture string
+
+	// SkipRequired is a per-case allowlist of spec-required field
+	// paths (body or query) the SDK is knowingly not yet emitting
+	// for this op. Each entry is forwarded to Server.SkipRequired
+	// before the case runs. Use sparingly and document the reason
+	// in a comment alongside the literal — every skip is a known
+	// gap that should be tracked toward closure.
+	SkipRequired []string
 }
 
 // RunCases drives every case against the package's pinned spec
@@ -49,15 +57,17 @@ func RunCases(t *testing.T, cases []Case) {
 	t.Helper()
 	srv := New(t)
 
-	// Load any per-case fixtures up-front so a missing fixture
-	// fails the test deterministically rather than surprising one
-	// case mid-run.
+	// Load any per-case fixtures + register skip-allowlists up-front
+	// so a missing fixture / typo fails the test deterministically
+	// rather than surprising one case mid-run.
 	for _, c := range cases {
-		if c.Fixture == "" {
-			continue
+		if c.Fixture != "" {
+			if err := srv.SetFixture(c.Op, c.Fixture); err != nil {
+				t.Fatalf("RunCases: %v", err)
+			}
 		}
-		if err := srv.SetFixture(c.Op, c.Fixture); err != nil {
-			t.Fatalf("RunCases: %v", err)
+		if len(c.SkipRequired) > 0 {
+			srv.SkipRequired(c.Op, c.SkipRequired...)
 		}
 	}
 
