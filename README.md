@@ -1,6 +1,6 @@
 # atome-fin-go-sdk
 
-Go client for the atome-fin payment API. Typed services for
+Go client for the atome-fin Partner API. Typed services for
 auth / capture / void / refund / repayment / billing / credit
 flows; signed outbound calls + verified inbound callbacks; an
 opt-in mock testing surface that runs offline.

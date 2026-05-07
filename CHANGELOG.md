@@ -7,6 +7,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.6.1] — 2026-05-07
+
+Doc-only release. Renames the SDK's product framing from
+"payment API" to "Partner API" to match the upstream spec
+title (*Partner White-Label API (Draft)*). The SDK has covered
+refund / bill / transaction / repayment / credit lifecycle
+since v0.2 — "payment API" was a hangover from the v0.1
+auth-capture-void surface and undersold the actual scope.
+
+### Changed
+
+- **`README.md`** — opening sentence now reads "Go client for
+  the atome-fin Partner API" (was "atome-fin payment API").
+  No other prose changes.
+- **GitHub repository description** — updated via `gh repo edit`
+  to match.
+
+### Verification
+
+`grep -ni "payment api\|payment sdk"` across the tree returns
+0 hits outside `docs/internal/` and historical CHANGELOG
+entries.
+
+### What did NOT change
+
+The Go API surface is unchanged: `atomefin/payment/` is still
+the correct domain name for the auth/capture/void sub-package
+(it's about the payment-flow domain, not the product); every
+`payment.New(c)` / `payment.Service` / `payment.AuthRequest`
+call site continues to compile verbatim. Sentences describing
+specific payment operations (e.g. "payment authorization" in
+SECURITY.md) and spec endpoint paths (`/payment-precheck`,
+`/payment-plan`) are unchanged.
+
 ## [0.6.0] — 2026-05-07
 
 Architect's Shelf A from PROJECT_REVIEW_2026-05-07. Closes the
@@ -1632,7 +1666,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.6.1
 [0.6.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.6.0
 [0.5.2]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.2
 [0.5.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.1
