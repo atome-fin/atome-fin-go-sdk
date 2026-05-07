@@ -7,6 +7,89 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.5.1] — 2026-05-07
+
+Patch release correcting v0.2.3's overzealous multi-value
+hard-fail. Per partner clarification, the upstream gateway's
+verification semantics are spec-aligned but **asymmetric**: the
+wire query keeps every value (no data loss); the verification
+canonical observes only the first value per key. v0.2.3
+hardened a developer-advisory "callers SHOULD pre-flatten" into
+a "callers MUST pre-flatten" — wrong, since partners may
+genuinely need to send multi-value parameters and the SDK
+should sign the first-value canonical without dropping wire
+data.
+
+### Fixed
+
+- **`Client.DoSignedGET` now signs the first-value canonical
+  and transmits every wire value.** Single-value calls (the
+  99% case) are byte-identical to v0.2.3 — `R13a` (wire ≡
+  canonical) is preserved automatically. Multi-value calls
+  satisfy the new `R13b` invariant: wire keeps `?tag=a&tag=b`
+  shape; canonical signs `?tag=a`. The upstream gateway
+  reconstructs the same first-value canonical for verification.
+- New test `TestDoSignedGET_R13b_MultiValueWireFullCanonicalFirst`
+  pins the asymmetric invariant: server-side reconstruction
+  via `sign.CanonicalQueryFirstValue(r.URL.Query())` verifies
+  the signature; wire `RawQuery` carries every supplied value.
+
+### Added
+
+- **`sign.CanonicalQueryFirstValue(values url.Values) string`** —
+  spec-aligned canonical helper. No error return; multi-value
+  inputs emit only the first value per key. Single-value
+  inputs produce bytes byte-identical to `CanonicalQuery`'s
+  output (when the latter doesn't error). Use this for
+  sign-time canonical.
+- **`sign.EncodeWireQueryRFC3986(values url.Values) string`** —
+  multi-value-preserving wire encoder using the same RFC 3986
+  percent-encoding as the canonical helpers. Used by
+  `Client.DoSignedGET` to construct the wire bytes; partners
+  building their own wire-equivalence harnesses can call it
+  directly.
+
+### Deprecated
+
+- **`sign.MultiValueQueryError`** is preserved for backward
+  compatibility but should no longer be returned in normal
+  flows: the only in-repo caller (`Client.DoSignedGET`) now
+  uses `CanonicalQueryFirstValue`. `sign.CanonicalQuery` itself
+  retains its v0.2.3 strict behaviour for partners that
+  programmatically caught the error to do their own
+  pre-flatten — those code paths still compile and behave
+  identically.
+
+### Migration
+
+```go
+// Today (v0.2.3 — v0.5.0): multi-value queries hard-fail.
+_, err := c.DoSignedGET(ctx, "/path", url.Values{
+    "tag": []string{"a", "b"}, // → *ValidationError wrapping *MultiValueQueryError
+})
+
+// v0.5.1+: multi-value works as expected.
+_, err := c.DoSignedGET(ctx, "/path", url.Values{
+    "tag": []string{"a", "b"}, // wire: ?tag=a&tag=b ; canonical: ?tag=a
+})
+// err is nil if the upstream accepts the request.
+```
+
+Partners who programmatically caught `*sign.MultiValueQueryError`
+to apply a manual pre-flatten can DROP that branch — the SDK
+now does the right thing automatically. The error type stays
+exported (and `sign.CanonicalQuery` still returns it) so the
+catch site compiles unchanged; it just won't fire in normal
+flows.
+
+### Changed
+
+- **`docs/MOCK_MODE.md`** — caveat updated: multi-value queries
+  are now first-class on `DoSignedGET`. Partners testing custom
+  multi-value paths can do so without pre-flattening.
+- **`README.md`** — Behavioural Contract section's outbound
+  flow updated to mention the asymmetric semantic for GET.
+
 ## [0.5.0] — 2026-05-07
 
 Realistic mock-sandbox extension on top of the v0.4 baseline.
@@ -1431,7 +1514,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.1
 [0.5.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.0
 [0.4.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.4.0
 [0.3.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.3.1

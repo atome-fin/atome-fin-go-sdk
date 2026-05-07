@@ -146,35 +146,27 @@ func (c *Client) DoSignedGET(ctx context.Context, path string, query url.Values,
 		return nil, &ValidationError{Field: "path", Message: "path must be absolute (start with '/')"}
 	}
 
-	canonicalStr, err := sign.CanonicalQuery(query)
-	if err != nil {
-		// v0.2.3: multi-value queries hard-fail at sign time rather
-		// than producing an asymmetric canonical that the upstream
-		// gateway would reject as INVALID_SIGNATURE. Wrap the
-		// sign-package sentinel as a typed *ValidationError so the
-		// SDK's error model stays consistent with other input-side
-		// rejections.
-		var mverr *sign.MultiValueQueryError
-		if errors.As(err, &mverr) {
-			return nil, &ValidationError{
-				Field:   "query[" + mverr.Key + "]",
-				Message: err.Error(),
-			}
-		}
-		return nil, &ValidationError{Field: "query", Message: err.Error()}
-	}
-	canonical := []byte(canonicalStr)
+	// v0.5.1 (R13a + R13b): the spec semantic is asymmetric for
+	// multi-value queries. Wire keeps every value (no data loss);
+	// the signing canonical observes only the first value per
+	// key (matches the upstream gateway's verification). For
+	// single-value inputs both helpers produce byte-identical
+	// output, so wire == canonical (R13a) is preserved
+	// automatically — most calls hit this path.
+	canonical := []byte(sign.CanonicalQueryFirstValue(query))
+	wireQuery := sign.EncodeWireQueryRFC3986(query)
 	urlStr := c.baseURL + path
 	return c.signAndDispatch(ctx, path, urlStr, canonical, cfg, func(reqCtx context.Context) (*http.Request, error) {
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, urlStr, nil)
 		if err != nil {
 			return nil, err
 		}
-		// Wire ≡ canonical. Critical: do NOT call query.Encode() —
-		// that uses "+" for space (form encoding), producing a wire
-		// query that diverges from sign.CanonicalQuery's "%20" form
-		// and breaks server-side verification (architect §1, R13).
-		req.URL.RawQuery = string(canonical)
+		// Wire CAN diverge from canonical when multi-value is
+		// supplied (R13b). Use EncodeWireQueryRFC3986's output
+		// (NOT url.Values.Encode() — that uses '+' for space and
+		// would break single-value R13a byte-equality with
+		// CanonicalQueryFirstValue's RFC-3986 output).
+		req.URL.RawQuery = wireQuery
 		return req, nil
 	})
 }

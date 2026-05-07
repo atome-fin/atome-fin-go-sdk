@@ -8,22 +8,25 @@ import (
 )
 
 // MultiValueQueryError is returned by CanonicalQuery when the input
-// url.Values contains more than one value for any key. The
-// apaylater spec's Signature section is silent on multi-value
-// canonicalization (the rule reads "sorted in alphabetical natural
-// order" — singular per key). The upstream gateway's observed
-// behaviour is to retain only the first value for verification, so
-// emitting all values produced an asymmetric canonical that
-// silently failed signature verification with a generic
-// `INVALID_SIGNATURE` 401 — a subtle foot-gun for any partner that
-// fed a multi-value `url.Values` through `Client.DoSignedGET`.
+// url.Values contains more than one value for any key.
 //
-// v0.2.3 makes the contract explicit: callers MUST pre-flatten
-// multi-value queries (typically by joining values into a single
-// comma-separated string per the partner agreement, or by picking
-// one value) before signing. The resulting hard fail at sign time
-// surfaces the bug in the dev loop rather than at production
-// first-call.
+// **DEPRECATED v0.5.1.** Per partner clarification, the upstream
+// gateway's verification semantics are spec-aligned but
+// asymmetric: the wire query keeps every value (so no data is
+// dropped), and the gateway computes the verification canonical
+// using only the FIRST value per key. The v0.2.3 hard-fail
+// hardened a developer-advisory "callers should pre-flatten" into
+// a "callers must pre-flatten" — wrong: partners genuinely need
+// to send multi-value, and the SDK should sign the first-value
+// canonical without dropping the wire data.
+//
+// The lenient first-value path now lives in
+// CanonicalQueryFirstValue (no error return) and is what
+// Client.DoSignedGET uses since v0.5.1. CanonicalQuery itself
+// still hard-fails for backward compatibility — partners who
+// programmatically caught *MultiValueQueryError to do their own
+// pre-flatten still get the same diagnostic. New code should
+// prefer CanonicalQueryFirstValue.
 type MultiValueQueryError struct {
 	// Key is the offending parameter name.
 	Key string
@@ -46,11 +49,14 @@ func (e *MultiValueQueryError) Error() string {
 //
 // Rules:
 //   - Keys are sorted in lexicographic order.
-//   - Each key MUST have at most one value. Multi-value keys return
-//     a *MultiValueQueryError; the spec does not define repeated-key
-//     canonicalization and the upstream gateway only retains the first
-//     value, so emitting all values would silently fail signature
-//     verification. Callers must pre-flatten before signing.
+//   - Each key MUST have at most one value. Multi-value keys
+//     return a *MultiValueQueryError. **DEPRECATED v0.5.1**: per
+//     partner clarification, the spec semantic is asymmetric —
+//     wire keeps both values; canonical signs first. Use
+//     CanonicalQueryFirstValue for the spec-aligned canonical;
+//     this function's strict behaviour is preserved for backward
+//     compatibility with v0.2.3 — v0.5.0 partners catching
+//     *MultiValueQueryError to do their own pre-flatten.
 //   - Both keys and values are percent-encoded per RFC 3986 unreserved
 //     set: space encodes as "%20" (NOT "+"), "+" encodes as "%2B", etc.
 //   - Pairs are joined by "&", separated by "=" between key and value.
@@ -101,6 +107,109 @@ func CanonicalQuery(values url.Values) (string, error) {
 		b.WriteString(rfc3986Escape(vs[0]))
 	}
 	return b.String(), nil
+}
+
+// CanonicalQueryFirstValue returns the canonical signing-input
+// string per the spec's first-value-per-key semantic, added in
+// v0.5.1. For every key (sorted lexicographically) it emits
+// EXACTLY ONE pair using the first value; multi-value keys do
+// NOT raise an error.
+//
+// This is the spec-aligned counterpart of CanonicalQuery: the
+// upstream gateway's verification canonical observes only the
+// first value per key, so signing the first-value canonical and
+// transmitting all values on the wire produces a request the
+// gateway accepts without data loss. See R13b in
+// `atomefin/dosigned_get_test.go`.
+//
+// Single-value inputs produce bytes byte-identical to
+// CanonicalQuery's output (when CanonicalQuery doesn't error).
+// Use this for sign-time canonical; use CanonicalQuery only
+// when strict input-validation matters (e.g. you want a
+// hard-fail on accidental multi-value supply).
+//
+// Encoding rules are otherwise identical to CanonicalQuery:
+// alphabetical key sort, RFC 3986 percent-encoding (space →
+// %20, NOT '+'), pairs joined by '&'.
+func CanonicalQueryFirstValue(values url.Values) string {
+	if len(values) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	b.Grow(16 * len(keys))
+
+	first := true
+	for _, k := range keys {
+		vs := values[k]
+		if len(vs) == 0 {
+			continue
+		}
+		if !first {
+			b.WriteByte('&')
+		}
+		first = false
+		b.WriteString(rfc3986Escape(k))
+		b.WriteByte('=')
+		b.WriteString(rfc3986Escape(vs[0]))
+	}
+	return b.String()
+}
+
+// EncodeWireQueryRFC3986 returns the wire-format query string
+// for a GET request — preserves multi-value (every value per
+// key gets its own `k=v` pair) using the same RFC 3986
+// percent-encoding as the canonical helpers above.
+//
+// Single-value inputs produce bytes byte-identical to
+// CanonicalQueryFirstValue (and to CanonicalQuery's output when
+// it doesn't error), so the wire-equals-canonical R13a
+// invariant for single-value queries is preserved automatically.
+//
+// Multi-value inputs produce wire bytes that DIFFER from the
+// canonical first-value bytes — this is the asymmetric R13b
+// invariant added in v0.5.1: wire keeps all data, canonical
+// signs the first value per key.
+//
+// Used by Client.DoSignedGET to build the wire query bytes
+// while CanonicalQueryFirstValue produces the bytes fed to the
+// signer.
+func EncodeWireQueryRFC3986(values url.Values) string {
+	if len(values) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	b.Grow(16 * len(keys))
+
+	first := true
+	for _, k := range keys {
+		vs := values[k]
+		if len(vs) == 0 {
+			continue
+		}
+		ek := rfc3986Escape(k)
+		for _, v := range vs {
+			if !first {
+				b.WriteByte('&')
+			}
+			first = false
+			b.WriteString(ek)
+			b.WriteByte('=')
+			b.WriteString(rfc3986Escape(v))
+		}
+	}
+	return b.String()
 }
 
 // rfc3986Escape percent-encodes s such that only RFC 3986 unreserved

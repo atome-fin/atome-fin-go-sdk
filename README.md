@@ -299,6 +299,16 @@ ships sensible defaults but exposes one-line knobs to override:
 5. Non-2xx responses are decoded into `*atomefin.APIError`;
    transport failures into `*atomefin.TransportError`. Both
    implement `Temporary() bool` and `Unwrap()`.
+6. **GET signing is asymmetric for multi-value queries**
+   (R13a / R13b): single-value `url.Values` produce wire bytes
+   byte-equal to the signing canonical (RFC 3986, `%20` for
+   space, NOT `+`). Multi-value `url.Values` keep every value
+   on the wire (so no data is dropped) while the signing
+   canonical observes only the first value per key — the
+   upstream gateway reconstructs the same first-value
+   canonical for verification. Use
+   `sign.CanonicalQueryFirstValue` for sign-time canonical;
+   `sign.EncodeWireQueryRFC3986` for the matching wire encoder.
 
 ### Inbound (`callback.AuthHandler` / `CaptureHandler`)
 
