@@ -10,23 +10,24 @@ import (
 // MultiValueQueryError is returned by CanonicalQuery when the input
 // url.Values contains more than one value for any key.
 //
-// **DEPRECATED v0.5.1.** Per partner clarification, the upstream
-// gateway's verification semantics are spec-aligned but
-// asymmetric: the wire query keeps every value (so no data is
-// dropped), and the gateway computes the verification canonical
-// using only the FIRST value per key. The v0.2.3 hard-fail
-// hardened a developer-advisory "callers should pre-flatten" into
-// a "callers must pre-flatten" — wrong: partners genuinely need
-// to send multi-value, and the SDK should sign the first-value
+// Deprecated: as of v0.5.1, multi-value queries are first-class
+// on Client.DoSignedGET via [CanonicalQueryFirstValue] (lenient
+// first-value canonical) and [EncodeWireQueryRFC3986] (multi-
+// value-preserving wire encoder). Per partner clarification, the
+// upstream gateway's verification semantics are spec-aligned but
+// asymmetric: the wire query keeps every value (no data loss),
+// and the gateway computes the verification canonical using only
+// the FIRST value per key. The v0.2.3 hard-fail hardened a
+// developer-advisory "callers should pre-flatten" into a
+// "callers must pre-flatten" — wrong: partners genuinely need to
+// send multi-value, and the SDK should sign the first-value
 // canonical without dropping the wire data.
 //
-// The lenient first-value path now lives in
-// CanonicalQueryFirstValue (no error return) and is what
-// Client.DoSignedGET uses since v0.5.1. CanonicalQuery itself
-// still hard-fails for backward compatibility — partners who
-// programmatically caught *MultiValueQueryError to do their own
-// pre-flatten still get the same diagnostic. New code should
-// prefer CanonicalQueryFirstValue.
+// CanonicalQuery itself still returns this error for backward
+// compatibility — partners who programmatically caught
+// *MultiValueQueryError to do their own pre-flatten still get
+// the same diagnostic. New code should prefer
+// CanonicalQueryFirstValue.
 type MultiValueQueryError struct {
 	// Key is the offending parameter name.
 	Key string

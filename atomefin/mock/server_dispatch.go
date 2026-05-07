@@ -72,7 +72,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// ---- Step 5: response signing (forward-compat) ----
 	if len(s.cfg.responseSigningKeyPEM) > 0 {
-		if authz, err := signResponseBody(s.cfg.responseSigningKeyPEM, respBody); err == nil {
+		if authz, err := signResponseBody(r.Context(), s.cfg.responseSigningKeyPEM, respBody); err == nil {
 			resp.Header.Set("Authorization", authz)
 		} else {
 			s.tb.Errorf("mock.Server: WithResponseSigning: %v", err)
@@ -99,7 +99,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// ---- Step 6: auto-callback firing ----
 	if len(s.cfg.autoCallbackHandlers) > 0 || s.cfg.autoCallbackURL != "" {
-		s.fireAutoCallback(op, body, respBody)
+		s.fireAutoCallback(r.Context(), op, body, respBody)
 	}
 }
 
@@ -187,7 +187,11 @@ func (s *Server) idemKey(op string, r *http.Request, body []byte) string {
 // constructors), use that as the event body. Otherwise the
 // auto-callback fire is skipped — there's no reasonable
 // inferred payload.
-func (s *Server) fireAutoCallback(op string, reqBody, respBody []byte) {
+//
+// ctx is the inbound request's context — threaded into the
+// signer so a cancelled / deadlined request doesn't waste work
+// on a sign call that will never be observed (v0.5.2 fix).
+func (s *Server) fireAutoCallback(ctx context.Context, op string, reqBody, respBody []byte) {
 	scenario := s.transport.snapshotScenario()
 	carrier, ok := scenario.(autoCallbackCarrier)
 	if !ok {
@@ -202,20 +206,18 @@ func (s *Server) fireAutoCallback(op string, reqBody, respBody []byte) {
 		time.Sleep(s.cfg.autoCallbackDelay)
 	}
 	if h, ok := s.cfg.autoCallbackHandlers[normalizeOpKey(payload.handlerKey)]; ok {
-		s.fireCallbackInProcess(h, payload)
+		s.fireCallbackInProcess(ctx, h, payload)
 		return
 	}
 	if s.cfg.autoCallbackURL != "" {
-		s.fireCallbackToURL(payload)
+		s.fireCallbackToURL(ctx, payload)
 	}
 }
 
 // fireCallbackInProcess shares the v0.4 fire() signing core
-// (sign body → POST via ServeHTTP). The shared sign-then-build
-// is callbackSign; both in-process and URL routes consume the
-// same signed bytes.
-func (s *Server) fireCallbackInProcess(h http.Handler, payload *callbackPayload) {
-	body, authz, err := s.signCallback(payload.body)
+// (sign body → POST via ServeHTTP).
+func (s *Server) fireCallbackInProcess(ctx context.Context, h http.Handler, payload *callbackPayload) {
+	body, authz, err := s.signCallback(ctx, payload.body)
 	if err != nil {
 		s.tb.Errorf("mock.Server: auto-callback sign: %v", err)
 		return
@@ -227,13 +229,13 @@ func (s *Server) fireCallbackInProcess(h http.Handler, payload *callbackPayload)
 	h.ServeHTTP(rec, req)
 }
 
-func (s *Server) fireCallbackToURL(payload *callbackPayload) {
-	body, authz, err := s.signCallback(payload.body)
+func (s *Server) fireCallbackToURL(ctx context.Context, payload *callbackPayload) {
+	body, authz, err := s.signCallback(ctx, payload.body)
 	if err != nil {
 		s.tb.Errorf("mock.Server: auto-callback sign: %v", err)
 		return
 	}
-	req, err := http.NewRequest(http.MethodPost, s.cfg.autoCallbackURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.cfg.autoCallbackURL, bytes.NewReader(body))
 	if err != nil {
 		s.tb.Errorf("mock.Server: auto-callback build request: %v", err)
 		return
@@ -250,8 +252,10 @@ func (s *Server) fireCallbackToURL(payload *callbackPayload) {
 
 // signCallback applies the shared sign-then-dispatch core: signs
 // `body` with WithAutoCallbackKey or the bundled mock signing key
-// and returns (body, "<base64sig>", err).
-func (s *Server) signCallback(body []byte) ([]byte, string, error) {
+// and returns (body, "<base64sig>", err). ctx is threaded so a
+// cancelled / deadlined inbound request short-circuits the sign
+// call rather than racing it (v0.5.2 fix).
+func (s *Server) signCallback(ctx context.Context, body []byte) ([]byte, string, error) {
 	keyPEM := s.cfg.autoCallbackSignerPEM
 	if len(keyPEM) == 0 {
 		keyPEM = MockSigningPrivKeyPEM()
@@ -264,7 +268,7 @@ func (s *Server) signCallback(body []byte) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	authz, err := signer.Sign(context.Background(), body)
+	authz, err := signer.Sign(ctx, body)
 	if err != nil {
 		return nil, "", err
 	}
@@ -273,8 +277,9 @@ func (s *Server) signCallback(body []byte) ([]byte, string, error) {
 
 // signResponseBody wraps body with an RSA-PKCS#1 v1.5 SHA-256
 // signature using the supplied PEM. Returns the base64
-// signature suitable for the Authorization header.
-func signResponseBody(privPEM, body []byte) (string, error) {
+// signature suitable for the Authorization header. ctx is
+// threaded from the inbound request (v0.5.2 fix).
+func signResponseBody(ctx context.Context, privPEM, body []byte) (string, error) {
 	priv, err := sign.LoadPrivateKeyPEM(privPEM)
 	if err != nil {
 		return "", err
@@ -283,7 +288,7 @@ func signResponseBody(privPEM, body []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return signer.Sign(context.Background(), body)
+	return signer.Sign(ctx, body)
 }
 
 // replay writes the cached entry verbatim.

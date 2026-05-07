@@ -1,0 +1,41 @@
+name: fuzz-nightly
+
+on:
+  # Daily 04:00 UTC sweep — exercises every Fuzz* target in the
+  # repo for ~30 seconds each. Cheap insurance against
+  # fuzz-discoverable regressions in the canonical-query path
+  # (the only Fuzz target as of v0.5.2; future Fuzz targets are
+  # picked up automatically via `go test -fuzz=. -fuzztime=30s`).
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: fuzz (go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.23"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      # Per-package fuzz sweep. -fuzz=. matches every Fuzz*
+      # target in the package; -fuzztime=30s caps per-target
+      # runtime so the whole sweep stays under the 20m
+      # workflow timeout.
+      #
+      # Each sub-step is named explicitly so a failure points
+      # at the offending package without having to scan the
+      # full log.
+      - name: fuzz atomefin/sign
+        run: go test -run=^$ -fuzz=. -fuzztime=30s ./atomefin/sign/

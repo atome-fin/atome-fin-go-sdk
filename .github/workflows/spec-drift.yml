@@ -1,0 +1,36 @@
+name: spec-drift
+
+on:
+  # Weekly Monday 08:00 UTC sentinel — fires on schedule even
+  # if no PR or push has happened. Catches upstream
+  # `swagger.yaml` drift before partners hit it.
+  schedule:
+    - cron: "0 8 * * 1"
+  # Manual trigger for ad-hoc checks (post-spec-bump verification).
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: pinned spec vs upstream
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      # `make test-spec-drift` runs the build-tagged
+      # TestSpec_PinnedMatchesUpstream from
+      # `qa/specserver/drift_test.go` — fetches the live
+      # swagger.yaml and SHA-compares against the pinned
+      # filename. Hard-fails on mismatch with a remediation
+      # message; the allowlist file under
+      # `qa/specserver/spec_drift_allowlist.txt` suppresses
+      # in-flight transitions.
+      - name: test-spec-drift
+        run: make test-spec-drift

@@ -7,6 +7,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.5.2] — 2026-05-07
+
+Patch release applying the architect's PROJECT_REVIEW
+recommendations. No public-behaviour change; ergonomic +
+infrastructure tightening.
+
+### Fixed
+
+- **`MultiValueQueryError` now carries a canonical `// Deprecated:`
+  marker** (`atomefin/sign/canonical.go`). The previous
+  `**DEPRECATED v0.5.1.**` bold-Markdown form was visible to
+  human readers but not to staticcheck / IDE tooling. The
+  current marker triggers the
+  [SA1019 `using a deprecated function/variable/...`](https://staticcheck.dev/docs/checks/#SA1019)
+  diagnostic in partners' editors.
+- **Auto-callback signing now uses the inbound `r.Context()`**
+  instead of `context.Background()` (`atomefin/mock/server_dispatch.go`).
+  Two sites — `signCallback` and `signResponseBody` — leaked
+  ctx propagation: a cancelled / deadlined inbound request kept
+  its sign call running on a fresh background context. Threaded
+  via `fireAutoCallback(ctx, ...)` → `fireCallbackInProcess(ctx, ...)`
+  / `fireCallbackToURL(ctx, ...)`. `fireCallbackToURL` also now
+  uses `http.NewRequestWithContext` so the network-side
+  callback POST honours cancellation.
+
+### Added
+
+- **`SECURITY.md`** at repo root — partner-facing security policy
+  with sections covering vulnerability reporting, supported
+  versions, the cryptographic surface (signing / hybrid
+  encryption / callbacks / mock test keypairs), the
+  ECB-by-mandate call-out (with the "do NOT 'fix' to a stronger
+  mode without a partner-protocol change" warning), and the
+  out-of-scope list.
+- **`.github/workflows/spec-drift.yml`** — Monday 08:00 UTC
+  sentinel running `make test-spec-drift`. Fires even when no
+  PR / push happened; catches upstream `swagger.yaml` drift
+  before partners hit it. Manual trigger via
+  `workflow_dispatch`.
+- **`.github/workflows/fuzz-nightly.yml`** — daily 04:00 UTC
+  sweep running `go test -fuzz=. -fuzztime=30s` across each
+  package that has Fuzz* targets. Currently covers
+  `atomefin/sign/FuzzCanonicalQuery`; future Fuzz targets are
+  picked up automatically.
+- **`atomefin/mock/idempotency_race_test.go`** — concurrent
+  Get / Put / Reset stress test on the v0.5 LRU idempotency
+  cache (8 writers × 8 readers × 200 entries × 50 iterations
+  + intermittent Resets). Run with `go test -race
+  ./atomefin/mock/`. Also includes a single-threaded
+  `TestIdempotencyCache_EvictionUnderPressure` pin.
+
 ## [0.5.1] — 2026-05-07
 
 Patch release correcting v0.2.3's overzealous multi-value
@@ -1514,7 +1565,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.2
 [0.5.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.1
 [0.5.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.0
 [0.4.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.4.0
