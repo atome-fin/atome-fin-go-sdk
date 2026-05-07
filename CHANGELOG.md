@@ -7,6 +7,55 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.3.1] — 2026-05-07
+
+Doc-only release. No public API change; semver-neutral. Pin so
+partners testing against `atomefin/...` get a stable label for
+the v0.3 mock-mode story.
+
+### Added
+
+- **`docs/MOCK_MODE.md`** — partner-facing guide for testing
+  partner code against the SDK without dialling atome-fin. Two
+  worked patterns (RoundTripper-based via `WithHTTPClient`;
+  socket-based via `httptest.NewServer`), each ~10 lines of
+  scaffolding. Caveats section covers the four corners that bite:
+  - signing always runs (need a real `WithPrivateKeyPEM` test key,
+    even against a mock — generate one once with
+    `rsa.GenerateKey(rand.Reader, 2048)`),
+  - hybrid-encryption endpoints (`/credit-information`,
+    `/credit-application`) require `WithEncryptAtomePublicCertPEM`
+    or you get `*ValidationError` BEFORE the RoundTripper fires,
+  - callback handlers sit behind partner-owned HTTP frameworks
+    (the SDK ships outbound only),
+  - request-ID auto-mint is stable across SDK retries (count by
+    RoundTripper invocations, not by `RequestID` uniqueness).
+- **`docs/mock_mode_examples_test.go`** — both MOCK_MODE.md
+  snippets extracted as `Test*` functions and run on every
+  `make test`. Compile + execution drift between the doc and
+  the live SDK surface is caught at the test gate. Includes a
+  compile-only assertion that `WithHTTPClient` remains a stable
+  public option.
+
+### Changed
+
+- **`README.md`** — new "Testing your own code against the SDK"
+  sub-section under `## Testing` linking to MOCK_MODE.md.
+
+### Coming next
+
+A first-class `atomefin/mock` sub-package is on the v0.4
+roadmap: pre-built scenarios (`AlwaysSuccess` /
+`AlwaysProcessing` / `AlwaysFailed(code)` / `PerEndpoint(map)`),
+seven callback-sender helpers (`FireAuthCallback` etc.),
+bundled test keypairs gated behind `WithMockKeysAllowed()`, and
+a hard EnvProd-refusal guard so a mock client cannot
+accidentally point at production. v0.5 layers a fluent scenario
+DSL plus auto-callback firing on top of the v0.4 base. The
+v0.3.1 patterns above will continue to work unchanged after
+v0.4 / v0.5 ship — opting into `atomefin/mock` is partner-led,
+not forced.
+
 ## [0.3.0] — 2026-05-07
 
 Adds AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid encryption for
@@ -1216,7 +1265,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.3.1
 [0.3.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.3.0
 [0.2.3]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.3
 [0.2.2]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.2

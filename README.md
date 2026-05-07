@@ -314,6 +314,18 @@ prohibition. Adding a new spec field means adding the struct field,
 dropping a fixture, and the round-trip / strict-decode checks light
 up automatically.
 
+### Testing **your own code** against the SDK
+
+Two patterns let you exercise the SDK end-to-end without dialling
+atome-fin: substitute the underlying `http.RoundTripper` via
+`atomefin.WithHTTPClient`, or point `WithBaseURL` at a local
+`httptest.NewServer`. Worked examples + caveats (signing,
+hybrid-encryption endpoints, callback handlers, EnvProd guard
+roadmap) live in [docs/MOCK_MODE.md](docs/MOCK_MODE.md). The
+snippets in that doc are mirrored into
+`docs/mock_mode_examples_test.go` and run on every CI pass —
+copy-paste-confidence guaranteed.
+
 ## Development
 
 `make ci` runs the same gates GitHub Actions runs — fmtcheck, `go vet`,
