@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/encrypt"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/sign"
 	specpkg "github.com/atome-fin/atome-fin-go-sdk/internal/spec"
 )
@@ -155,11 +156,24 @@ func (s *Server) specValidate(r *http.Request, body []byte) (int, string, string
 // idemKey builds the `(method, path, requestId)` cache key.
 // Returns "" when no requestId can be extracted (cache miss
 // becomes a normal dispatch).
+//
+// v0.6.0: encrypted POSTs are no longer a hard bypass — when
+// WithIdempotencyDecryptKey is configured, the Server unwraps
+// the per-request AES key, decrypts the body, and extracts
+// requestId from the plaintext. Without the decrypt key the
+// v0.5.0 bypass behaviour is preserved.
 func (s *Server) idemKey(op string, r *http.Request, body []byte) string {
-	// Encrypted POSTs — bypass idempotency for v0.5 (no
-	// decryption key on the Server side).
-	if r.Header.Get("Encrypt") != "" {
-		return ""
+	encryptHeader := r.Header.Get("Encrypt")
+	if encryptHeader != "" {
+		// Encrypted POST — try v0.6 decrypt-then-extract path.
+		if len(s.cfg.idempotencyDecryptPEM) == 0 {
+			return ""
+		}
+		rid := s.requestIDFromEncryptedBody(encryptHeader, body)
+		if rid == "" {
+			return ""
+		}
+		return op + "::" + rid
 	}
 	switch r.Method {
 	case http.MethodGet:
@@ -175,6 +189,32 @@ func (s *Server) idemKey(op string, r *http.Request, body []byte) string {
 		}
 	}
 	return ""
+}
+
+// requestIDFromEncryptedBody decrypts an inbound hybrid-encrypted
+// body and returns its top-level `requestId`. Used by idemKey()
+// to support the v0.6 encrypted-POST idempotency path. Returns
+// "" on any decryption / parse failure (caller falls back to
+// cache-miss dispatch).
+func (s *Server) requestIDFromEncryptedBody(encryptHeader string, body []byte) string {
+	priv, err := sign.LoadPrivateKeyPEM(s.cfg.idempotencyDecryptPEM)
+	if err != nil {
+		s.tb.Errorf("mock.Server: WithIdempotencyDecryptKey: load: %v", err)
+		return ""
+	}
+	plain, err := encrypt.Unmarshal(encryptHeader, string(body), priv)
+	if err != nil {
+		// Don't fail the test — partners may intentionally drive
+		// malformed-encrypt failure paths.
+		return ""
+	}
+	var blob struct {
+		RequestID string `json:"requestId"`
+	}
+	if err := json.Unmarshal(plain, &blob); err != nil {
+		return ""
+	}
+	return blob.RequestID
 }
 
 // fireAutoCallback dispatches the matching `*Event` to the
@@ -215,7 +255,13 @@ func (s *Server) fireAutoCallback(ctx context.Context, op string, reqBody, respB
 }
 
 // fireCallbackInProcess shares the v0.4 fire() signing core
-// (sign body → POST via ServeHTTP).
+// (sign body → POST via ServeHTTP). Panic-isolated since v0.6.0:
+// a partner-side handler that panics during ServeHTTP no
+// longer propagates into the SDK request pipeline. Mirrors the
+// Client.safeObsRequest pattern around Observer hooks. The
+// recovered panic is surfaced via tb.Errorf so a misbehaving
+// handler is visible at test time but the inbound SDK request
+// completes its synchronous dispatch.
 func (s *Server) fireCallbackInProcess(ctx context.Context, h http.Handler, payload *callbackPayload) {
 	body, authz, err := s.signCallback(ctx, payload.body)
 	if err != nil {
@@ -226,6 +272,12 @@ func (s *Server) fireCallbackInProcess(ctx context.Context, h http.Handler, payl
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", authz)
 	rec := httptest.NewRecorder()
+
+	defer func() {
+		if r := recover(); r != nil {
+			s.tb.Errorf("mock.Server: auto-callback handler panicked: %v", r)
+		}
+	}()
 	h.ServeHTTP(rec, req)
 }
 
@@ -252,23 +304,16 @@ func (s *Server) fireCallbackToURL(ctx context.Context, payload *callbackPayload
 
 // signCallback applies the shared sign-then-dispatch core: signs
 // `body` with WithAutoCallbackKey or the bundled mock signing key
-// and returns (body, "<base64sig>", err). ctx is threaded so a
-// cancelled / deadlined inbound request short-circuits the sign
-// call rather than racing it (v0.5.2 fix).
+// and returns (body, "<base64sig>", err). Routes through
+// signBodyWithPEM (v0.6.0 consolidation — see sign_helper.go).
+// ctx is threaded so a cancelled / deadlined inbound request
+// short-circuits the sign call rather than racing it (v0.5.2 fix).
 func (s *Server) signCallback(ctx context.Context, body []byte) ([]byte, string, error) {
 	keyPEM := s.cfg.autoCallbackSignerPEM
 	if len(keyPEM) == 0 {
 		keyPEM = MockSigningPrivKeyPEM()
 	}
-	priv, err := sign.LoadPrivateKeyPEM(keyPEM)
-	if err != nil {
-		return nil, "", err
-	}
-	signer, err := sign.NewRSA2Signer(priv)
-	if err != nil {
-		return nil, "", err
-	}
-	authz, err := signer.Sign(ctx, body)
+	authz, err := signBodyWithPEM(ctx, body, keyPEM)
 	if err != nil {
 		return nil, "", err
 	}
@@ -278,17 +323,10 @@ func (s *Server) signCallback(ctx context.Context, body []byte) ([]byte, string,
 // signResponseBody wraps body with an RSA-PKCS#1 v1.5 SHA-256
 // signature using the supplied PEM. Returns the base64
 // signature suitable for the Authorization header. ctx is
-// threaded from the inbound request (v0.5.2 fix).
+// threaded from the inbound request (v0.5.2 fix). Routes
+// through signBodyWithPEM (v0.6.0 consolidation).
 func signResponseBody(ctx context.Context, privPEM, body []byte) (string, error) {
-	priv, err := sign.LoadPrivateKeyPEM(privPEM)
-	if err != nil {
-		return "", err
-	}
-	signer, err := sign.NewRSA2Signer(priv)
-	if err != nil {
-		return "", err
-	}
-	return signer.Sign(ctx, body)
+	return signBodyWithPEM(ctx, body, privPEM)
 }
 
 // replay writes the cached entry verbatim.

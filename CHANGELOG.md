@@ -7,6 +7,73 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.6.0] — 2026-05-07
+
+Architect's Shelf A from PROJECT_REVIEW_2026-05-07. Closes the
+two v0.5.0 deferrals (encrypted-POST idempotency, mock auto-
+callback panic-isolation) and ships the convenience option +
+shared-helper consolidation that the v0.5.0 CHANGELOG promised
+but didn't fully implement.
+
+### Added
+
+- **`atomefin.WithAtomeCerts(signing, encrypting AtomeCertSource)`** —
+  convenience option wrapping the four individual cert
+  options (`WithPrivateKeyPEM`, `WithAtomePublicCertPEM`,
+  `WithEncryptPrivateKeyPEM`, `WithEncryptAtomePublicCertPEM`).
+  Each `AtomeCertSource` carries `PartnerPriv` + `AtomePub` PEM
+  bytes; empty fields skip the matching option (signing-only
+  Clients pass an empty `encrypting` source). The four
+  individual options stay supported and recommended for
+  partners loading cert blobs from independent sources (KMS,
+  files, env).
+- **`mock.WithIdempotencyDecryptKey(privPEM)`** — teaches the
+  v0.5 idempotency cache how to extract `requestId` from
+  encrypted POST bodies on `/credit-information` /
+  `/credit-application`. The Server unwraps the per-request
+  AES key, decrypts, parses `requestId` from the plaintext,
+  and uses `(method, path, requestId)` as the cache key.
+  Off by default — encrypted POSTs bypass the cache when this
+  option is not set, preserving v0.5.0 behaviour. Closes the
+  v0.5.0 deferred item from V0.5_DESIGN.md §4.
+
+### Fixed
+
+- **Mock auto-callback panic isolation** — a partner-side
+  callback handler that panics during `ServeHTTP` no longer
+  propagates the panic into the SDK request pipeline.
+  `fireCallbackInProcess` now wraps the handler dispatch in
+  `defer`/`recover()` and surfaces the recovered panic via
+  `tb.Errorf` so a misbehaving handler is visible at test time
+  without breaking the inbound request. Mirrors the
+  `Client.safeObsRequest` pattern around Observer hooks.
+- **Shared sign-helper consolidation** —
+  `atomefin/mock/sign_helper.go`'s new private `signBodyWithPEM(ctx, body, privPEM)`
+  is the single source of the PEM-load → signer-build → sign
+  sequence. The v0.5.0 CHANGELOG claimed `fire()`
+  (callback.go) and `signCallback()` (server_dispatch.go)
+  shared a signing core, but the three lines were duplicated
+  across both call sites. Both now route through the
+  consolidated helper; `resolveFireKey` (which returned
+  `*rsa.PrivateKey`) is replaced by `resolveFireKeyPEM`
+  (returns `[]byte`) so both paths feed the same shape.
+
+### Tests
+
+- `atomefin/mock/server_v06_test.go`:
+  - `TestServer_Idempotency_EncryptedPOST_DecryptsAndExtractsRequestID`
+    — drives two `SubmitInformation` calls with the same
+    `requestId` through hybrid encryption; second call replays
+    from cache (scenario invoked once).
+  - `TestServer_Idempotency_EncryptedPOST_BypassesWithoutDecryptKey`
+    — pins the v0.5.0 fallback when no decrypt key is wired.
+  - `TestServer_AutoCallback_PanicIsolation` — partner-side
+    handler panics during `ServeHTTP`; the SDK call still
+    completes cleanly; the panic is recorded via `tb.Errorf`.
+  - `TestWithAtomeCerts_WiresAllFourOptions` +
+    `TestWithAtomeCerts_PartialSetup` — pin the convenience
+    option's expansion + partial-setup behaviour.
+
 ## [0.5.2] — 2026-05-07
 
 Patch release applying the architect's PROJECT_REVIEW
@@ -1565,7 +1632,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.6.0
 [0.5.2]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.2
 [0.5.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.1
 [0.5.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.0

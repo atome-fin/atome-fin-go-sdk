@@ -3,7 +3,6 @@ package mock
 import (
 	"bytes"
 	"context"
-	"crypto/rsa"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/callback"
-	"github.com/atome-fin/atome-fin-go-sdk/atomefin/sign"
 )
 
 // FireOption configures a single Fire*Callback invocation. Both
@@ -183,19 +181,14 @@ func fire(t testing.TB, h http.Handler, path string, event any, opts ...FireOpti
 		t.Fatalf("mock.Fire*Callback: marshal event: %v", err)
 	}
 
-	priv := resolveFireKey(t, cfg)
-	if priv == nil {
-		// resolveFireKey already called t.Fatalf — return a synthetic
+	keyPEM := resolveFireKeyPEM(t, cfg)
+	if keyPEM == nil {
+		// resolveFireKeyPEM already called t.Fatalf — return a synthetic
 		// non-200 response so callers using a fake testing.TB (which
 		// suppresses Fatalf) don't panic on a follow-up nil deref.
 		return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader(nil))}
 	}
-	signer, err := sign.NewRSA2Signer(priv)
-	if err != nil {
-		t.Fatalf("mock.Fire*Callback: build signer: %v", err)
-		return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader(nil))}
-	}
-	authz, err := signer.Sign(context.Background(), body)
+	authz, err := signBodyWithPEM(context.Background(), body, keyPEM)
 	if err != nil {
 		t.Fatalf("mock.Fire*Callback: sign body: %v", err)
 		return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader(nil))}
@@ -254,31 +247,28 @@ func assertSuccessAck(t testing.TB, path string, resp *http.Response) {
 	}
 }
 
-// resolveFireKey returns the *rsa.PrivateKey that the helper
-// should sign with. Order of precedence:
+// resolveFireKeyPEM returns the PEM bytes of the private key
+// the helper should sign with. v0.6.0: returns PEM bytes (not a
+// parsed *rsa.PrivateKey) so the caller can route through
+// signBodyWithPEM (the v0.6.0 consolidated signing core).
 //
-//  1. cfg.signerKeyPEM (explicit override)
-//  2. mock bundled key (only if cfg.allowMockKey is set)
+// Order of precedence:
+//
+//  1. cfg.signerKeyPEM (explicit override via WithFireSignerKeyPEM)
+//  2. bundled mock key (only if WithFireMockKey was passed)
 //  3. t.Fatalf — partners must opt in to mock keys explicitly,
 //     or supply their own.
-func resolveFireKey(t testing.TB, cfg *fireConfig) *rsa.PrivateKey {
+func resolveFireKeyPEM(t testing.TB, cfg *fireConfig) []byte {
 	t.Helper()
-	var pemBytes []byte
 	switch {
 	case len(cfg.signerKeyPEM) > 0:
-		pemBytes = cfg.signerKeyPEM
+		return cfg.signerKeyPEM
 	case cfg.allowMockKey:
-		pemBytes = MockSigningPrivKeyPEM()
+		return MockSigningPrivKeyPEM()
 	default:
 		t.Fatalf("mock.Fire*Callback: no signing key supplied — pass WithFireSignerKeyPEM(priv) or opt-in via WithFireMockKey")
 		return nil
 	}
-	priv, err := sign.LoadPrivateKeyPEM(pemBytes)
-	if err != nil {
-		t.Fatalf("mock.Fire*Callback: load private key: %v", err)
-		return nil
-	}
-	return priv
 }
 
 // Compile-time check: every event type wired below must be

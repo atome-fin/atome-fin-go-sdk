@@ -24,6 +24,7 @@ type serverConfig struct {
 	specValidation        bool
 	idempotency           bool
 	idempotencyCacheSize  int
+	idempotencyDecryptPEM []byte
 	autoCallbackHandlers  map[string]http.Handler
 	autoCallbackURL       string
 	autoCallbackDelay     time.Duration
@@ -85,6 +86,29 @@ func WithIdempotencyCacheSize(n int) ServerOption {
 		if n > 0 {
 			c.idempotencyCacheSize = n
 		}
+	}
+}
+
+// WithIdempotencyDecryptKey teaches the v0.6 idempotency cache
+// how to extract `requestId` from encrypted POST bodies on
+// /credit-information / /credit-application. PEM bytes of the
+// RSA-2048 encrypt PRIVATE key the partner-side Client used to
+// wrap (the matching half of WithEncryptAtomePublicCertPEM on
+// the Client side). On every encrypted inbound request, the
+// Server unwraps the per-request AES key, decrypts the body,
+// parses `requestId` from the plaintext, and uses
+// `(method, path, requestId)` as the cache key.
+//
+// Off by default — encrypted POSTs bypass the cache when this
+// option is not set, preserving v0.5.0 behaviour. Has no
+// effect if WithIdempotency was not also passed (the Server
+// never tries to cache when idempotency is off).
+//
+// Bundled-key flow: for tests that use `mock.MockEncryptPubCertPEM`
+// on the Client side, pass `mock.MockEncryptPrivKeyPEM()` here.
+func WithIdempotencyDecryptKey(privPEM []byte) ServerOption {
+	return func(c *serverConfig) {
+		c.idempotencyDecryptPEM = privPEM
 	}
 }
 

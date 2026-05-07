@@ -347,6 +347,80 @@ func WithEncryptPrivateKeyPEM(pem []byte, password ...[]byte) Option {
 	}
 }
 
+// AtomeCertSource bundles a (partner-private, atome-public)
+// keypair for one of the two cert roles the SDK uses (signing
+// or encryption). PartnerPriv is the partner's PEM-encoded RSA
+// private key for that role; AtomePub is Atome's PEM-encoded
+// public key. Either field may be nil — the matching cert
+// option is then skipped (useful for partial setups, e.g. a
+// signing-only Client that doesn't touch the credit POSTs).
+//
+// The four atomefin.WithX cert options stay supported.
+// AtomeCertSource is a convenience handle for partners who keep
+// the four PEM blobs together in their config — the
+// (signing, encrypting) `WithAtomeCerts` form maps cleanly to
+// most key-rotation tooling.
+type AtomeCertSource struct {
+	// PartnerPriv is the partner's RSA private key (PEM bytes).
+	// Required when the role is exercised; optional otherwise.
+	PartnerPriv []byte
+
+	// AtomePub is Atome's matching public cert (PEM bytes).
+	// Required when the role is exercised; optional otherwise.
+	AtomePub []byte
+}
+
+// WithAtomeCerts is the v0.6 convenience option that wraps the
+// four individual cert options
+// (WithPrivateKeyPEM / WithAtomePublicCertPEM /
+// WithEncryptPrivateKeyPEM / WithEncryptAtomePublicCertPEM)
+// behind a single (signing, encrypting) pair.
+//
+// Equivalent to:
+//
+//	atomefin.New(
+//	    WithPrivateKeyPEM(signing.PartnerPriv),
+//	    WithAtomePublicCertPEM(signing.AtomePub),
+//	    WithEncryptPrivateKeyPEM(encrypting.PartnerPriv),
+//	    WithEncryptAtomePublicCertPEM(encrypting.AtomePub),
+//	)
+//
+// Empty fields skip the matching individual option, so partners
+// that only need signing (no credit POSTs) can pass an empty
+// `encrypting` AtomeCertSource. Each cert option's error
+// surface (already-configured, key too short, malformed PEM) is
+// preserved verbatim — wrapping is purely a call-site
+// convenience, not a relaxation of validation.
+//
+// The four individual options stay supported and recommended
+// for partners who load the cert blobs from independent sources
+// (e.g., signing key from KMS, encrypt cert from disk).
+func WithAtomeCerts(signing, encrypting AtomeCertSource) Option {
+	return func(c *config) error {
+		if signing.PartnerPriv != nil {
+			if err := WithPrivateKeyPEM(signing.PartnerPriv)(c); err != nil {
+				return err
+			}
+		}
+		if signing.AtomePub != nil {
+			if err := WithAtomePublicCertPEM(signing.AtomePub)(c); err != nil {
+				return err
+			}
+		}
+		if encrypting.PartnerPriv != nil {
+			if err := WithEncryptPrivateKeyPEM(encrypting.PartnerPriv)(c); err != nil {
+				return err
+			}
+		}
+		if encrypting.AtomePub != nil {
+			if err := WithEncryptAtomePublicCertPEM(encrypting.AtomePub)(c); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
 // WithKeyID sets the keyId returned by Signer.KeyID(). Sent through the
 // AuthorizationScheme function so partners can swap the wire format
 // without recompiling. May be set before or after WithSigner: setting it
