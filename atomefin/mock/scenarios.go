@@ -109,13 +109,43 @@ func PerEndpoint(byOp map[string]Scenario, fallback Scenario) Scenario {
 	if fallback == nil {
 		fallback = AlwaysSuccess()
 	}
-	return ScenarioFunc(func(r *http.Request) (*http.Response, error) {
-		key := strings.ToUpper(r.Method) + " " + r.URL.Path
-		if s, ok := byOp[key]; ok && s != nil {
-			return s.Respond(r)
+	return &perEndpointScenario{byOp: byOp, fallback: fallback}
+}
+
+// perEndpointScenario is the concrete type backing PerEndpoint.
+// Made a struct (rather than a ScenarioFunc closure) so it can
+// implement autoCallbackCarrier — when the matched sub-scenario
+// is itself a typed scenario, the per-endpoint dispatcher
+// delegates the AutoCallback() lookup to it.
+type perEndpointScenario struct {
+	byOp     map[string]Scenario
+	fallback Scenario
+}
+
+// Respond implements Scenario.
+func (p *perEndpointScenario) Respond(r *http.Request) (*http.Response, error) {
+	key := strings.ToUpper(r.Method) + " " + r.URL.Path
+	if s, ok := p.byOp[key]; ok && s != nil {
+		return s.Respond(r)
+	}
+	return p.fallback.Respond(r)
+}
+
+// AutoCallback implements autoCallbackCarrier — delegates to the
+// matched sub-scenario for typed-builder lookup. The op argument
+// is the SAME "METHOD /path" key both PerEndpoint and the
+// auto-callback dispatcher use, so a typed AuthSuccess slot
+// answers cleanly when /auth fires.
+func (p *perEndpointScenario) AutoCallback(op string, reqBody, respBody []byte) *callbackPayload {
+	if s, ok := p.byOp[op]; ok && s != nil {
+		if c, ok := s.(autoCallbackCarrier); ok {
+			return c.AutoCallback(op, reqBody, respBody)
 		}
-		return fallback.Respond(r)
-	})
+	}
+	if c, ok := p.fallback.(autoCallbackCarrier); ok {
+		return c.AutoCallback(op, reqBody, respBody)
+	}
+	return nil
 }
 
 // jsonResponse is the small helper every Scenario uses to emit a

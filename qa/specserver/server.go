@@ -10,11 +10,34 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	specpkg "github.com/atome-fin/atome-fin-go-sdk/internal/spec"
 )
 
-// Server is the strict spec-validating HTTP test server.
-// httptest.NewServer-compatible (Server.URL is the base URL the
-// SDK Client should be pointed at). Construct via New(t).
+// Spec / Operation are re-exported as the strict-mode SDK CI
+// driver still talks in those terms. v0.5 promoted the underlying
+// implementations to internal/spec; the surface every existing
+// `*_spec_test.go` and `coverage_test.go` consumer reads from
+// (`specserver.Case`, `specserver.RunCases`,
+// `specserver.LoadDefault`, `specserver.PinnedPath`) is preserved
+// verbatim.
+type (
+	// Spec is the parsed pinned swagger document.
+	Spec = specpkg.Spec
+	// Operation captures the per-endpoint required-field sets.
+	Operation = specpkg.Operation
+)
+
+// LoadDefault re-exports the internal/spec default-loader for the
+// pinned swagger snapshot.
+func LoadDefault() (*Spec, error) { return specpkg.LoadDefault() }
+
+// PinnedPath re-exports internal/spec.PinnedPath. Used by drift_test.go.
+func PinnedPath() (string, error) { return specpkg.PinnedPath() }
+
+// Server is the strict spec-validating HTTP test server. Same shape
+// as v0.4 but its validation primitives now live in
+// `internal/spec`.
 type Server struct {
 	*httptest.Server
 	Spec *Spec
@@ -39,11 +62,7 @@ type Failure struct {
 	SpecPath string // pinned spec absolute path
 }
 
-// New builds a Server backed by the package's pinned swagger.yaml
-// (qa/specserver/testdata/swagger-*.yaml). Equivalent to NewWithSpec
-// after a LoadDefault() call. The returned server is started and
-// ready for requests; the caller must Close it (typically via
-// t.Cleanup).
+// New builds a Server backed by the package's pinned swagger.yaml.
 func New(t testing.TB) *Server {
 	t.Helper()
 	spec, err := LoadDefault()
@@ -68,17 +87,12 @@ func NewWithSpec(t testing.TB, spec *Spec) *Server {
 	return s
 }
 
-// SetFixture loads a JSON file as the canned 200 response body for
-// op (e.g. SetFixture("POST /auth", "qa/testdata/auth_response_success.json")).
-// If unset, the server emits a generic
-// {"code":"SUCCESS","message":"ok"} envelope so the SDK doesn't
-// fail decoding.
+// SetFixture loads a JSON file as the canned 200 response body for op.
 func (s *Server) SetFixture(op, path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("specserver: load fixture %q: %w", path, err)
 	}
-	// Validate JSON — fail loud in test setup, not in the handler.
 	if !json.Valid(data) {
 		return fmt.Errorf("specserver: fixture %q is not valid JSON", path)
 	}
@@ -88,8 +102,7 @@ func (s *Server) SetFixture(op, path string) error {
 	return nil
 }
 
-// SetFixtureRaw sets an inline JSON fixture for op. Useful when a
-// per-test happy-path body diverges from the shared fixture set.
+// SetFixtureRaw sets an inline JSON fixture for op.
 func (s *Server) SetFixtureRaw(op string, body json.RawMessage) {
 	s.mu.Lock()
 	s.fixtures[normalizeOpKey(op)] = body
@@ -98,22 +111,7 @@ func (s *Server) SetFixtureRaw(op string, body json.RawMessage) {
 
 // SkipRequired registers a per-op allowlist of required field paths
 // (body or query) that the spec server should skip when validating
-// requests for that op. Use sparingly — it is a knowing
-// acknowledgement that the SDK does not yet emit a spec-required
-// field, typically because the field is partner-pending or the
-// spec is "Initial draft" and the upstream gateway is known not to
-// enforce it. Each call APPENDS to the existing skip set.
-//
-// Document the reason for each skip in the calling test alongside
-// the SkipRequired call so the next reviewer sees the intent.
-//
-// Example:
-//
-//	srv.SkipRequired("POST /payment-plan",
-//	    "subOrders[].categoryId",      // spec "Initial draft" — partner Q-set
-//	    "subOrders[].merchantId",      // same
-//	    "extendInfo.paymentType",      // not yet declared in v0.2 surface
-//	)
+// requests for that op.
 func (s *Server) SkipRequired(op string, paths ...string) {
 	key := normalizeOpKey(op)
 	s.mu.Lock()
@@ -129,10 +127,9 @@ func (s *Server) SkipRequired(op string, paths ...string) {
 }
 
 // effectiveRequired returns the spec's RequiredBody / RequiredQuery /
-// RequiredHeader for op with any registered skips removed. Used by
-// the dispatcher.
+// RequiredHeader for op with any registered skips removed.
 func (s *Server) effectiveRequired(op Operation) (body, query, header []string) {
-	key := opKey(op.Method, op.Path)
+	key := specpkg.OpKey(op.Method, op.Path)
 	s.mu.Lock()
 	skip := s.skipReq[key]
 	s.mu.Unlock()
@@ -160,8 +157,7 @@ func (s *Server) effectiveRequired(op Operation) (body, query, header []string) 
 	return body, query, header
 }
 
-// Hits returns the invocation count for op, regardless of whether
-// the request passed validation.
+// Hits returns the invocation count for op.
 func (s *Server) Hits(op string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -169,8 +165,7 @@ func (s *Server) Hits(op string) int {
 }
 
 // normalizeOpKey turns a public-API "Method /path" string into the
-// internal op-key shape (uppercase method, verbatim path). Robust
-// against callers that pass either case.
+// internal op-key shape (uppercase method, verbatim path).
 func normalizeOpKey(op string) string {
 	i := strings.IndexByte(op, ' ')
 	if i < 0 {
@@ -190,7 +185,6 @@ func (s *Server) Failures() []Failure {
 }
 
 // Reset clears the hits and failures counters (fixtures untouched).
-// Useful between sub-tests.
 func (s *Server) Reset() {
 	s.mu.Lock()
 	s.hits = make(map[string]int)
@@ -200,13 +194,12 @@ func (s *Server) Reset() {
 
 // handle is the http.HandlerFunc.
 func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
-	op := opKey(r.Method, r.URL.Path)
+	op := specpkg.OpKey(r.Method, r.URL.Path)
 	s.mu.Lock()
 	s.hits[op]++
 	s.mu.Unlock()
 
-	// Look up the operation. Unknown → 404 PARAMS_WRONG (matches
-	// the upstream gateway's behaviour).
+	// Look up the operation. Unknown → 404 PARAMS_WRONG.
 	specOp, ok := s.Spec.Op(r.Method, r.URL.Path)
 	if !ok {
 		s.recordFailure(Failure{
@@ -220,9 +213,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 
 	requiredBody, requiredQuery, requiredHeader := s.effectiveRequired(specOp)
 
-	// Header presence (applies to all verbs). Encrypt is the
-	// observed required-header today; future spec revisions may
-	// add others.
+	// Header presence (applies to all verbs).
 	encryptedRequest := false
 	for _, name := range requiredHeader {
 		if r.Header.Get(name) == "" {
@@ -270,16 +261,12 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusBadRequest, "WRONG_PARAMS_FORMAT", "read body: "+err.Error())
 			return
 		}
-		// Encrypted body: the spec server has no decryption key —
-		// the wire body is AES ciphertext. The presence of the
-		// Encrypt header was already validated above; body-shape
-		// validation is bypassed here. (R-invariants on the
-		// plaintext shape live in qa/marshal_audit_test.go.)
+		// Encrypted body: spec server has no decryption key.
 		if encryptedRequest {
 			s.writeFixture(w, op)
 			return
 		}
-		if missing, ferr := validateBody(body, requiredBody); ferr != nil {
+		if missing, ferr := specpkg.ValidateBody(body, requiredBody); ferr != nil {
 			s.recordFailure(Failure{
 				Op:       op,
 				Reason:   "request body is not valid JSON",
@@ -324,8 +311,6 @@ func (s *Server) writeFixture(w http.ResponseWriter, op string) {
 		_, _ = w.Write(body)
 		return
 	}
-	// Default minimal SUCCESS envelope. Avoids surprising the SDK's
-	// response decoder when a per-op fixture isn't supplied.
 	_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok"}`))
 }
 

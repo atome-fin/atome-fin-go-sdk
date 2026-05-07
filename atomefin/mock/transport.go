@@ -154,50 +154,49 @@ func readAndReset(r *http.Request) []byte {
 // `*atomefin.Client` directly (e.g. a curl-based contract test,
 // or a partner's own HTTP client library that doesn't accept a
 // custom RoundTripper).
+//
+// v0.5 added four opt-in extensions for sandbox-realism — see
+// server_options.go (WithSpecValidation / WithIdempotency /
+// WithAutoCallback / WithResponseSigning). All off by default;
+// the v0.4 surface is preserved verbatim when no ServerOption
+// is supplied.
 type Server struct {
 	*httptest.Server
+	tb        testing.TB
 	transport *Transport
+	cfg       *serverConfig
+	idem      *idempotencyCache
 }
 
 // NewServer returns a started httptest.Server that dispatches
-// every inbound request through the supplied Scenario.
+// every inbound request through the supplied Scenario, with any
+// ServerOption extensions applied.
 //
 // EnvProd considerations don't apply here — the URL is
 // httptest-allocated and not addressable from outside the test
 // process. The bundled-keys precaution still applies through
 // `mock.NewClient`; this Server is the verb-arbitrary sibling.
-func NewServer(tb testing.TB, scenario Scenario) *Server {
+//
+// v0.5 added the variadic `opts ...ServerOption` tail; v0.4
+// callers calling `mock.NewServer(t, scenario)` continue to
+// work unchanged because every ServerOption is opt-in.
+func NewServer(tb testing.TB, scenario Scenario, opts ...ServerOption) *Server {
 	tb.Helper()
 	if scenario == nil {
 		tb.Fatalf("mock.NewServer: nil Scenario")
 	}
+	cfg := &serverConfig{}
+	for _, o := range opts {
+		if o != nil {
+			o(cfg)
+		}
+	}
 	tr := NewTransport(tb, scenario)
-	srv := &Server{transport: tr}
-	srv.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Reuse Transport's recording + dispatch.
-		resp, err := tr.RoundTrip(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer func() { _ = resp.Body.Close() }()
-		for k, v := range resp.Header {
-			w.Header()[k] = v
-		}
-		w.WriteHeader(resp.StatusCode)
-		if resp.Body != nil {
-			buf := make([]byte, 4096)
-			for {
-				n, err := resp.Body.Read(buf)
-				if n > 0 {
-					_, _ = w.Write(buf[:n])
-				}
-				if err != nil {
-					break
-				}
-			}
-		}
-	}))
+	srv := &Server{tb: tb, transport: tr, cfg: cfg}
+	if cfg.idempotency {
+		srv.idem = newIdempotencyCache(cfg.idempotencyCacheSize)
+	}
+	srv.Server = httptest.NewServer(http.HandlerFunc(srv.serveHTTP))
 	tb.Cleanup(srv.Server.Close)
 	return srv
 }
@@ -215,3 +214,12 @@ func (s *Server) Hits(op string) int64 { return s.transport.Hits(op) }
 
 // Requests forwards to the underlying Transport.
 func (s *Server) Requests() []*RecordedRequest { return s.transport.Requests() }
+
+// Reset clears the underlying Transport's hit / request log AND
+// the idempotency cache (when WithIdempotency is in effect).
+func (s *Server) Reset() {
+	s.transport.Reset()
+	if s.idem != nil {
+		s.idem.Reset()
+	}
+}

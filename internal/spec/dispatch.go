@@ -1,4 +1,4 @@
-package specserver
+package spec
 
 import (
 	"encoding/json"
@@ -6,23 +6,30 @@ import (
 	"strings"
 )
 
-// validateBody walks a decoded JSON body against the operation's
-// RequiredBody set and returns the first missing field path, or ""
-// when every required field is present.
+// ValidateBody walks a decoded JSON body against the supplied
+// required-field paths and returns the first missing field path,
+// or "" when every required field is present.
 //
-// "Present" is defined as: the JSON document has a key at the path
-// AND the key's value is not JSON null. Empty strings, zero numbers,
-// empty arrays, and empty objects are all considered present — the
-// spec server's job is presence detection, not constraint
-// validation. Constraint checks (maxLength, enum, type) are §1.7
-// out-of-scope.
-//
-// Path syntax mirrors collectRequired:
+// Path syntax:
 //   - "field"           — top-level field
 //   - "outer.inner"     — nested object property
 //   - "items[].field"   — required field on each element of an
 //     array of objects (every element is checked; first miss
 //     reported)
+//
+// "Present" is defined as: the JSON document has a key at the
+// path AND the key's value is not JSON null. Empty strings, zero
+// numbers, empty arrays, and empty objects are all considered
+// present — presence detection only, never constraint validation.
+// Type / enum / maxLength checks are §1.7 out-of-scope per
+// SPEC_ASSERTION_TEST_DESIGN.md.
+//
+// On JSON-decode failure returns ("", err); on a missing field
+// returns (path, nil); on success returns ("", nil).
+func ValidateBody(body []byte, required []string) (string, error) {
+	return validateBody(body, required)
+}
+
 func validateBody(body []byte, required []string) (string, error) {
 	if len(required) == 0 {
 		return "", nil

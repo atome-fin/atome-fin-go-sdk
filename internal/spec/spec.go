@@ -1,35 +1,28 @@
-// Package specserver provides a spec-driven test harness for the SDK
-// outbound surface. It loads a pinned upstream swagger.yaml, extracts
-// the per-endpoint required-field set, and stands up an httptest
-// server that rejects requests that omit required fields with a
-// 400 PARAMS_MISSING envelope.
+// Package spec is the SDK-internal carrier for the pinned upstream
+// swagger.yaml plus the per-endpoint required-field walker that
+// drives both the qa/specserver CI tests and the v0.5
+// `mock.WithSpecValidation()` option.
 //
-// The framework's job is narrow on purpose. It catches "the SDK
-// didn't send a spec-required field" — the bug class that produced
-// the v0.2.0 §2.1 regression (four GET methods missing
-// `externalReferenceUid`). It does NOT type-check, enum-check, or
-// maxLength-check; see SPEC_ASSERTION_TEST_DESIGN.md §1.7 for the
-// full coverage boundary and the architect's "what is not caught"
-// table.
+// **Internal by design.** The spec format is unstable (the
+// upstream "Initial draft" disclaimer applies); partners get
+// the validator only via `atomefin/mock`'s opt-in flags, never
+// directly. The pinned `testdata/swagger-*.yaml` lives here so
+// the spec snapshot has exactly one home.
 //
-// Usage from a per-package test:
+// Path note: the package lives at module-level
+// `internal/spec/` (rather than `atomefin/mock/internal/spec/`)
+// because `qa/specserver` — a sibling of `atomefin/` in the
+// import tree — also needs to import it, and Go's `internal`
+// visibility rule limits imports to the directly-rooted
+// subtree. Module-level `internal/` lets both `atomefin/mock`
+// and `qa/specserver` reach it while still hiding the package
+// from partners outside the SDK module.
 //
-//	func TestSpec_PaymentEndpoints(t *testing.T) {
-//	    cases := []specserver.Case{
-//	        {Op: "POST /auth", Run: func(c *atomefin.Client) error {
-//	            _, err := payment.New(c).Auth(ctx, sampleAuthRequest())
-//	            return err
-//	        }},
-//	        // …one row per endpoint
-//	    }
-//	    specserver.RunCases(t, cases)
-//	}
-//
-// The server is hermetic and offline. The optional drift-detection
-// test (TestSpec_PinnedMatchesUpstream) is gated behind the
-// `specnetwork` build tag and is the only network-touching member of
-// the package.
-package specserver
+// Coverage boundary: presence-only validation, mirroring
+// `qa/specserver`'s prior behaviour. Type / enum / maxLength
+// checks remain out of scope per
+// SPEC_ASSERTION_TEST_DESIGN.md §1.7.
+package spec
 
 import (
 	"fmt"
@@ -228,9 +221,17 @@ func (s *Spec) Endpoints() []string {
 	return out
 }
 
-func opKey(method, path string) string {
+// OpKey is the canonical "METHOD path" string the package uses
+// internally to identify an operation. Public so qa/specserver
+// and atomefin/mock can compute the same key shape without
+// re-implementing the trivial format.
+func OpKey(method, path string) string {
 	return strings.ToUpper(method) + " " + path
 }
+
+// opKey is a tiny internal alias preserved while the package's
+// callers migrate to OpKey.
+func opKey(method, path string) string { return OpKey(method, path) }
 
 // stableSort is a tiny insertion sort — avoids pulling in `sort` for
 // the small lists this package handles (≤ ~40 endpoints).

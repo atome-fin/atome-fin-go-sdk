@@ -159,11 +159,107 @@ invocations, not by `RequestID` uniqueness.
 
 ### 5. Production guard
 
-A future `atomefin/mock` package will **refuse to construct a
-mock Client when `Environment == EnvProd`**. Until then, the
-two patterns above carry no guard — review your test config so
-nothing under `if env == "prod" { ... }` accidentally takes the
-mock path.
+`mock.NewClient` (since v0.4) **refuses to construct when
+`WithEnvironment(EnvProd)` is supplied** — the constructor calls
+`t.Fatalf` with a clear message. Tests that route through
+`mock.NewClient` cannot accidentally co-exist with a production
+configuration; tests still using the v0.3.1 `WithHTTPClient` /
+`httptest.NewServer` patterns carry no such guard, so review
+your test config to ensure nothing under
+`if env == "prod" { ... }` accidentally takes the mock path.
+
+---
+
+## Realistic sandbox (v0.5)
+
+`atomefin/mock` v0.4 covered the unit-test 80%. v0.5 layers the
+"behave like the real upstream" 20% on `mock.NewServer` via
+four opt-in flags. Every flag is **off by default** so v0.4
+tests pass unchanged; flip individually as your scenario
+demands.
+
+```go
+srv := mock.NewServer(t,
+    mock.PerEndpoint(map[string]mock.Scenario{
+        "POST /auth":    mock.AuthSuccess("AUTH-1"),
+        "POST /capture": mock.CaptureSuccess("AUTH-1"),
+    }, mock.AlwaysSuccess()),
+
+    mock.WithSpecValidation(),                      // reject 400 PARAMS_MISSING on bad body / missing headers
+    mock.WithIdempotency(),                         // duplicate `requestId` → cached response
+    mock.WithAutoCallback(map[string]http.Handler{  // fire callback after sync response
+        "POST /<authNotifyUrl>":    authHandler,
+        "POST /<captureNotifyUrl>": captureHandler,
+    }),
+)
+```
+
+### Typed scenario builders
+
+Replace hand-rolled JSON with typed builders that carry both
+the sync response shape AND the matching callback event:
+
+| Endpoint | Success / Processing / Failed |
+|---|---|
+| `/auth`                  | `AuthSuccess(orderID)` / `AuthProcessing()` / `AuthFailed(code)` |
+| `/capture`               | `CaptureSuccess(orderID)` / `CaptureProcessing()` / `CaptureFailed(code)` |
+| `/voidAuth`              | `VoidAuthSuccess()` / — / `VoidAuthFailed(code)` (no callback per spec) |
+| `/refund`                | `RefundSuccess(refundID)` / `RefundProcessing()` / `RefundFailed(code)` |
+| `/repayment-request`     | `RepaymentSuccess(repayID)` / `RepaymentProcessing()` / `RepaymentFailed(code)` |
+| `/credit-application`    | `CreditApplicationSuccess()` / `CreditApplicationProcessing()` / `CreditApplicationFailed()` |
+| `/credit-information`    | `CreditInformationSuccess()` / `CreditInformationProcessing()` / `CreditInformationFailed()` |
+
+PROCESSING outcomes don't fire callbacks (callbacks are
+terminal-only per spec). When `WithAutoCallback` is also
+configured, terminal-state outcomes drive the matching
+`*Event` to the partner's handler — the multi-step lifecycle
+emerges from composition without any new DSL.
+
+### Multi-step lifecycle (no DSL needed)
+
+The "script" is the union of `PerEndpoint` (sync responses) and
+`WithAutoCallback` (async pushes):
+
+```go
+mock.NewServer(t,
+    mock.PerEndpoint(map[string]mock.Scenario{
+        "POST /auth":    mock.AuthSuccess("A-1"),     // sync SUCCESS → fires AuthEvent
+        "POST /capture": mock.CaptureSuccess("A-1"),  // sync SUCCESS → fires CaptureEvent
+        "POST /refund":  mock.RefundFailed(""),       // sync but business FAILED → fires RefundEvent
+    }, mock.AlwaysSuccess()),
+    mock.WithAutoCallback(map[string]http.Handler{
+        "POST /<authNotifyUrl>":    authHandler,
+        "POST /<captureNotifyUrl>": captureHandler,
+        "POST /<refundNotifyUrl>":  refundHandler,
+    }),
+)
+```
+
+See [examples/mock_demo/realistic_test.go](../examples/mock_demo/realistic_test.go)
+for a full worked example.
+
+### Idempotency
+
+`WithIdempotency` enables an LRU replay cache keyed on
+`(method, path, requestId)`. A duplicate request returns the
+original response byte-for-byte (with an `X-Mock-Replay: 1`
+marker header). Default cache size 1024; tweak via
+`WithIdempotencyCacheSize(n)`. `Server.Reset()` clears the
+cache between sub-tests.
+
+Encrypted POSTs (`/credit-information`, `/credit-application`)
+bypass the cache in v0.5 — the spec server has no decryption
+key, so the requestId can't be extracted from the encrypted
+body. Plaintext endpoints work as expected.
+
+### Forward-compat: response signing
+
+`WithResponseSigning(privPEM)` signs every response body with
+the supplied key and emits the signature in `Authorization`.
+The SDK doesn't verify outbound responses today (Q5 partner-
+pending), so this is forward-compat plumbing — flip it on to
+exercise "what would the v0.6 verifying side look like?"
+without touching production code.
 
 ---
 
@@ -178,8 +274,8 @@ work unchanged.
 |---|---|---|
 | Pattern A: `WithHTTPClient` | **today (v0.3.1)** | RoundTripper-based; no listener; cleanest for unit tests. |
 | Pattern B: `httptest.NewServer` | **today (v0.3.1)** | Real local socket; asserts exact wire shape. |
-| `atomefin/mock` v0.4 | **today (v0.4.0)** | Pre-built scenarios (`AlwaysSuccess`, `AlwaysProcessing`, `AlwaysFailed(code)`, `AlwaysAPIError(...)`, `PerEndpoint(map)`); 7 callback-sender helpers (`FireAuthCallback` etc.); bundled test keypairs (with `WithMockKeysAllowed()` opt-in); EnvProd refusal guard. See [examples/mock_demo](../examples/mock_demo/demo_test.go). |
-| `atomefin/mock` v0.5 | planned | Spec-server promotion (`atomefin/mock/internal/spec/`); response-signing; idempotency cache; fluent scenario DSL; auto-callback firing. Drop-in replacement for the v0.3.1 patterns. |
+| `atomefin/mock` v0.4 | **today (v0.4.0)** | Pre-built scenarios (`AlwaysSuccess`, `AlwaysProcessing`, `AlwaysFailed(code)`, `AlwaysAPIError(...)`, `PerEndpoint(map)`); 7 callback-sender helpers (`FireAuthCallback` etc.); bundled test keypairs (with `WithMockKeysAllowed()` opt-in); EnvProd refusal guard. See [examples/mock_demo/demo_test.go](../examples/mock_demo/demo_test.go). |
+| `atomefin/mock` v0.5 | **today (v0.5.0)** | Realistic-sandbox flags on `mock.NewServer`: `WithSpecValidation` (presence-validate against pinned swagger), `WithIdempotency` (LRU replay cache keyed on `requestId`), `WithAutoCallback(map)` (fire matching `*Event` after sync response — multi-step lifecycle composes from this), `WithResponseSigning` (forward-compat). 21 typed scenario builders (`AuthSuccess(orderID)` / `RefundFailed(code)` / etc) replace hand-rolled JSON. All v0.4 surface preserved — every flag is opt-in. See [examples/mock_demo/realistic_test.go](../examples/mock_demo/realistic_test.go). |
 
 **Migration commitment:** v0.4 and v0.5 will leave the v0.3.1
 patterns intact. Adopting `atomefin/mock` later is opt-in; tests

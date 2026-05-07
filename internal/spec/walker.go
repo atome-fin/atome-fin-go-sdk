@@ -1,4 +1,4 @@
-package specserver
+package spec
 
 import (
 	"fmt"

@@ -7,6 +7,105 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.5.0] — 2026-05-07
+
+Realistic mock-sandbox extension on top of the v0.4 baseline.
+Promotes the strict-mode spec server from `qa/specserver/` to
+the partner-facing surface and layers idempotency replay +
+auto-callback firing on top. **Every v0.4 test continues to
+pass unchanged** — every v0.5 extension is opt-in.
+
+### Added
+
+- **`atomefin/mock` ServerOptions** (all default-off):
+  - **`WithSpecValidation()`** — pre-validates inbound requests
+    against the pinned upstream swagger.yaml (header / query /
+    body presence). Rejects with 400 PARAMS_MISSING the same
+    way the upstream gateway does. Encrypted POSTs skip body
+    validation (the Server has no decryption key).
+  - **`WithIdempotency()`** + **`WithIdempotencyCacheSize(n)`** —
+    bounded LRU replay cache keyed on
+    `(method, path, requestId)`. Default cap 1024. Replays
+    carry an `X-Mock-Replay: 1` header. POST: parses body for
+    `requestId`. GET: reads from query. Encrypted POSTs bypass
+    the cache (v0.5 limitation; v0.6 can wire decrypt-then-cache).
+    `Server.Reset()` clears the cache.
+  - **`WithAutoCallback(map[string]http.Handler)`** — fires the
+    matching `*Event` to a partner-side callback handler after
+    the synchronous response is written. In-process via
+    `httptest.NewRecorder`. Shares the v0.4 `Fire*Callback`
+    signing core via a private `signCallback()` helper.
+  - **`WithCallbackURL(url)`** — network sibling of
+    `WithAutoCallback`; POSTs the signed callback to a real URL
+    (useful when the partner's callback handler runs in a
+    separate dev process).
+  - **`WithCallbackDelay(d)`** — synthetic delay between sync
+    response and auto-callback fire. Default 0 (synchronous).
+  - **`WithAutoCallbackKey(privPEM)`** — partner-supplied
+    signing key for auto-callback firing. Defaults to the
+    bundled mock signing key.
+  - **`WithResponseSigning(privPEM)`** — signs response bodies
+    and emits the signature in `Authorization`. Forward-compat
+    plumbing per Q5 (does Atome sign responses? — partner-
+    pending); the SDK doesn't verify yet.
+
+- **21 typed scenario builders** in `atomefin/mock/scenarios_typed.go` —
+  pre-shaped Success / Processing / Failed scenarios per endpoint
+  family that carry both the sync response AND the matching
+  callback event:
+  - `AuthSuccess(orderID)` / `AuthProcessing()` / `AuthFailed(code)`
+  - `CaptureSuccess(orderID)` / `CaptureProcessing()` / `CaptureFailed(code)`
+  - `VoidAuthSuccess()` / `VoidAuthFailed(code)` (no callback per spec)
+  - `RefundSuccess(refundID)` / `RefundProcessing()` / `RefundFailed(code)`
+  - `RepaymentSuccess(repayID)` / `RepaymentProcessing()` / `RepaymentFailed(code)`
+  - `CreditApplicationSuccess()` / `CreditApplicationProcessing()` / `CreditApplicationFailed()`
+  - `CreditInformationSuccess()` / `CreditInformationProcessing()` / `CreditInformationFailed()`
+  Replace hand-rolled JSON literals at partner test sites.
+
+- **Multi-step scripted lifecycle through composition** —
+  `mock.PerEndpoint(map[string]Scenario{...})` is now a struct
+  that implements both `Scenario` and the unexported
+  `autoCallbackCarrier` capability. When a typed scenario sits
+  behind a `POST /auth` key, the server's auto-callback logic
+  delegates to the typed scenario's pre-baked `*Event` — no
+  new DSL, the "script" is just `PerEndpoint` + `WithAutoCallback`.
+
+- **`examples/mock_demo/realistic_test.go`** — full lifecycle
+  walkthrough covering `WithSpecValidation` + `WithIdempotency`
+  + `WithAutoCallback` driving auth → capture with auto-fired
+  callbacks at each step. Runs on every `go test`.
+
+- **`internal/spec/`** — hidden module-internal home for the
+  spec parser / walker / dispatcher previously living at
+  `qa/specserver/`. Both `qa/specserver` (CI driver) and
+  `atomefin/mock.WithSpecValidation` import it. The pinned
+  `testdata/swagger-2026-05-06-7025b2d2.yaml` moved here too —
+  single source of truth.
+  - **Note:** the architect's design specified
+    `atomefin/mock/internal/spec/`; promoted to module-level
+    `internal/spec/` because Go's `internal/` visibility rule
+    blocks `qa/specserver` (a sibling of `atomefin/`) from
+    importing `atomefin/mock/internal/...`. Module-level
+    internal preserves the hidden-from-partners property
+    while letting both subtrees reach it.
+  - Two helpers exported for the new public consumers:
+    `spec.OpKey(method, path) string`, `spec.ValidateBody(body, required) (string, error)`.
+
+### Changed
+
+- **`qa/specserver/server.go`** rewritten (~30 lines smaller)
+  to import `internal/spec` and re-export `Spec` / `Operation`
+  / `LoadDefault` / `PinnedPath` as type-aliases / one-line
+  shims. **Zero changes** to the 5 `*_spec_test.go` consumer
+  files in `atomefin/payment` / `refund` / `repayment` /
+  `bill` / `transaction` / `credit` / `heartbeat_spec_test.go`.
+- **`docs/MOCK_MODE.md`** — Roadmap row marks v0.5 as released
+  with link to `realistic_test.go`. New "Realistic sandbox"
+  section covering all four flags + typed builders + the
+  multi-step composition pattern.
+- **`README.md`** — package-map row for `atomefin/mock`
+  expanded to mention v0.5 flags + typed builders.
+
 ## [0.4.0] — 2026-05-07
 
 First-class mock-testing surface for partners. The v0.3.1
@@ -1332,7 +1431,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.0
 [0.4.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.4.0
 [0.3.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.3.1
 [0.3.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.3.0
