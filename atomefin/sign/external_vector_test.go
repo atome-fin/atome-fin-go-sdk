@@ -214,26 +214,7 @@ func TestExternalVector_CanonicalQueryRoundTrip(t *testing.T) {
 	}
 }
 
-// TestExternalVector_PSSDoesNotMatchPKCS1v15 proves the SDK's DEFAULT
-// scheme is PKCS#1 v1.5 — not PSS. A PSS verifier MUST reject a
-// PKCS#1-v1.5 signature even when the keys match. This pins the
-// "RSA2 = PKCS#1 v1.5" interpretation against future drift.
-func TestExternalVector_PSSDoesNotMatchPKCS1v15(t *testing.T) {
-	pub, err := sign.LoadPublicCertPEM(mustRead(t, externalPubPath))
-	if err != nil {
-		t.Fatal(err)
-	}
-	pssV, err := sign.NewRSA2Verifier(pub, sign.WithVerifierSaltedPSS(0))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	body := mustExternalBody(t)
-	sig := mustExternalSig(t)
-
-	if err := pssV.Verify(context.Background(), body, sig); err == nil {
-		t.Fatal("PSS verifier accepted a PKCS#1 v1.5 signature — schemes are " +
-			"meant to be distinguishable; if this passes, the default scheme " +
-			"is no longer pinned and DESIGN.md §4 should be re-read")
-	}
-}
+// TestExternalVector_PSSDoesNotMatchPKCS1v15 was removed in v0.7.0
+// along with the PSS scaffolding. The openssl-anchored vector test
+// above is the live byte-equality pin against PKCS#1 v1.5; PSS is
+// no longer a code path — see CHANGELOG `## [0.7.0]`.

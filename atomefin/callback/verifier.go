@@ -107,8 +107,9 @@ func FromClient(c *atomefin.Client, opts ...VerifierOption) (*Verifier, error) {
 // during cert-rotation cutover.
 //
 // Each PEM is parsed via sign.LoadPublicCertPEM and wrapped in a
-// PKCS#1-v1.5 / SHA-256 verifier. Partners running PSS pass
-// individually-constructed sign.Verifier values to NewVerifier instead.
+// PKCS#1 v1.5 / SHA-256 verifier — the only signing scheme the
+// Atome gateway uses (the v0.6.x PSS opt-in was removed in
+// v0.7.0).
 func FromCertPEMs(pems [][]byte, opts ...VerifierOption) (*Verifier, error) {
 	if len(pems) == 0 {
 		return nil, errors.New("atomefin/callback: FromCertPEMs: no PEMs provided")

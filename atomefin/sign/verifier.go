@@ -25,16 +25,15 @@ type Verifier interface {
 type VerifierOption func(*rsa2Verifier) error
 
 // rsa2Verifier mirrors rsa2Signer for the receive path (callbacks + sync
-// error-envelope sanity checks).
+// error-envelope sanity checks). RSASSA-PKCS#1 v1.5 over SHA-256.
 type rsa2Verifier struct {
-	pub     *rsa.PublicKey
-	pss     bool
-	saltLen int
+	pub *rsa.PublicKey
 }
 
 // NewRSA2Verifier constructs a Verifier over an RSA-2048-or-larger public
-// key. The default scheme is RSASSA-PKCS#1 v1.5; callers can opt into PSS
-// via WithVerifierSaltedPSS.
+// key using RSASSA-PKCS#1 v1.5 verification — the only scheme the Atome
+// gateway uses (the v0.6.x `WithVerifierSaltedPSS` opt-in was removed in
+// v0.7.0).
 func NewRSA2Verifier(pub *rsa.PublicKey, opts ...VerifierOption) (Verifier, error) {
 	if pub == nil {
 		return nil, fmt.Errorf("%w: nil public key", ErrInvalidKey)
@@ -68,13 +67,6 @@ func (v *rsa2Verifier) Verify(ctx context.Context, canonical []byte, signature s
 		return fmt.Errorf("%w: base64 decode: %v", ErrSignature, err)
 	}
 	sum := sha256.Sum256(canonical)
-	if v.pss {
-		if err := rsa.VerifyPSS(v.pub, crypto.SHA256, sum[:], sig,
-			&rsa.PSSOptions{SaltLength: v.saltLen, Hash: crypto.SHA256}); err != nil {
-			return fmt.Errorf("%w: %v", ErrSignature, err)
-		}
-		return nil
-	}
 	if err := rsa.VerifyPKCS1v15(v.pub, crypto.SHA256, sum[:], sig); err != nil {
 		return fmt.Errorf("%w: %v", ErrSignature, err)
 	}

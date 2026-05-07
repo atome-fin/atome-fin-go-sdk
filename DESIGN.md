@@ -60,13 +60,15 @@ routing before go-live** — see Open Questions §10.
   default padding for `RSA_sign` is PKCS#1 v1.5). This is the
   prod-default path and is anchored by an external openssl test
   vector at `atomefin/sign/testdata/external_*` (see §4.1).
-- **"Encrypt the signature with salt if necessary"** is the spec's
-  reference to the **RSA-PSS** variant. PSS is *conditional* — used
-  only when the partner has been instructed to enable it — and the
-  spec mandates **a separate public-key certificate exchange** for
-  it (see §4.2 and §13/Q2b). The SDK exposes `sign.WithSaltedPSS`
-  and `sign.WithVerifierSaltedPSS` as opt-in options; partners NOT
-  in PSS mode (the common case) leave them off.
+- **"Encrypt the signature with salt if necessary"** was originally
+  read as a reference to RSA-PSS (v0.1 — v0.6 shipped opt-in
+  `sign.WithSaltedPSS` / `sign.WithVerifierSaltedPSS` scaffolding).
+  v0.3's `SIGN_VERIFY_ENCRYPT_REVIEW.md` re-read the phrasing as
+  describing the encrypt-cert pair (the AES-key wrap path on the
+  two credit POSTs — see §16). Atome engineering subsequently
+  confirmed that the gateway only supports **PKCS#1 v1.5** signing.
+  v0.7.0 (2026-05-07) removed the PSS code path entirely; signing
+  is single-scheme.
 - The wire is **signature-only**: there is no body encryption, no
   AES envelope, no field-level encryption. Confidentiality is
   provided by TLS at the transport layer; the signature provides
@@ -80,8 +82,6 @@ routing before go-live** — see Open Questions §10.
   - **POST**: sign over the JSON request body (raw bytes after marshal).
   - **GET**: sign the query parameters with names sorted alphabetically.
     (Currently no GET endpoints, kept for forward compatibility.)
-- Optional **salted** variant (PSS-style) is mentioned but gated on a separate
-  cert exchange — see §10 open questions.
 - `/auth` additionally requires a `sessionid` header (≤64 chars), described as
   an "opaque session token for this checkout or authorization flow".
 
@@ -176,8 +176,7 @@ atome-fin-go-sdk/
 ├── atomefin/sign/             # signing primitives (no service deps)
 │   ├── signer.go               # Signer interface + RSA2 implementation
 │   ├── canonical.go            # canonical string for POST body / GET query
-│   ├── pem.go                  # LoadPrivateKeyPEM / LoadPublicCertPEM
-│   └── salt.go                 # PSS variant when partner opted-in
+│   └── pem.go                  # LoadPrivateKeyPEM / LoadPublicCertPEM
 │
 ├── atomefin/transport/        # internal HTTP machinery (exposed for tests)
 │   ├── retry.go                # Retry policy w/ jittered backoff
@@ -253,7 +252,6 @@ type Verifier interface {
 }
 
 func NewRSA2Signer(priv *rsa.PrivateKey, opts ...SignerOption) Signer
-func WithSaltedPSS(saltLen int) SignerOption         // optional PSS variant per §10/Q4
 func WithKeyID(id string) SignerOption
 
 func LoadPrivateKeyPEM(pem []byte, password ...[]byte) (*rsa.PrivateKey, error)
@@ -299,17 +297,19 @@ this resolves to is:
 
 - **RSA-2048 modulus**
 - **SHA-256 digest**
-- **RSASSA-PKCS#1 v1.5 padding** (NOT PSS — PSS is the conditional
-  "salt if necessary" branch, §4.2)
+- **RSASSA-PKCS#1 v1.5 padding** — the only scheme the gateway
+  accepts. (Earlier SDK versions exposed PSS as an opt-in
+  alternative; v0.7.0 removed it after Atome engineering
+  confirmed PKCS#1 v1.5 is the only supported scheme — see
+  CHANGELOG `## [0.7.0]` and §13/Q4 below.)
 - **base64-standard signature encoding** (no URL-safe substitution,
   padding preserved)
 - placed verbatim in the `Authorization` header
 
 This is exactly the byte-for-byte output of
-`openssl dgst -sha256 -sign privkey.pem`. The SDK's default
-pairs (`NewRSA2Signer` / `NewRSA2Verifier`) lock to this
-interpretation; RSA-PSS is gated on the opt-in `WithSaltedPSS`
-option (§4.2).
+`openssl dgst -sha256 -sign privkey.pem`. `NewRSA2Signer` /
+`NewRSA2Verifier` lock to this interpretation; there is no
+toggle.
 
 The interpretation is **anchored by an external openssl vector**
 committed at `atomefin/sign/testdata/external_*`:
@@ -331,8 +331,6 @@ committed at `atomefin/sign/testdata/external_*`:
    wire-incompatible.
 3. Flipping any byte of the body causes the verifier to return
    `sign.ErrSignature`.
-4. A PSS-configured verifier REJECTS the PKCS#1-v1.5 signature,
-   pinning the default scheme.
 
 **Q2 — partial resolution (2026-05-05):** the wire-level Authorization
 *format* (raw base64 vs. structured `Algorithm=RSA2,Sign=…`) is still
@@ -344,39 +342,22 @@ implementation (P3) would close Q2 fully.
 Verifier mirrors the signer for callback handlers and (defensively) for the
 partner who wants to sanity-check Atome's `/auth` HTTP-200 envelope.
 
-#### 4.2 PSS-salted variant — separate cert exchange (Q2b)
+#### 4.2 ~~PSS-salted variant~~ (REMOVED v0.7.0)
 
-Spec verbatim: *"Encrypt the signature with salt if necessary, and in
-this condition we should exchange another public key certificate."*
+The "Encrypt the signature with salt if necessary" spec phrasing
+was originally read as a reference to RSA-PSS, and v0.1 — v0.6
+shipped opt-in `WithSaltedPSS` / `WithVerifierSaltedPSS`
+scaffolding behind that reading. v0.3's
+`SIGN_VERIFY_ENCRYPT_REVIEW.md` re-read the phrase as referring
+to the encrypt-cert pair (the AES-key wrap path on the two
+credit POSTs — see §16); Atome engineering subsequently
+confirmed the gateway only supports **PKCS#1 v1.5** signing.
+v0.7.0 removed the PSS code path entirely.
 
-PSS is therefore a parallel, *non-default* signing path that the
-partner enables only after a separate cert exchange. The two paths
-do not share trust material.
-
-**v0.1 limitation** (Q2b — open). Today's `sign.WithSaltedPSS` /
-`sign.WithVerifierSaltedPSS` flip a Signer or Verifier from PKCS#1
-v1.5 to PSS, but they do NOT take a separate keypair — the
-PSS-configured pair reuses whatever key was passed to
-`NewRSA2Signer` / `NewRSA2Verifier`. Spec-compliant PSS deployment
-needs a SECOND PEM exchange and SDK-level configuration to bind
-the PSS key separately. Almost no partner uses PSS in production
-today (the default PKCS#1 v1.5 path is what the openssl vector in
-§4.1 anchors), so this is a documentation-only gap for v0.1.
-
-v0.2 plan (Q2b): add `apaylater.WithSaltedPSSPrivateKeyPEM(pem)` and
-`apaylater.WithSaltedPSSAtomePublicCertPEM(pem)` Options. The
-default-path keys remain the existing `WithPrivateKeyPEM` /
-`WithAtomePublicCertPEM`; PSS keys live alongside them. Internally,
-the Client picks the right keypair per request based on whether
-the partner has flipped the PSS toggle.
-
-For v0.1 partners that need to test the PSS path: keep the SAME
-keypair for both default and PSS use, accept that wire-format will
-diverge from the partner's reference implementation, and revisit
-when v0.2 ships the separate-cert hooks.
-
-Verifier mirrors the signer for callback handlers and (defensively) for the
-partner who wants to sanity-check Atome's `/auth` HTTP-200 envelope.
+The signing path is now single-scheme — see §4.1. Partners
+that catch on the `*sign.MultiValueQueryError` boundary or any
+PSS option in v0.6.x callsites must drop those references; the
+default scheme has not changed.
 
 ---
 
@@ -540,7 +521,6 @@ to partner-hosted endpoints. Helpers:
 ```go
 type Verifier struct {
     PublicKey   *rsa.PublicKey
-    SaltedPSS   bool
     BodyLimit   int64               // default 1 MiB; reject larger to prevent abuse
     Clock       func() time.Time    // for replay-window checks if §10/Q5 adds a timestamp
 }
@@ -666,29 +646,28 @@ list APIs land.
    partner's reference implementation will close the wire-format
    half (P3 in Task #17).
 
-2b. **PSS-salted variant — separate cert exchange (NEW Q2b, 2026-05-05).**
-   Spec verbatim: *"Encrypt the signature with salt if necessary, and
-   in this condition we should exchange another public key certificate."*
-   — see §4.2. v0.1 limitation: today's `sign.WithSaltedPSS` /
-   `sign.WithVerifierSaltedPSS` flip a single Signer / Verifier from
-   PKCS#1 v1.5 to PSS but reuse whatever key was passed at construction.
-   Spec-compliant PSS requires a SECOND keypair bound separately on
-   the Client. v0.2 plan: add `WithSaltedPSSPrivateKeyPEM` /
-   `WithSaltedPSSAtomePublicCertPEM` Options that hold PSS keys
-   alongside the default-path keys; the Client picks the right keypair
-   per call based on the PSS toggle. Documentation-only for v0.1
-   because the prod-default path (PKCS#1 v1.5, the openssl-vector
-   path) is what every partner is expected to use today.
+2b. ~~**PSS-salted variant — separate cert exchange.**~~
+   **MOOT (2026-05-07, v0.7.0).** This Q was opened on the
+   reading that the spec's "Encrypt the signature with salt if
+   necessary" phrasing referred to RSA-PSS as a parallel signing
+   path. v0.3's `SIGN_VERIFY_ENCRYPT_REVIEW.md` re-read the
+   phrase as describing the encrypt-cert pair (the AES-key wrap
+   on the two credit POSTs — see §16); Atome engineering
+   subsequently confirmed the gateway only supports
+   PKCS#1 v1.5 signing. The v0.6.x `WithSaltedPSS` /
+   `WithVerifierSaltedPSS` opt-ins were removed in v0.7.0; no
+   second keypair, no separate cert exchange, no toggle.
 3. **Key rotation.** How is the active partner cert / Atome cert identified?
    No `keyId`/`keyVersion` field is documented. Without one we cannot rotate
    without downtime.
-4. **PSS vs PKCS#1 v1.5.** The signature tag mentions "Encrypt the signature
-   with salt if necessary, and in this condition we should exchange another
-   public key certificate." — when is salted (PSS) required, and what salt
-   length / hash? **Status (2026-05-05):** the *default* path is
-   PKCS#1 v1.5 (locked by §4.1 openssl vector). The PSS path is
-   conditional and gated on a separate cert exchange — see the new
-   Q2b for the v0.1 documentation-only gap and the v0.2 plan.
+4. ~~**PSS vs PKCS#1 v1.5.**~~ **REMOVED (2026-05-07, v0.7.0).**
+   Atome engineering confirmed the gateway supports only PKCS#1
+   v1.5; the "salt if necessary" phrasing was reframed in v0.3
+   as the encrypt-cert pair (§16), not PSS. v0.7.0 removed the
+   PSS code path entirely — `WithSaltedPSS` /
+   `WithVerifierSaltedPSS` are gone. The signing scheme is now
+   single-source: PKCS#1 v1.5 over SHA-256, anchored by the
+   §4.1 openssl vector.
 5. **Replay protection.** No timestamp/nonce header is required. Should we
    add one (e.g. `X-Atome-Timestamp` + `X-Atome-Nonce` covered by the
    signature) to prevent replay? Particularly important for inbound callbacks.

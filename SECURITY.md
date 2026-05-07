@@ -45,9 +45,12 @@ choice byte-for-byte.
 
 ### Signing — `atomefin/sign/`
 
-- **RSA-2048 PKCS#1 v1.5 over SHA-256** (default) and **RSA-PSS
-  over SHA-256 with 32-byte salt** (opt-in via
-  `sign.WithSaltedPSS`).
+- **RSA-2048 PKCS#1 v1.5 over SHA-256** — the only signing
+  scheme the Atome gateway supports. (Earlier SDK versions
+  shipped opt-in `WithSaltedPSS` / `WithVerifierSaltedPSS`
+  scaffolding behind a misreading of the spec; the PSS path
+  was removed in v0.7.0 because dead options invite partner
+  confusion.)
 - Min key bit-length **2048** enforced at signer-construction
   time (`sign.MinKeyBits`).
 - Wire signature is **base64-standard-encoded** (NOT base64-url).

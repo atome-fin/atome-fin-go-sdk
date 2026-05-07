@@ -7,6 +7,75 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.7.0] — 2026-05-07
+
+Removes the dormant RSA-PSS signing scaffolding. Atome
+engineering confirmed the gateway only supports **PKCS#1 v1.5**;
+the spec's "Encrypt the signature with salt if necessary"
+phrasing was reframed in v0.3
+(`docs/internal/SIGN_VERIFY_ENCRYPT_REVIEW.md`) as referring to
+the encrypt-cert pair on the two credit POSTs, not PSS. v0.1 —
+v0.6 shipped opt-in `WithSaltedPSS` / `WithVerifierSaltedPSS`
+options as forward-compat plumbing for the original PSS
+reading; the options never had a partner caller. Dead options
+invite partner confusion → real cost. Removed.
+
+Minor bump (honest semver): removing public API is breaking
+even when the API was dead. The default signing scheme is
+unchanged — every call site that did NOT use `WithSaltedPSS`
+continues to work verbatim.
+
+### Removed
+
+- **`sign.WithSaltedPSS(saltLen int) SignerOption`** — opt-in
+  RSA-PSS signing flag.
+- **`sign.WithVerifierSaltedPSS(saltLen int) VerifierOption`** —
+  matching verifier-side flag.
+- **`atomefin/sign/salt.go`** (the file).
+- **`TestRSA2Signer_PSS_RoundTrip`** — round-trip test for the
+  PSS variant.
+- **`TestExternalVector_PSSDoesNotMatchPKCS1v15`** — pinned the
+  default scheme by asserting a PSS verifier rejected a PKCS#1
+  v1.5 signature; redundant once the only scheme is v1.5.
+- PSS-related branches in `rsa2Signer` / `rsa2Verifier`
+  (the `pss` / `saltLen` fields are gone).
+
+### Closed
+
+- **Q4 (signing scheme)** — REMOVED in `DESIGN.md` §13. Atome
+  confirmed PKCS#1 v1.5 is the only supported scheme.
+- **Q2b (PSS-salted variant separate cert exchange)** — MOOT
+  in `DESIGN.md` §13. The Q was opened on the original PSS
+  reading; v0.3's reframe + Atome's confirmation make it
+  irrelevant. No second keypair, no separate cert exchange.
+
+### Migration
+
+```go
+// before (v0.1 — v0.6, never useful in production)
+signer, _ := sign.NewRSA2Signer(priv, sign.WithSaltedPSS(0))
+verifier, _ := sign.NewRSA2Verifier(pub, sign.WithVerifierSaltedPSS(0))
+
+// after (v0.7.0)
+signer, _ := sign.NewRSA2Signer(priv)
+verifier, _ := sign.NewRSA2Verifier(pub)
+// default is — and always was — PKCS#1 v1.5; behaviour unchanged.
+```
+
+The openssl-anchored byte-equality vector
+(`atomefin/sign/external_vector_test.go`) continues to pass
+byte-equal against the v0.1 `external_*` PKCS#1 v1.5 fixture.
+
+### Verification
+
+- `grep -rn "PSS\|SaltedPSS\|SignPSS\|VerifyPSS"` across `*.go`
+  and public docs returns 0 active-API references; the only
+  remaining mentions are explicit "REMOVED in v0.7.0" /
+  "MOOT" historical-context notes in `DESIGN.md` §1.3 / §4.2 /
+  §13/Q4 / §13/Q2b and the package-doc explanation in
+  `atomefin/sign/signer.go`.
+- `make ci` green.
+
 ## [0.6.1] — 2026-05-07
 
 Doc-only release. Renames the SDK's product framing from
@@ -1666,7 +1735,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.7.0
 [0.6.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.6.1
 [0.6.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.6.0
 [0.5.2]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.5.2

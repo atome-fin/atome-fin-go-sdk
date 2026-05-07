@@ -86,37 +86,10 @@ func TestRSA2Signer_PKCS1v15_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestRSA2Signer_PSS_RoundTrip(t *testing.T) {
-	t.Parallel()
-
-	key := genTestKey(t, 2048)
-	signer, err := NewRSA2Signer(key, WithSaltedPSS(0))
-	if err != nil {
-		t.Fatalf("NewRSA2Signer(PSS): %v", err)
-	}
-	canonical := []byte(`{"requestId":"R1"}`)
-	sig, err := signer.Sign(context.Background(), canonical)
-	if err != nil {
-		t.Fatalf("Sign(PSS): %v", err)
-	}
-
-	verifier, err := NewRSA2Verifier(&key.PublicKey, WithVerifierSaltedPSS(0))
-	if err != nil {
-		t.Fatalf("NewRSA2Verifier(PSS): %v", err)
-	}
-	if vErr := verifier.Verify(context.Background(), canonical, sig); vErr != nil {
-		t.Errorf("Verify(PSS): %v", vErr)
-	}
-
-	// PSS signatures must NOT verify against a PKCS#1 v1.5 verifier.
-	pkcsVerifier, err := NewRSA2Verifier(&key.PublicKey)
-	if err != nil {
-		t.Fatalf("NewRSA2Verifier: %v", err)
-	}
-	if err := pkcsVerifier.Verify(context.Background(), canonical, sig); !errors.Is(err, ErrSignature) {
-		t.Errorf("PSS sig verified by PKCS1v15 verifier: %v", err)
-	}
-}
+// TestRSA2Signer_PSS_RoundTrip was removed in v0.7.0 along with the
+// PSS scaffolding. The Atome gateway only supports PKCS#1 v1.5 — see
+// CHANGELOG `## [0.7.0]` and atomefin/sign/signer.go's package doc
+// for the history.
 
 func TestSign_RespectsContextCancellation(t *testing.T) {
 	t.Parallel()

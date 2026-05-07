@@ -153,7 +153,7 @@ import away.
 | Package | Purpose |
 |---|---|
 | `atomefin` | `Client`, functional `Option`s, error types, retry policy plumbing, `MarshalSigning`, `DoSigned` / `DoSignedGET` / `DoEncryptedSigned`. |
-| `atomefin/sign` | RSA-2048 PKCS#1-v1.5 / PSS signer + verifier; PEM loaders; canonical-input helpers. |
+| `atomefin/sign` | RSA-2048 PKCS#1 v1.5 signer + verifier; PEM loaders; canonical-input helpers. (PSS scaffolding removed in v0.7.0 — gateway only supports PKCS#1 v1.5.) |
 | `atomefin/encrypt` | AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid envelope used by `/credit-information` and `/credit-application`. Stdlib-only. `Marshal` / `Unmarshal`, `RandomAESKey` (rejection-sampled A — Z), header build/parse. |
 | `atomefin/mock` | First-class testing surface (see Mock catalog above). |
 | `atomefin/transport` | `RetryPolicy`, `Logger`, `Observer`, `NewSlogLogger`, User-Agent assembly. |
@@ -287,8 +287,8 @@ ships sensible defaults but exposes one-line knobs to override:
    OFF) so the bytes signed are byte-for-byte the bytes
    transmitted. Any payload field with `&` / `<` / `>` (e.g. a
    shipping address with an ampersand) signs correctly.
-2. Signature is RSA-2048 PKCS#1-v1.5 over SHA-256 by default;
-   PSS via `sign.WithSaltedPSS`. The signature is
+2. Signature is RSA-2048 PKCS#1 v1.5 over SHA-256 — the only
+   scheme the gateway supports. The signature is
    base64-standard-encoded and placed verbatim in the
    `Authorization` header.
 3. `RequestID` is auto-minted (32-char ULID-like hex) when empty
@@ -453,7 +453,7 @@ defaults the SDK can change without an API break:
 | Q1 | `EnvTest`/`EnvPre`/`EnvProd` use the spec's placeholder URLs | Pin via `atomefin.WithBaseURL`; update consts in a minor release |
 | Q2 | `Authorization` is the raw base64 signature | `atomefin.WithAuthorizationScheme(...)` |
 | Q3 | No `keyId` / `keyVersion` header — cert rotation is out-of-band | Multi-cert verifier slot (`callback.NewVerifier([]sign.Verifier{...})`) |
-| Q4 | Default scheme is PKCS#1 v1.5; PSS available via `sign.WithSaltedPSS` | Flip per partner spec |
+| ~~Q4~~ | **REMOVED 2026-05-07 (v0.7.0)** — Atome engineering confirmed gateway supports only PKCS#1 v1.5. The "Encrypt the signature with salt if necessary" spec phrasing was reframed in v0.3 as referring to the encrypt-cert pair, not PSS. `WithSaltedPSS` / `WithVerifierSaltedPSS` removed; default scheme is the only scheme. | n/a |
 | Q5 | No timestamp / nonce header emitted; SDK does not verify response signatures | Add to `populateHeaders`; flip `mock.WithResponseSigning` to forward-test |
 | Q6 | `sessionid` lifecycle unspecified — caller-managed | No SDK change needed |
 | ~~Q7~~ | **RESOLVED 2026-05-05** — partner identity is the dedicated API URL + RSA cert exchange; **no partner / merchant header is emitted on the wire**. `WithPartnerID` / `WithMerchantID` stay supported as log-enrichment hooks. | n/a |
