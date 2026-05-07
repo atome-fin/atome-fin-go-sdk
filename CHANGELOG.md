@@ -7,6 +7,73 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.4.0] — 2026-05-07
+
+First-class mock-testing surface for partners. The v0.3.1
+RoundTripper / httptest patterns continue to work unchanged;
+`atomefin/mock` is opt-in.
+
+### Added
+
+- **`atomefin/mock/`** — new sub-package, stdlib + atomefin-only:
+  - **`mock.NewClient(t, opts...)`** returns an
+    `*atomefin.Client` wired to an in-process RoundTripper.
+    EnvProd is hard-blocked (`t.Fatalf` with a clear message).
+    Default base URL is `https://mock.atome-fin.test` (no path
+    prefix) so `PerEndpoint` keys are clean `"POST /auth"`.
+    Default scenario is `AlwaysSuccess`.
+  - **`mock.NewServer(t, scenario)`** returns a
+    started `httptest.NewServer` backed by the same Scenario
+    dispatch logic. For tests that aren't using
+    `*atomefin.Client` directly.
+  - **`Scenario` interface** + 5 pre-built builders:
+    `AlwaysSuccess()`, `AlwaysProcessing()`,
+    `AlwaysFailed(failureCode)`,
+    `AlwaysAPIError(httpStatus, code, msg)`,
+    `PerEndpoint(map[string]Scenario, fallback)`. Plus a public
+    `JSONResponse(status, v any)` helper for partners building
+    custom Scenarios.
+  - **`Transport`** RoundTripper records `Hits(op)` /
+    `Requests()` for after-the-fact assertion (retry counts,
+    body shape). `SetScenario` swaps mid-test (e.g. PROCESSING
+    → SUCCESS for poll loops).
+  - **Seven `Fire*Callback` helpers** —
+    `FireAuthCallback`, `FireCaptureCallback`,
+    `FireRefundCallback`, `FireRepaymentCallback`,
+    `FireAccountChangeCallback`,
+    `FireCreditApplicationCallback`,
+    `FireCreditInformationCallback`. Each builds a signed
+    callback body and dispatches it to a partner's `http.Handler`
+    via `ServeHTTP`. Four `FireOption`s configure key source,
+    user-fn invocation-count assertion, and response-check skip.
+  - **Bundled test keypairs** —
+    `MockSigningPrivKeyPEM` / `MockSigningPubCertPEM` /
+    `MockEncryptPrivKeyPEM` / `MockEncryptPubCertPEM` (PEM bytes
+    committed under `testdata/`). **OFF by default**; opt-in via
+    `WithMockKeysAllowed()` (Client) and `WithFireMockKey()`
+    (callback). Without an explicit opt-in or a partner-supplied
+    key, the helpers fail loud rather than silently share.
+
+- **`examples/mock_demo/demo_test.go`** — partner-flow
+  walkthrough that drives `/auth` → SUCCESS, `/capture` →
+  PROCESSING, fires a callback at a partner-side handler.
+  Runs on every `go test`.
+
+### Changed
+
+- **`README.md`** — package-map row added for `atomefin/mock`.
+- `docs/MOCK_MODE.md` Roadmap row for v0.4 marked as released
+  (the v0.3.1 patterns continue to work unchanged).
+
+### Production safety
+
+`mock.NewClient` REFUSES `WithEnvironment(EnvProd)` — calling
+`t.Fatalf` with a message that names both `EnvProd` and
+`REFUSED`. Pinned by `TestNewClient_RefusesEnvProd`. Nothing in
+`atomefin/mock` should ever co-exist with a production
+configuration accidentally; this guard makes the failure mode
+loud and local at test setup.
+
 ## [0.3.1] — 2026-05-07
 
 Doc-only release. No public API change; semver-neutral. Pin so
@@ -1265,7 +1332,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.4.0
 [0.3.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.3.1
 [0.3.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.3.0
 [0.2.3]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.2.3

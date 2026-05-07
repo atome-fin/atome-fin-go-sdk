@@ -178,7 +178,7 @@ work unchanged.
 |---|---|---|
 | Pattern A: `WithHTTPClient` | **today (v0.3.1)** | RoundTripper-based; no listener; cleanest for unit tests. |
 | Pattern B: `httptest.NewServer` | **today (v0.3.1)** | Real local socket; asserts exact wire shape. |
-| `atomefin/mock` v0.4 | planned | Pre-built scenarios (`AlwaysSuccess`, `AlwaysProcessing`, `AlwaysFailed(code)`, `PerEndpoint(map)`); 7 callback-sender helpers (`FireAuthCallback` etc.); bundled test keypairs (with `WithMockKeysAllowed()` opt-in); EnvProd refusal guard. |
+| `atomefin/mock` v0.4 | **today (v0.4.0)** | Pre-built scenarios (`AlwaysSuccess`, `AlwaysProcessing`, `AlwaysFailed(code)`, `AlwaysAPIError(...)`, `PerEndpoint(map)`); 7 callback-sender helpers (`FireAuthCallback` etc.); bundled test keypairs (with `WithMockKeysAllowed()` opt-in); EnvProd refusal guard. See [examples/mock_demo](../examples/mock_demo/demo_test.go). |
 | `atomefin/mock` v0.5 | planned | Spec-server promotion (`atomefin/mock/internal/spec/`); response-signing; idempotency cache; fluent scenario DSL; auto-callback firing. Drop-in replacement for the v0.3.1 patterns. |
 
 **Migration commitment:** v0.4 and v0.5 will leave the v0.3.1

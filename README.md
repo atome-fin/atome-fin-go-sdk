@@ -71,6 +71,7 @@ Two runnable examples ship in [`examples/`](examples/):
 | `atomefin` | `Client`, functional `Option`s, error types, retry policy plumbing, `MarshalSigning`. |
 | `atomefin/sign` | RSA-2048 PKCS#1-v1.5 / PSS signer + verifier; PEM loaders; canonical-input helpers. |
 | `atomefin/encrypt` | AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid envelope used by `/credit-information` and `/credit-application`. Stdlib-only. `Marshal` / `Unmarshal`, `RandomAESKey` (rejection-sampled A — Z), header build/parse. |
+| `atomefin/mock` | First-class testing surface — `NewClient(t, ...)` / `NewServer(t, ...)` backed by pre-built `Scenario`s (`AlwaysSuccess` / `AlwaysProcessing` / `AlwaysFailed` / `AlwaysAPIError` / `PerEndpoint`); seven `Fire*Callback` helpers for exercising partner callback handlers. EnvProd-refusal guard + bundled test keypairs (opt-in via `WithMockKeysAllowed`). |
 | `atomefin/transport` | `RetryPolicy`, `Logger`, `Observer`, `NewSlogLogger`, User-Agent assembly. |
 | `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` + `QueryAuth` / `QueryCapture` / `QueryVoidAuth` + `*PollUntilTerminal` + `PaymentPreCheck` / `PaymentPlan` (v0.2 pre-checkout); typed request/response structs. |
 | `atomefin/refund` | `Service` with `Refund` / `QueryRefund` / `RefundPollUntilTerminal`; types `RefundParam`, `RefundResult`, `SubOrderRefundRequest`, `SubOrderRefundInfo`. |
