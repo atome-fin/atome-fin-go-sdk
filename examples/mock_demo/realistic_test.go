@@ -97,7 +97,7 @@ func TestDemo_RealisticSandbox(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1500000,
 		PeriodType:           3,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1500000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{demoSubOrder(1500000)},
 		Sessionid:            "s",
 	})
 	if err != nil {
@@ -114,7 +114,7 @@ func TestDemo_RealisticSandbox(t *testing.T) {
 		AuthOrderID:          "AUTH-LIFECYCLE-1",
 		TotalAmount:          1500000,
 		PeriodType:           3,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1500000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{demoSubOrder(1500000)},
 	}); err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestDemo_RealisticSandbox(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1500000,
 		PeriodType:           3,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1500000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{demoSubOrder(1500000)},
 		Sessionid:            "s",
 	})
 	if err != nil {

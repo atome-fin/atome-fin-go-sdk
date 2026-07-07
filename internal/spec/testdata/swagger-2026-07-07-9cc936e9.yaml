@@ -41,6 +41,8 @@ info:
     - **Callbacks (Atome → partner):** `/<authNotifyUrl>` and `/<captureNotifyUrl>` fire **only** for **terminal** outcomes;
     they **never** carry `PROCESSING`.
 
+    - **`/voidAuth` eligibility:** Callable only after `/auth` has completed with `SUCCESS`, and **before** `/capture` is submitted for the same `authOrderId`. Not allowed while capture is `PROCESSING` or after capture has been submitted.
+
     | Flow | Method | Path |
 
     | --- | --- | --- |
@@ -50,6 +52,21 @@ info:
     | Poll same outcome | GET | `/query-auth`, `/query-capture`, `/query-voidAuth` |
 
     | Auth / capture result callback | POST | `/<authNotifyUrl>`, `/<captureNotifyUrl>` |
+
+    ## Minimum order / sub-order amounts
+
+    One order may include multiple SKUs; in this API, **one SKU = one sub-order** (each `subOrders[]` entry).
+
+    Minimum amounts by installment tenor (`periodType`), in IDR (Rupiah):
+
+    | Tenor | Order (`totalAmount`) | Per SKU / sub-order (`subOrders[].amount`) |
+    | --- | --- | --- |
+    | 1-month (`periodType` = 1) | >= 1 | >= 1 |
+    | 3-month (`periodType` = 3) | >= 20,000 | >= 3 |
+
+    **Partner-side validation:** Before calling `POST /payment-precheck`, `POST /payment-plan`, `POST /auth`, or `POST /capture`,
+    validate that `totalAmount` and each sub-order amount meet the minimums for the selected `periodType`. Requests below these
+    limits may be rejected with `INVALID_ORDER_AMOUNT`.
 
     ## Other modules (same specification file)
 
@@ -62,18 +79,12 @@ info:
   version: partner-white-label-draft
   title: Partner White-Label API (Draft)
 servers:
-- url: https://id-api.apaylater.net/white-label/G
-  description: '**Test (placeholder — align with gateway routing before go-live)**
-
-    '
-- url: https://id-api-pre.apaylater.net/white-label/G
-  description: '**Pre-production (placeholder)**
-
-    '
-- url: https://api.atome.id/white-label/G
-  description: '**Production (placeholder)**
-
-    '
+- url: https://id-api-pre.apaylater.net/grabpaylater
+  description: |
+    **Pre-Production Endpoint for Indonesia**
+- url: https://api.atome.id/grabpaylater
+  description: |
+    **Production Endpoint for Indonesia**
 tags:
 - name: change log
   description: '|  date | scope | change |
@@ -83,7 +94,42 @@ tags:
     | 2026-04-22 | All | Initial draft: Auth–Capture–Void (`/auth`, `/capture`, `/voidAuth`) and partner callbacks. |
 
     | 2026-05-06 | Scope | Expanded partner white-label spec: credit & checkout (pricing / pre-check / plan), refunds, bills,
-    transactions, repayment, account callbacks. |'
+    transactions, repayment, account callbacks. |
+
+    | 2026-05-19 | Servers | Pre-production and production gateway base path suffix `grabpaylater`; production host TBD. |
+
+    | 2026-06-03 | Credit | `POST /credit-application`: `ocrResult` adds `manuallyValidityDate`, `manuallyCitizenship`. |
+
+    | 2026-06-03 | Payment | `/payment-precheck` response `data.extendInfo.reapplyTime` (int64) when `code` is `RISK_REJECT`. |
+
+    | 2026-06-08 | Repayment | Repayment result and callback `event` retains `NORMAL` only; removes `CHARGEBACK`, `ATOME_REPAYMENT`, `OVERPAID_REPAYMENT`. |
+
+    | 2026-06-09 | Payment | Minimum order / sub-order amounts by `periodType`; partner-side validation on precheck, payment-plan, auth, capture. |
+
+    | 2026-06-15 | Credit | `POST /credit-information` `extendInfo.language` is optional; defaults to `id` when omitted. |
+
+    | 2026-06-22 | Credit | <ol><li>`POST /credit-application` `applicationEssentialInfo` adds `livenessCheck` (`result`, `snapshotPhoto`, `livenessResult01` liveness score / `02` face quality / `03` action results), `applicationPageType`, device `deviceId` / `googleAdvertisingId` / `idfa` / `idfv`.</li><li>`applicationEssentialInfo.platformInformation.applicationPageType` enum: `PRODUCT_LANDING_PAGE`, `PROMO_BANNER_PAGE`, `MARKETING_PUSH_ENTRY`, `CHECKOUT_PAGE`, `WALLET_DASHBOARD_ENTRY`.</li><li>`POST /credit-application` KYC: `ocrResult.manuallyRtRw`; OCR province/city/district descriptions updated.</li><li>`ocrResult` renames `ocrValidityDate` → `manuallyValidityDate`, `ocrCitizenship` → `manuallyCitizenship`.</li></ol> |
+
+    | 2026-06-24 | Payment | Payment risk fields: `extendInfo.orderType`; auth/capture `creditProfile`, address & sub-order merchant fields, `riskInfo.driverInfo`/`tripMetadata` (Transport). |
+
+    | 2026-06-25 | Payment | `/payment-precheck` `extendInfo` removes `sceneCode`. |
+
+    | 2026-06-28 | Credit | `POST /credit-information`: removes `eventType`; adds required `mobileNumber` and `applicationEssentialInfo.ocrResult.fullName`. |
+
+    | 2026-06-30 | Credit | `POST /credit-application` `applicationEssentialInfo.livenessCheck` is required; `result` and `snapshotPhoto` are required. |
+
+    | 2026-07-06 | Credit | `POST /credit-application` renames: `livenessResult01/02/03` → `livenessCheckResult01/02/03`; `applicationPageType` → `sceneType`; `ocrResult.manuallyRtRw` → `manuallyRt` & `manuallyRw`; `manuallyValidityDate` → `manuallyExpiredDate`. |
+
+    | 2026-07-06 | Payment | `POST /auth` and `POST /capture` `subOrders[]` required fields aligned with `/payment-plan`  |
+
+    | 2026-07-06 | Credit | `POST /credit-application` `applicationEssentialInfo.platformInformation` removes `userCreditScore`. |
+
+    | 2026-07-06 | Payment | `extendInfo.orderType` enum updated: `GRABFOOD` → `GRAB_FOOD`, `GRABMART` → `GRAB_MART`, `SPECIALIZED DELIVERY` → `SPECIALIZED_DELIVERY`; `TRANSPORT` unchanged. |
+
+    | 2026-07-06 | Credit | `POST /credit-application` `applicationEssentialInfo.platformInformation.sceneType` enum: `PRODUCT_LANDING_PAGE`, `PROMO_BANNER_PAGE`, `MARKETING_PUSH_ENTRY`, `CHECKOUT_PAGE`, `WALLET_DASHBOARD_ENTRY`. |
+
+    | 2026-07-07 | Credit & Payment | `creditProfile` JSON structure aligned across `POST /credit-application`, `POST /auth`, and `POST /capture`; partner and Atome agree the risk-control field set during integration — sample payload is illustrative only. |'
+
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
     \ signature. Encrypt the signature with salt if necessary,\nand in this condition we should exchange another public key\
@@ -94,11 +140,17 @@ tags:
 - name: HealthCheck
 - name: Credit
 - name: Payment
-  description: '**Auth–Capture–Void:** Auth freezes limit; capture completes the order; void releases the hold. Partner must
-    treat `requestId` as an idempotent key for every `/auth`, `/capture`, and `/voidAuth` request.
+  description: '**Auth–Capture–Void:** Auth freezes limit; capture completes the order; void releases the hold. **`/voidAuth`**
+    is allowed only after `/auth` succeeds (`SUCCESS`) and before `/capture` is submitted for the same `authOrderId`; not allowed
+    while capture is `PROCESSING` or after capture has been submitted. Partner
+    must treat `requestId` as an idempotent key for every `/auth`, `/capture`, and `/voidAuth` request.
 
-    **Installments / checkout:** Pricing, pre-check, payment plan, `/query-auth`, `/query-capture`, and `/query-voidAuth`
-    use the same `Payment` tag; treat `requestId` as idempotent per integration rules for those paths.
+    **Installments / checkout:** Pre-check, payment plan, `/query-auth`, `/query-capture`, and `/query-voidAuth` use the same
+    `Payment` tag; treat `requestId` as idempotent per integration rules for those paths.
+
+    **Minimum order / sub-order amounts:** One SKU = one sub-order. For `periodType` = 1: order >= 1 IDR, each sub-order >= 1
+    IDR; for `periodType` = 3: order >= 20,000 IDR, each sub-order >= 3 IDR. Partners must validate `totalAmount` and
+    `subOrders[].amount` before `POST /payment-precheck`, `POST /payment-plan`, `POST /auth`, and `POST /capture`.
 
     '
 - name: Repayment
@@ -247,11 +299,9 @@ paths:
       tags:
       - Credit
       summary: Submit credit information
-      description: 'Lightweight first step of the credit flow: tell Atome the partner-side user identity,
+      description: 'Lightweight first step of the credit flow: tell Atome the partner-side user identity
 
-        country and event type (new / rejected / switch). The full KYC payload is then sent
-
-        via `POST /credit-application`.
+        and country. The full KYC payload is then sent via `POST /credit-application`.
 
         '
       parameters:
@@ -492,30 +542,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerErrorResponse'
-  /<creditInformationNotifyUrl>:
-    post:
-      tags:
-      - Credit
-      - Callback
-      summary: Submit credit information result callback
-      requestBody:
-        $ref: '#/components/requestBodies/CreditCollectResult'
-      responses:
-        '200':
-          description: we will retry callback 14 times if we get non-200 response.
-          content:
-            application/json:
-              schema:
-                type: object
-                description: Acknowledgement payload returned by Atome.
-                properties:
-                  code:
-                    type: string
-                    enum:
-                    - SUCCESS
-                  message:
-                    type: string
-                    description: success or fail message
   /<creditApplicationNotifyUrl>:
     post:
       tags:
@@ -792,6 +818,15 @@ paths:
       tags:
       - Payment
       summary: precheck credit line and status
+      description: 'Checks whether the user can proceed with installment checkout for the given order.
+
+
+        **Minimum amounts (partner-side validation):** One SKU = one sub-order. Validate `totalAmount` and each `subOrders[].amount`
+        against the minimums for the installment tenor (`periodType`) the user will use in subsequent `/payment-plan` / `/auth`
+        calls — 1-month: order >= 1 IDR, sub-order >= 1 IDR; 3-month: order >= 20,000 IDR, sub-order >= 3 IDR. See **Minimum
+        order / sub-order amounts** in Overview.
+
+        '
       parameters:
       - in: header
         name: Authorization
@@ -808,31 +843,26 @@ paths:
               properties:
                 externalReferenceUid:
                   type: string
-                  description: reference id to partner user
+                  description: Partner-side stable identifier for the end user.
                   maxLength: 64
                 totalAmount:
                   type: integer
-                  description: total amount for the order
+                  description: Total order amount in IDR (Rupiah). Must meet the minimum for the target `periodType` (1-month >= 1; 3-month >= 20,000).
                 subOrders:
                   type: array
-                  description: the detailed price allocation for sub orders
+                  description: One entry per SKU (one SKU = one sub-order). Each `amount` must meet the minimum for the target `periodType` (1-month >= 1; 3-month >= 3).
                   items:
-                    $ref: '#/components/schemas/PaymentPreCheckSubOrder'
+                    $ref: '#/components/schemas/PlanSubOrder'
                 extendInfo:
                   type: object
-                  description: all the extended information due to channel difference.
+                  description: Optional extension fields per integration agreement.
                   properties:
-                    paymentType:
-                      type: string
-                      description: CREDIT_PAYMENT 、COMBINED_PAYMENT
-                    sceneCode:
-                      type: string
-                      description: PRELOAD
+                    orderType:
+                      $ref: '#/components/schemas/PaymentOrderType'
               required:
               - externalReferenceUid
               - totalAmount
               - subOrders
-              - event
       responses:
         '200':
           description: SUCCESS
@@ -840,80 +870,45 @@ paths:
             application/json:
               schema:
                 type: object
-                description: Acknowledgement payload returned by Atome.
+                description: ack
                 properties:
                   code:
                     type: string
-                    description: '`SUCCESS`: Success.<br/>
-
-                      `CREDIT_APPLICATION_NOT_APPROVED`: User''s application for credit was not approved<br/>
-
-                      '
+                    description: |
+                      `SUCCESS`: Pre-check passed; the user may proceed with installment checkout.<br/>
+                      `INVALID_ORDER_AMOUNT`: `totalAmount` or a sub-order `amount` is below the minimum for the installment tenor, or above the maximum installable amount.<br/>
+                      `USER_CREDIT_LIMIT_INSUFFICIENT`: Available credit is insufficient for the requested amount.<br/>
+                      `CREDIT_APPLICATION_NOT_APPROVED`: Credit application is not approved.<br/>
+                      `ACCOUNT_BLOCKED_OVERDUE`: Account is blocked due to overdue bills.<br/>
+                      `ACCOUNT_BLOCKED`: Account is blocked due to risk or compliance reasons.<br/>
+                      `RISK_REJECT`: Risk control declined the pre-check.
                     enum:
                     - SUCCESS
+                    - INVALID_ORDER_AMOUNT
+                    - USER_CREDIT_LIMIT_INSUFFICIENT
                     - CREDIT_APPLICATION_NOT_APPROVED
+                    - ACCOUNT_BLOCKED_OVERDUE
+                    - ACCOUNT_BLOCKED
+                    - RISK_REJECT
                   message:
                     type: string
                     description: success or fail message
                   data:
                     type: object
                     properties:
-                      creditIsSufficient:
-                        type: boolean
-                        description: 'true: user has enough credit to pay the order.<br/>
-
-                          false: user has not enough credit to pay the order.
-
-                          '
-                      totalCredit:
-                        type: integer
-                        description: 'fix credit + temp credit. note: don''t include shadow credit.<br/>
-
-                          Total credit line. The minimum denomination in Indonesia is Rupiah (IDR).'
                       availableCredit:
                         type: integer
-                        description: "user payment availableCredit, if shadow credit is available, will include shadow available\
-                          \ credit. It's possible that the availableCredit is greater than totalCredit.<br/> \nit is different\
-                          \ from /credit-result interface's creditInfo.availableCredit<br/>\nAvailable credit line. The minimum\
-                          \ denomination in Indonesia is Rupiah (IDR).\n"
-                      limitDetails:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            limitType:
-                              type: string
-                              enum:
-                              - PERMANENT_LIMIT
-                              - TEMPORARY_LIMIT
-                              - SHADOW_LIMIT
-                            totalCredit:
-                              type: integer
-                              description: "Total credit line. if limitType is `SHADOW_LIMIT` return null.<br/> \nThe minimum\
-                                \ denomination in Indonesia is Rupiah (IDR).\n"
-                            availableCredit:
-                              type: integer
-                              description: "Available credit line. Min value is 0, if user overused, will return 0.<br/> \n\
-                                The minimum denomination in Indonesia is Rupiah (IDR).\n"
-                          required:
-                          - totalCredit
-                          - availableCredit
-                          - limitType
-                      currency:
-                        type: string
-                        description: IDR
-                        enum:
-                        - IDR
-                      version:
-                        type: integer
-                        description: Timestamp in unix milliseconds, i.e. 1623052669233
+                        description: Available credit line in IDR (Rupiah), returned whenever account status allows (except blocked or other abnormal states).
+                      extendInfo:
+                        type: object
+                        description: Optional extension fields on `data`. When `code` is `RISK_REJECT`, includes `reapplyTime`.
+                        properties:
+                          reapplyTime:
+                            type: integer
+                            format: int64
+                            description: Unix timestamp in milliseconds when the user may call pre-check again. Returned when `code` is `RISK_REJECT`.
                     required:
-                    - creditIsSufficient
-                    - totalCredit
                     - availableCredit
-                    - currency
-                    - version
-                    - limitDetails
         '400':
           description: PARAMS_MISSING、WRONG_PARAMS_FORMAT、PARAMS_WRONG、NOT_FOUND
           content:
@@ -957,6 +952,14 @@ paths:
       tags:
       - Payment
       summary: Installment payment plan
+      description: 'Returns installment plans for the order.
+
+
+        **Minimum amounts (partner-side validation):** One SKU = one sub-order. Validate `totalAmount` and each `subOrders[].amount`
+        for the selected installment tenor — 1-month: order >= 1 IDR, sub-order >= 1 IDR; 3-month: order >= 20,000 IDR, sub-order
+        >= 3 IDR. See **Minimum order / sub-order amounts** in Overview.
+
+        '
       parameters:
       - in: header
         name: Authorization
@@ -984,8 +987,8 @@ paths:
                 properties:
                   code:
                     type: string
-                    description: '`INVALID_ORDER_AMOUNT`: The order amount is less than the minimum installable amount or
-                      greater than the maximum installable amount <br/>
+                    description: '`INVALID_ORDER_AMOUNT`: `totalAmount` or a sub-order `amount` is below the minimum for the
+                      installment tenor, or above the maximum installable amount.<br/>
 
                       `USER_CREDIT_LIMIT_INSUFFICIENT`: User''s credit account limit is insufficient<br/>
 
@@ -995,7 +998,7 @@ paths:
 
                       `ACCOUNT_BLOCKED`: Account is blocked due to risk or compliance reasons.<br/>
 
-                      `RISK_REJECT`: Risk control audit rejected.<br/>
+                      `RISK_REJECT`: Risk control declined the payment plan request.<br/>
 
                       '
                     enum:
@@ -1072,6 +1075,11 @@ paths:
         credit line, and risk.
 
         If the check passes, limits are locked but not deducted; otherwise the authorization is rejected.
+
+
+        **Minimum amounts (partner-side validation):** One SKU = one sub-order. Validate `totalAmount` and each `subOrders[].amount`
+        for `periodType` before submitting — 1-month (`periodType` = 1): order >= 1 IDR, sub-order >= 1 IDR; 3-month (`periodType`
+        = 3): order >= 20,000 IDR, sub-order >= 3 IDR. See **Minimum order / sub-order amounts** in Overview.
 
 
         **Synchronous response:**
@@ -1249,6 +1257,11 @@ paths:
         passes, a loan is generated for the user.
 
 
+        **Minimum amounts (partner-side validation):** One SKU = one sub-order. `totalAmount` and each `subOrders[].amount`
+        must meet the minimums for `periodType` (same rules as `/auth`) — 1-month: order >= 1 IDR, sub-order >= 1 IDR;
+        3-month: order >= 20,000 IDR, sub-order >= 3 IDR. See **Minimum order / sub-order amounts** in Overview.
+
+
         **Synchronous response:**
 
         - **First submission (in-progress):** HTTP `200` acknowledges the request; `code` indicates acceptance while `data.status
@@ -1412,7 +1425,12 @@ paths:
       tags:
       - Payment
       summary: Void authorization
-      description: 'Partner uses this to cancel the previous authorization and unfreeze the frozen limits.
+      description: 'Partner uses this to cancel a successful authorization and release the frozen credit limit.
+
+
+        **Eligibility:** Only after `/auth` has reached terminal `SUCCESS` for the given `authOrderId`, and **before** any
+        `/capture` request is submitted for that authorization. Void is **not** available once `/capture` has been submitted,
+        including while capture `status` is `PROCESSING`.
 
         '
       parameters:
@@ -2180,7 +2198,7 @@ paths:
       tags:
       - Repayment
       - Callback
-      summary: repayment / Atome-channel repayment result callback
+      summary: repayment result callback
       requestBody:
         required: true
         content:
@@ -2248,95 +2266,29 @@ components:
                 maxLength: 64
               totalAmount:
                 type: integer
-                description: Total amount for the order, expressed in the smallest currency unit of the configured country
-                  (IDR; smallest unit is Rupiah).
+                description: Total order amount in IDR (Rupiah). Minimum depends on `periodType` (1-month >= 1; 3-month >= 20,000).
               periodType:
                 type: integer
-                description: Installment tenor for the order (e.g. 1, 3, 6, 9, or 12).
+                description: Installment tenor for the order (e.g. 1, 3, 6, 9, or 12). Determines minimum order and sub-order amounts — see **Minimum order / sub-order amounts** in Overview.
               subOrders:
                 type: array
-                description: Per-line split of `totalAmount` across sub-orders.
+                description: One entry per SKU (one SKU = one sub-order). Sum of `amount` values should align with `totalAmount`; each `amount` must meet the minimum for `periodType` (1-month >= 1; 3-month >= 3).
                 items:
                   $ref: '#/components/schemas/SubOrder'
               extendInfo:
                 type: object
-                description: Optional extended fields for risk and fulfillment. `userCreditScore`, `deviceInfo`, `address`,
-                  and `riskInfo` are all optional; send when available per integration agreement.
+                description: Optional extended fields for risk and fulfillment. `orderType`, `creditProfile` (sample structure is **for reference only** — align with Atome during integration), `userCreditScore`, `deviceInfo`, `address`, and `riskInfo` are optional unless agreed per integration.
                 properties:
+                  orderType:
+                    $ref: '#/components/schemas/PaymentOrderType'
+                  creditProfile:
+                    $ref: '#/components/schemas/CreditProfile'
                   userCreditScore:
                     type: number
                     format: double
                     description: Credit score between 0 and 1 (double); user-level signal when provided.
                   deviceInfo:
-                    type: object
-                    properties:
-                      platform:
-                        type: string
-                        description: 'Example: ANDROID or IOS'
-                      gps:
-                        type: object
-                        properties:
-                          longitude:
-                            type: string
-                            description: 'Example: 137.2738282'
-                          latitude:
-                            type: string
-                            description: 'Example: 24.2728888'
-                          time:
-                            description: 'Unix timestamp in milliseconds (example: 1620285931000).'
-                      device:
-                        type: object
-                        properties:
-                          utdid:
-                            type: string
-                            description: 'Example: d0e026336b6b9fe4d6216d5d53d07d11'
-                          isRoot:
-                            type: boolean
-                            description: 'Example: true or false'
-                          androidId:
-                            type: string
-                            description: 'Example: 65ee521bc1baa96c'
-                          build:
-                            type: object
-                            properties:
-                              board:
-                                type: string
-                                description: 'Example: STK-L22'
-                              brand:
-                                type: string
-                                description: 'Example: HUAWEI'
-                              cpuAbi:
-                                type: string
-                                description: 'Example: arm64-v8a'
-                              device:
-                                type: string
-                                description: 'Example: HWSTK-HF'
-                              manufacturer:
-                                type: string
-                                description: 'Example: HUAWEI'
-                              model:
-                                type: string
-                                description: 'Example: STK-L22'
-                              product:
-                                type: string
-                                description: 'Example: STK-L22'
-                      wifiList:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            ssid:
-                              type: string
-                              description: 'Example: string'
-                      ipAddress:
-                        type: object
-                        properties:
-                          ethIp:
-                            type: string
-                            description: 'Example: 196.127.1.1'
-                          trueIp:
-                            type: string
-                            description: 'Example: 196.127.1.1'
+                    $ref: '#/components/schemas/PlatformDeviceInfo'
                   address:
                     type: object
                     properties:
@@ -2355,10 +2307,10 @@ components:
                             type: string
                       shippingName:
                         type: string
-                        description: consignee's name
+                        description: Consignee name. For **Transport** orders (`orderType` = `TRANSPORT`), pass the trip destination address label.
                       shippingPhoneNo:
                         type: string
-                        description: consignee's mobile number
+                        description: Consignee mobile number. For **Transport** orders (`orderType` = `TRANSPORT`), pass the passenger mobile number for the trip.
                   riskInfo:
                     $ref: '#/components/schemas/paymentRiskInfo'
             required:
@@ -2387,99 +2339,29 @@ components:
                 maxLength: 64
               totalAmount:
                 type: integer
-                description: Total amount to capture, expressed in the smallest currency unit of the configured country (IDR;
-                  smallest unit is Rupiah). **Must equal** the `totalAmount` authorized by the corresponding `/auth` call;
-                  uplift (capturing more than the authorized amount) is **not** allowed.
+                description: Total capture amount in IDR (Rupiah). **Must equal** the `totalAmount` from the corresponding `/auth` call; uplift is not allowed. Must meet the minimum for `periodType` (1-month >= 1; 3-month >= 20,000).
               periodType:
                 type: integer
-                description: Installment tenor; **must match** the value sent on the corresponding `/auth` request (e.g. 1,
-                  3, 6, 9, or 12).
+                description: Installment tenor; **must match** `/auth`. Determines minimum order and sub-order amounts — see **Minimum order / sub-order amounts** in Overview.
               subOrders:
                 type: array
-                description: Detailed price allocation for sub orders. The set of sub orders and their amounts **must match**
-                  those sent in the corresponding `/auth` request; partial capture or re-allocation is **not** supported in
-                  this version.
+                description: One entry per SKU (one SKU = one sub-order). Set and amounts **must match** `/auth`; each `amount` must meet the minimum for `periodType` (1-month >= 1; 3-month >= 3).
                 items:
                   $ref: '#/components/schemas/SubOrder'
               extendInfo:
                 type: object
-                description: Optional extended fields for risk and fulfillment. `userCreditScore`, `deviceInfo`, `address`,
-                  and `riskInfo` are all optional; send when available per integration agreement.
+                description: Optional extended fields for risk and fulfillment. `orderType`, `creditProfile` (sample structure is **for reference only** — align with Atome during integration), `userCreditScore`, `deviceInfo`, `address`, and `riskInfo` are optional unless agreed per integration.
                 properties:
+                  orderType:
+                    $ref: '#/components/schemas/PaymentOrderType'
+                  creditProfile:
+                    $ref: '#/components/schemas/CreditProfile'
                   userCreditScore:
                     type: number
                     format: double
                     description: Credit score between 0 and 1 (double); user-level signal when provided.
                   deviceInfo:
-                    type: object
-                    properties:
-                      platform:
-                        type: string
-                        description: 'Example: ANDROID or IOS'
-                      gps:
-                        type: object
-                        properties:
-                          longitude:
-                            type: string
-                            description: 'Example: 137.2738282'
-                          latitude:
-                            type: string
-                            description: 'Example: 24.2728888'
-                          time:
-                            description: 'Unix timestamp in milliseconds (example: 1620285931000).'
-                      device:
-                        type: object
-                        properties:
-                          utdid:
-                            type: string
-                            description: 'Example: d0e026336b6b9fe4d6216d5d53d07d11'
-                          isRoot:
-                            type: boolean
-                            description: 'Example: true or false'
-                          androidId:
-                            type: string
-                            description: 'Example: 65ee521bc1baa96c'
-                          build:
-                            type: object
-                            properties:
-                              board:
-                                type: string
-                                description: 'Example: STK-L22'
-                              brand:
-                                type: string
-                                description: 'Example: HUAWEI'
-                              cpuAbi:
-                                type: string
-                                description: 'Example: arm64-v8a'
-                              device:
-                                type: string
-                                description: 'Example: HWSTK-HF'
-                              manufacturer:
-                                type: string
-                                description: 'Example: HUAWEI'
-                              model:
-                                type: string
-                                description: 'Example: STK-L22'
-                              product:
-                                type: string
-                                description: 'Example: STK-L22'
-                      wifiList:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            ssid:
-                              type: string
-                              description: 'Example: string'
-                      ipAddress:
-                        type: object
-                        properties:
-                          ethIp:
-                            type: string
-                            description: 'Example: 196.127.1.1'
-                          trueIp:
-                            type: string
-                            description: 'Example: 196.127.1.1'
+                    $ref: '#/components/schemas/PlatformDeviceInfo'
                   address:
                     type: object
                     properties:
@@ -2498,10 +2380,10 @@ components:
                             type: string
                       shippingName:
                         type: string
-                        description: consignee's name
+                        description: Consignee name. For **Transport** orders (`orderType` = `TRANSPORT`), pass the trip destination address label.
                       shippingPhoneNo:
                         type: string
-                        description: consignee's mobile number
+                        description: Consignee mobile number. For **Transport** orders (`orderType` = `TRANSPORT`), pass the passenger mobile number for the trip.
                   riskInfo:
                     $ref: '#/components/schemas/paymentRiskInfo'
             required:
@@ -2527,7 +2409,7 @@ components:
                 maxLength: 64
               authOrderId:
                 type: string
-                description: Authorization reference returned in the `/auth` response.
+                description: 'authOrderId from a terminal `/auth` response with `status` = `SUCCESS`; no `/capture` may exist for this authorization (including capture `PROCESSING`).'
                 maxLength: 64
             required:
             - requestId
@@ -2603,7 +2485,11 @@ components:
           examples:
             ID:
               summary: Indonesia Request body example
-              description: applicationEssentialInfo.platformInformation.deviceInfo.gps this issue is not required
+              description: 'applicationEssentialInfo.platformInformation.deviceInfo.gps is not required.<br/>
+
+                **platformInformation.creditProfile** sample is for reference only — final JSON structure is agreed during partner integration.
+
+                '
               value:
                 requestId: R897321804
                 externalReferenceUid: E897321804
@@ -2611,6 +2497,12 @@ components:
                 email: xxx@xxx.com
                 country: ID
                 applicationEssentialInfo:
+                  livenessCheck:
+                    result: PASS
+                    snapshotPhoto: /9j/4AAQSkZJRgABAQAAAQABAA..........
+                    livenessCheckResult01: XX
+                    livenessCheckResult02: XX
+                    livenessCheckResult03: XX
                   individualProfile:
                     idType: KTP
                     ocrResult:
@@ -2625,20 +2517,17 @@ components:
                       ocrProvince: XX
                       ocrCity: XX
                       ocrDistrict: XX
+                      manuallyRt: '001'
+                      manuallyRw: '002'
                       jobType: XX
                       ocrMaritalStatus: SINGLE
+                      manuallyExpiredDate: '2099-12-31'
+                      manuallyCitizenship: WNI
                     idFrontPhoto: /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgM........
                     manuallyEducation: PHD-DOCTOR
-                  residential:
-                    province: Jakarta
-                    city: Jakarta
-                    district: kelapa Gading Barat
-                    address: ARTHA GADING MAL LT. DASAR JL. BOULEVARD ARTHA GADING B1 & B2 KELAPA GADING BARAT, JAKUT
-                    zipCode: XX
-                    village: XX
                   platformInformation:
-                    userCreditScore: 0.233
-                    creditProfile: '{"modelScores":[{"scoreType":"application_model","scoreValue":"-99","version":"v1.0"},{"scoreType":"behavior_model","scoreValue":"0.3","version":"v2.0"}],"features":[{"key":"featureA_Key","value":"featureA_Value"}]}'
+                    sceneType: CHECKOUT_PAGE
+                    creditProfile: '{"creditAmount":{"currency":"IDR","lower":90000000,"upper":140000000},"extendedFeatures":[{"crowd_id":["encoded_id_1","encoded_id_2","encoded_id_3"],"crowd_date":"20240311","isLive":""}],"modelScores":[{"scoreType":"application_model","scoreValue":"31","version":"v1.0"}]}'
                     deviceInfo:
                       platform: ANDROID
                       gps:
@@ -2646,6 +2535,10 @@ components:
                         latitude: '24.2728888'
                         time: '1620285931000'
                       device:
+                        deviceId: shgdasjass
+                        googleAdvertisingId: 38400000-8cf0-11bd-b23d-10cb46e3a0aa
+                        idfa: 00000000-0000-0000-0000-000000000000
+                        idfv: 00000000-0000-0000-0000-000000000001
                         utdid: shgdasjass
                         isRoot: true
                         androidId: '2930128310389'
@@ -2669,27 +2562,28 @@ components:
               summary: Indonesia Enum definition
               value:
                 applicationEssentialInfo:
-                  result:
-                  - PASS
-                  - FAIL
-                individualProfile:
-                  idType:
-                  - KTP
-                  maritalStatus:
-                  - SINGLE
-                  - MARRIED
-                  - DIVORCED
-                  - WIDOWED
-                  - SEPARATED
-                  - OTHERS
-                  manuallyEducation:
-                  - PRIMARY
-                  - JUNIOR HIGH SCHOOL
-                  - SENIOR HIGH SCHOOL
-                  - DIPLOMA
-                  - BACHELOR
-                  - MASTER
-                  - PHD-DOCTOR
+                  livenessCheck:
+                    result:
+                    - PASS
+                    - FAIL
+                  individualProfile:
+                    idType:
+                    - KTP
+                    maritalStatus:
+                    - SINGLE
+                    - MARRIED
+                    - DIVORCED
+                    - WIDOWED
+                    - SEPARATED
+                    - OTHERS
+                    manuallyEducation:
+                    - PRIMARY
+                    - JUNIOR HIGH SCHOOL
+                    - SENIOR HIGH SCHOOL
+                    - DIPLOMA
+                    - BACHELOR
+                    - MASTER
+                    - PHD-DOCTOR
                 emergencyContact:
                   relation:
                   - SPOUSE
@@ -2731,6 +2625,12 @@ components:
                   - Staff
                   - Others
                 platformInformation:
+                  sceneType:
+                  - PRODUCT_LANDING_PAGE
+                  - PROMO_BANNER_PAGE
+                  - MARKETING_PUSH_ENTRY
+                  - CHECKOUT_PAGE
+                  - WALLET_DASHBOARD_ENTRY
                   registrationDate:
                   - L30D
                   - L30D - L60D
@@ -2786,25 +2686,9 @@ components:
                 type: string
                 description: Partner-side stable identifier for the end user.
                 maxLength: 64
-              eventType:
-                type: string
-                description: 'Event scenario for this credit information call.<br/>
-
-                  `NEW_APPLICATION`: First-time application.<br/>
-
-                  `SWITCH_APPLICATION`: User switching from another lender.<br/>
-
-                  '
-                enum:
-                - NEW_APPLICATION
-                - SWITCH_APPLICATION
               mobileNumber:
                 type: string
-                description: 'Mobile phone number with the dialling code prefix, e.g. `+62XXXXXXXXXXX`.
-
-                  Required when `eventType != NEW_APPLICATION`.
-
-                  '
+                description: Mobile phone number with the dialling code prefix, e.g. `+62XXXXXXXXXXX`.
               email:
                 type: string
                 maxLength: 64
@@ -2818,34 +2702,51 @@ components:
                   '
                 enum:
                 - ID
+              applicationEssentialInfo:
+                type: object
+                description: Essential application fields collected at the credit information step.
+                required:
+                - ocrResult
+                properties:
+                  ocrResult:
+                    type: object
+                    description: OCR-extracted fields from the ID document.
+                    required:
+                    - fullName
+                    properties:
+                      fullName:
+                        type: string
+                        description: Full legal name as printed on the ID.
               extendInfo:
                 type: object
                 description: Extended fields agreed per integration.
                 properties:
                   language:
                     type: string
-                    description: Display language for the Atome-hosted information collection page.
+                    description: Display language for the Atome-hosted information collection page. Optional; defaults to `id` when omitted.
                     enum:
                     - en
                     - id
-                required:
-                - language
+                    default: id
             required:
             - requestId
             - externalReferenceUid
-            - eventType
+            - mobileNumber
             - email
             - country
+            - applicationEssentialInfo
           examples:
             ID:
               summary: Indonesia request body example
               value:
                 requestId: R897321804
                 externalReferenceUid: E897321804
-                eventType: NEW_APPLICATION
                 mobileNumber: '+628129801929'
                 email: xxx@xxx.com
                 country: ID
+                applicationEssentialInfo:
+                  ocrResult:
+                    fullName: Luna Zhang
                 extendInfo:
                   language: id
     CreditApplicationChange:
@@ -2894,12 +2795,6 @@ components:
                 email: xxx@xxx.com
                 extendInfo:
                   language: id
-    CreditCollectResult:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/CreditApplicationCollectQueryResult'
     CreditResult:
       required: true
       content:
@@ -2925,28 +2820,20 @@ components:
                 maxLength: 64
               totalAmount:
                 type: integer
-                description: Total amount for the order. The minimum denomination in Indonesia is Rupiah (IDR).
+                description: Total order amount in IDR (Rupiah). Must meet the minimum for the selected installment tenor (1-month >= 1; 3-month >= 20,000).
               subOrders:
                 type: array
-                description: the detailed price allocation for sub orders
+                description: One entry per SKU (one SKU = one sub-order). Each `amount` must meet the minimum for the selected tenor (1-month >= 1; 3-month >= 3).
                 items:
                   $ref: '#/components/schemas/PlanSubOrder'
               extendInfo:
                 type: object
-                description: all the extended information due to channel difference.
+                description: Optional extension fields per integration agreement.
                 properties:
-                  originalLoanAmount:
-                    type: number
-                    description: original amount of the order
-                  paymentType:
-                    type: string
-                    description: CREDIT_PAYMENT 、COMBINED_PAYMENT
-                  ecommerceOrder:
-                    $ref: '#/components/schemas/EcommerceOrder'
+                  orderType:
+                    $ref: '#/components/schemas/PaymentOrderType'
                   riskInfo:
                     $ref: '#/components/schemas/paymentPlanRiskInfo'
-                required:
-                - paymentType
             required:
             - externalReferenceUid
             - totalAmount
@@ -2981,7 +2868,7 @@ components:
                   $ref: '#/components/schemas/SubOrderRefundRequest'
               extendInfo:
                 type: object
-                description: all the extended information due to channel difference
+                description: Optional extension fields per integration agreement.
             required:
             - requestId
             - externalReferenceUid
@@ -3010,7 +2897,7 @@ components:
                 description: Timestamp(unix millisecond)
               extendInfo:
                 type: object
-                description: all the extended information due to channel difference
+                description: Optional extension fields per integration agreement.
             required:
             - requestId
             - externalReferenceUid
@@ -3049,10 +2936,12 @@ components:
           description: '`SUCCESS`: Request accepted. Business outcome lives in `data.status` — on first submission it is typically
             `PROCESSING` (terminal result via callback); on idempotent retry after completion it is `SUCCESS` / `FAILED`.<br/>
 
-            `INVALID_ORDER_AMOUNT`: The order amount is less than the minimum installable amount or greater than the maximum
-            installable amount<br/>
+            `INVALID_ORDER_AMOUNT`: `totalAmount` or a sub-order `amount` is below the minimum for `periodType`, or above the
+            maximum installable amount.<br/>
 
             `CREDIT_APPLICATION_NOT_APPROVED`: User''s application for credit was not approved<br/>
+
+            `USER_CREDIT_LIMIT_INSUFFICIENT`: Available credit is insufficient for the requested amount.<br/>
 
             `ACCOUNT_BLOCKED_OVERDUE`: The account is blocked due to overdue bills<br/>
 
@@ -3060,17 +2949,20 @@ components:
 
             `ACCOUNT_TEMP_BLOCKED`: The account is temporarily blocked<br/>
 
-            `FEE_CHANGE`: The fee configuration has changed since the quote used by the partner; re-fetch the latest fee/plan
-            before retrying.<br/>
+            `RISK_REJECT`: Risk control declined the authorization.<br/>
+
+            `FEE_CHANGE`: Fee configuration changed since `/payment-plan`; call `/payment-plan` again before retrying.<br/>
 
             '
           enum:
           - SUCCESS
           - INVALID_ORDER_AMOUNT
           - CREDIT_APPLICATION_NOT_APPROVED
+          - USER_CREDIT_LIMIT_INSUFFICIENT
           - ACCOUNT_BLOCKED_OVERDUE
           - ACCOUNT_BLOCKED
           - ACCOUNT_TEMP_BLOCKED
+          - RISK_REJECT
           - FEE_CHANGE
         message:
           type: string
@@ -3110,7 +3002,11 @@ components:
           - FAILED
         failureCode:
           type: string
-          description: 'Present when `status` is `FAILED`, for example `USER_CREDIT_LIMIT_INSUFFICIENT`.
+          description: 'Present when `status` is `FAILED`.<br/>
+
+            `USER_CREDIT_LIMIT_INSUFFICIENT`: Available credit is insufficient for the requested amount.<br/>
+
+            `RISK_REJECT`: Risk control declined the authorization; see `extendInfo.reapplyTime` when retry is allowed.
 
             '
           enum:
@@ -3124,9 +3020,11 @@ components:
           $ref: '#/components/schemas/AccountChanges'
         extendInfo:
           type: object
+          description: Optional extension fields on `data`. When `status` is `FAILED` and `failureCode` is `RISK_REJECT`, may include `reapplyTime`.
           properties:
-            agreementUrl:
-              type: string
+            reapplyTime:
+              type: integer
+              description: Unix timestamp in milliseconds when the user may submit authorization again. Omitted when not applicable. Example `1623052669233`.
     CaptureAckResponse:
       type: object
       required:
@@ -3135,9 +3033,16 @@ components:
       properties:
         code:
           type: string
-          description: '`SUCCESS`: Capture successful<br/>
+          description: '`SUCCESS`: Request accepted; see `data.status` for business outcome (`PROCESSING` on first submission; terminal states via callback or idempotent retry).<br/>
 
-            Additional business codes may appear in HTTP 200 responses when applicable.
+            `INVALID_ORDER_AMOUNT`: `totalAmount` or a sub-order `amount` is below the minimum for `periodType`, or above the
+            maximum installable amount.<br/>
+
+            `CREDIT_APPLICATION_NOT_APPROVED`: Credit application is not approved.<br/>
+
+            `ACCOUNT_BLOCKED_OVERDUE`: Account is blocked due to overdue bills.<br/>
+
+            `ACCOUNT_BLOCKED`: Account is blocked due to risk or compliance reasons.<br/>
 
             '
           enum:
@@ -3146,8 +3051,6 @@ components:
           - CREDIT_APPLICATION_NOT_APPROVED
           - ACCOUNT_BLOCKED_OVERDUE
           - ACCOUNT_BLOCKED
-          - FEE_CHANGE
-          - USER_CREDIT_LIMIT_INSUFFICIENT
         message:
           type: string
           description: Human-readable outcome or error detail.
@@ -3361,10 +3264,10 @@ components:
       - installmentPlans
     SubOrder:
       type: object
-      description: 'Line item under the parent order (amount split across sub-orders).
+      description: 'Line item under the parent order. **One SKU = one sub-order.**
 
-        **`subOrderId`**, **`amount`**, and **`quantity`** are required. Whether **`skuId`** and other catalog fields must
-        be sent is **agreed during partner integration**; omit them when your integration does not use them.
+        Required fields align with `PlanSubOrder` used in `/payment-precheck` and `/payment-plan`. Minimum `amount` depends
+        on order `periodType` (1-month >= 1 IDR; 3-month >= 3 IDR).
 
         '
       properties:
@@ -3378,8 +3281,7 @@ components:
           maxLength: 64
         skuId:
           type: string
-          description: Product SKU identifier. Optional in this specification; **whether it is mandatory for your integration
-            is agreed during partner integration**—confirm with your Atome contact before go-live.
+          description: Product SKU identifier.
           maxLength: 64
         creatorId:
           type: string
@@ -3410,21 +3312,30 @@ components:
           description: Number of units for this line item; must be a positive integer.
         amount:
           type: integer
-          description: Line item total amount, in the smallest currency unit of the configured country (IDR; smallest unit
-            is Rupiah).
-        originalAmount:
-          type: number
-          description: Original list amount for the line item before discounts, when provided.
+          description: Sub-order (SKU) total amount in IDR (Rupiah). Minimum depends on order `periodType` (1-month >= 1; 3-month >= 3).
         merchantId:
           type: string
-          description: Merchant identifier for settlement or routing.
+          description: 'Food & Mart (`GRAB_FOOD`, `GRAB_MART`, `SPECIALIZED_DELIVERY`): merchant ID. Transport (`TRANSPORT`): driver ID.'
+        merchantName:
+          type: string
+          description: 'Food & Mart: merchant name. Transport: driver name.'
+        merchantCategory:
+          type: string
+          description: 'Food & Mart: merchant category. Transport: omit or pass null.'
+        merchantJoinedDate:
+          type: string
+          description: 'Food & Mart: merchant onboarding date. Transport: driver registration date.'
         extendInfo:
           type: object
           description: Optional extension fields for this line item.
       required:
       - subOrderId
+      - categoryId
+      - skuId
       - amount
       - quantity
+      - merchantId
+      - categoryOneName
     AccountChanges:
       description: 'Account balance or status impact returned with an API response.<br/>
 
@@ -3530,13 +3441,12 @@ components:
           - SUCCESS
         failureCode:
           type: string
-          description: '`USER_CREDIT_LIMIT_INSUFFICIENT`: User''s credit account limit is insufficient <br/>
+          description: 'Present when `status` is `FAILED`.<br/>
 
-            `RISK_REJECT`: Risk control audit rejected <br/>
+            `RISK_REJECT`: Risk control declined capture; see `extendInfo.reapplyTime` when retry is allowed.
 
             '
           enum:
-          - USER_CREDIT_LIMIT_INSUFFICIENT
           - RISK_REJECT
         subOrderInstallmentPlans:
           type: array
@@ -3554,17 +3464,17 @@ components:
             '
         extendInfo:
           type: object
+          description: Optional extension fields on `data`. When `status` is `FAILED` and `failureCode` is `RISK_REJECT`, may include `reapplyTime`.
           properties:
             reapplyTime:
               type: integer
-              description: 'Unix timestamp in milliseconds when the user may reapply (example: 1623052669233).'
+              description: Unix timestamp in milliseconds when the user may submit capture again. Omitted when not applicable. Example `1623052669233`.
             agreement:
               type: object
               properties:
                 agreementUrl:
                   type: string
-                  description: Loan agreement URL when available; typically returned only after capture succeeds (e.g. in
-                    `/<captureNotifyUrl>` or a synchronous terminal `/capture` response), not while `status` is `PROCESSING`.
+                  description: Loan agreement URL when available after a successful capture (e.g. terminal `/capture` response or `/<captureNotifyUrl>`), not while `status` is `PROCESSING`.
       required:
       - requestId
       - orderId
@@ -3573,7 +3483,126 @@ components:
       - currency
     paymentRiskInfo:
       type: object
-      description: Optional channel-specific risk payload when agreed in integration.
+      description: Risk payload for `/auth` and `/capture`. `driverInfo` and `tripMetadata` apply only when `extendInfo.orderType` is `TRANSPORT`.
+      properties:
+        driverInfo:
+          type: object
+          description: Driver information. Transport orders only.
+          properties:
+            averageRating:
+              type: number
+              format: double
+              description: Driver average rating.
+            isVerified:
+              type: boolean
+              description: Whether the driver is verified.
+        tripMetadata:
+          type: object
+          description: Trip metadata. Transport orders only.
+          properties:
+            estimatedDistance:
+              type: string
+              description: Estimated trip distance.
+            pickupLocation:
+              type: string
+              description: Pickup location.
+    PlatformDeviceInfo:
+      type: object
+      description: User device information at submission time. Same structure as `applicationEssentialInfo.platformInformation.deviceInfo` in `POST /credit-application`.
+      properties:
+        platform:
+          type: string
+          enum:
+          - ANDROID
+          - IOS
+        gps:
+          type: object
+          properties:
+            longitude:
+              type: string
+            latitude:
+              type: string
+            time:
+              type: string
+              description: GPS sample time (Unix milliseconds, as string).
+        device:
+          type: object
+          properties:
+            deviceId:
+              type: string
+              description: Partner-side device identifier.
+            googleAdvertisingId:
+              type: string
+              description: Google Advertising ID (GAID); Android clients.
+            idfa:
+              type: string
+              description: Identifier for Advertisers (IDFA); iOS clients.
+            idfv:
+              type: string
+              description: Identifier for Vendor (IDFV); iOS clients.
+            utdid:
+              type: string
+            isRoot:
+              type: boolean
+            androidId:
+              type: string
+            build:
+              type: object
+              description: Android `Build.*` fields; required for Android clients.
+              properties:
+                board:
+                  type: string
+                brand:
+                  type: string
+                cpuAbi:
+                  type: string
+                device:
+                  type: string
+                manufacturer:
+                  type: string
+                model:
+                  type: string
+                product:
+                  type: string
+        wifiList:
+          type: array
+          description: Visible Wi-Fi networks at submission time.
+          items:
+            type: object
+            properties:
+              ssid:
+                type: string
+        ipAddress:
+          type: object
+          properties:
+            ethIp:
+              type: string
+            trueIp:
+              type: string
+    PaymentOrderType:
+      type: string
+      description: Order business line that determines merchant and risk field semantics.
+      enum:
+      - TRANSPORT
+      - GRAB_FOOD
+      - GRAB_MART
+      - SPECIALIZED_DELIVERY
+    CreditSceneType:
+      type: string
+      description: Entry scene where the user started the credit application on the partner UI.
+      enum:
+      - PRODUCT_LANDING_PAGE
+      - PROMO_BANNER_PAGE
+      - MARKETING_PUSH_ENTRY
+      - CHECKOUT_PAGE
+      - WALLET_DASHBOARD_ENTRY
+    CreditProfile:
+      type: string
+      description: '**Important — example for reference only.** Partner and Atome must align on the risk-control JSON field set and semantics during integration. **Do not treat the sample payload below as the final contract**; it illustrates one possible shape only.<br/><br/>
+
+        Example (illustrative): `{"creditAmount":{"currency":"IDR","lower":90000000,"upper":140000000},"extendedFeatures":[{"crowd_id":["encoded_id_1","encoded_id_2","encoded_id_3"],"crowd_date":"20240311","isLive":""}],"modelScores":[{"scoreType":"application_model","scoreValue":"31","version":"v1.0"}]}`
+
+        '
     AuthorizationErrorResponse:
       type: object
       description: 'Standard error envelope for signature or authentication failures.
@@ -3675,6 +3704,10 @@ components:
 
             `OVERPAID_REPAYMENT`: Repayment<br/>
 
+            `OVERPAID_WITHDRAW_ONLINE`: Overpaid withdraw online<br/>
+
+            `OVERPAID_WITHDRAW_OFFLINE`: Overpaid withdraw offline<br/>
+
             `FIXED_CREDIT_LIMIT_BOOST`: Risk control actively adjusts the fixed amount<br/>
 
             `FIXED_CREDIT_LIMIT_DECREASE`: Risk control actively adjusts the fixed amount<br/>
@@ -3720,17 +3753,11 @@ components:
           description: Timestamp(unix millisecond)
         event:
           type: string
-          description: '`NORMAL`: The user initiates repayment through the partner<br/>
-
-            `ATOME_REPAYMENT`: The user initiates repayment through the ATOME channel.<br/>
-
-            `OVERPAID_REPAYMENT`: The repayment use overpaid balance, triggered by ATOME.<br/>
+          description: '`NORMAL`: Partner-initiated repayment.<br/>
 
             '
           enum:
           - NORMAL
-          - ATOME_REPAYMENT
-          - OVERPAID_REPAYMENT
         accountChanges:
           $ref: '#/components/schemas/CommerceAccountChanges'
         extendInfo:
@@ -4002,7 +4029,7 @@ components:
 
             `SUCCESS`: application has been approved<br/>
 
-            `FAILED`: application has been rejected,recovery time in field ''reapplyTime''<br/>
+            `FAILED`: Application rejected; if applicable, `reapplyTime` indicates when the user may apply again.<br/>
 
             `PROCESSING`: application is under examination<br/>
 
@@ -4013,7 +4040,7 @@ components:
           - PROCESSING
         reapplyTime:
           type: integer
-          description: 'Timestamp(unix millisecond) that can be applied for again. Null if the application is not rejected. '
+          description: Unix timestamp in milliseconds when the user may submit a credit application again. Omitted or null when the application is not rejected.
         failReason:
           type: array
           description: 'Reasons for rejection: <br/>
@@ -4072,7 +4099,7 @@ components:
           - RISK_REJECTED
         reapplyTime:
           type: integer
-          description: reapply Timestamp in unix milliseconds, i.e. 1623052669233
+          description: Unix timestamp in milliseconds when the user may reapply for credit. Omitted when not applicable. Example `1623052669233`.
     AccountChangeCreditInfo:
       type: object
       properties:
@@ -4206,16 +4233,17 @@ components:
           $ref: '#/components/schemas/CommerceAccountChanges'
         extendInfo:
           type: object
+          description: Optional extension fields on `data`. When `status` is `FAILED` and `failureCode` is `RISK_REJECT`, may include `reapplyTime`.
           properties:
             reapplyTime:
               type: integer
-              description: reapply Timestamp in unix milliseconds, i.e. 1623052669233
+              description: Unix timestamp in milliseconds when the user may retry the operation. Omitted when not applicable. Example `1623052669233`.
             agreement:
               type: object
               properties:
                 agreementUrl:
                   type: string
-                  description: URL of Loan Agreement when available after payment succeeds (not while `status` is `PROCESSING`).
+                  description: Loan agreement URL when available after a successful capture (not while `status` is `PROCESSING`).
       required:
       - requestId
       - orderId
@@ -4594,9 +4622,6 @@ components:
         amount:
           type: integer
           description: sku total amount.The minimum denomination in Indonesia is Rupiah (IDR).
-        originalAmount:
-          type: number
-          description: Original amount of combined payment SKU
         discount:
           $ref: '#/components/schemas/Discount'
         merchantId:
@@ -4614,39 +4639,9 @@ components:
       - quantity
       - merchantId
       - categoryOneName
-    PaymentPreCheckSubOrder:
-      type: object
-      properties:
-        skuId:
-          type: string
-          description: product sku id
-          maxLength: 128
-        categoryId:
-          type: string
-          description: goods category id
-          maxLength: 128
-        categoryOneName:
-          type: string
-          description: Name of commodity class one, SKU level
-          maxLength: 128
-        quantity:
-          type: integer
-          description: quantity of goods
-        amount:
-          type: integer
-          description: sku total amount.The minimum denomination in Indonesia is Rupiah (IDR).
-        merchantId:
-          type: string
-          description: merchant id
-      required:
-      - categoryId
-      - skuId
-      - amount
-      - quantity
-      - merchantId
-      - categoryOneName
     PlanSubOrder:
       type: object
+      description: One SKU = one sub-order entry for payment plan.
       properties:
         subOrderId:
           type: string
@@ -4679,10 +4674,7 @@ components:
           description: quantity of goods
         amount:
           type: integer
-          description: sku total amount.The minimum denomination in Indonesia is Rupiah (IDR).
-        originalAmount:
-          type: number
-          description: Original amount of combined payment SKU
+          description: SKU / sub-order total amount in IDR (Rupiah). Minimum depends on selected installment tenor (1-month >= 1; 3-month >= 3).
         discounts:
           description: discounts
           type: array
@@ -4907,6 +4899,31 @@ components:
 
         '
       properties:
+        livenessCheck:
+          type: object
+          description: Liveness check result with the photo.
+          required:
+          - result
+          - snapshotPhoto
+          properties:
+            result:
+              type: string
+              description: Liveness check outcome.
+              enum:
+              - PASS
+              - FAIL
+            snapshotPhoto:
+              type: string
+              description: Base64-encoded liveness snapshot photo.
+            livenessCheckResult01:
+              type: string
+              description: Liveness score.
+            livenessCheckResult02:
+              type: string
+              description: Face quality score (`face_quality.score`).
+            livenessCheckResult03:
+              type: string
+              description: Action results from the liveness check (`action_results`).
         individualProfile:
           type: object
           description: KYC profile of the end user.
@@ -4941,10 +4958,13 @@ components:
                   description: Birth date (`yyyy-MM-dd`).
                 ocrProvince:
                   type: string
+                  description: Province on the ID as extracted by OCR.
                 ocrCity:
                   type: string
+                  description: City / regency on the ID as extracted by OCR.
                 ocrDistrict:
                   type: string
+                  description: District on the ID as extracted by OCR.
                 jobType:
                   type: string
                 ocrMaritalStatus:
@@ -4956,9 +4976,28 @@ components:
                   - WIDOWED
                   - SEPARATED
                   - OTHERS
+                manuallyExpiredDate:
+                  type: string
+                  description: Expiry date of the ID document.
+                manuallyCitizenship:
+                  type: string
+                  description: Citizenship or nationality as printed on the ID (OCR-extracted text).
+                manuallyRt:
+                  type: string
+                  description: RT (neighborhood unit) on the ID as extracted by OCR.
+                manuallyRw:
+                  type: string
+                  description: RW (community unit) on the ID as extracted by OCR.
             idFrontPhoto:
               type: string
-              description: Base64-encoded front-side photo of the ID document.
+              description: |-
+                Base64-encoded front-side photo of the ID document.
+
+                The services check and extract the necessary information from the uploaded images, hence please ensure the uploaded images satisfy the following criteria:
+                - Is in one of the following image formats: PNG / JPG / JPEG
+                - Below 2 MB file size
+                - Minimum resolution of 256 x 256
+                - Maximum resolution of 4096 x 4096
             manuallyEducation:
               type: string
               enum:
@@ -4969,99 +5008,18 @@ components:
               - BACHELOR
               - MASTER
               - PHD-DOCTOR
-        residential:
-          type: object
-          description: Residential address of the user (sample fields; subject to integration agreement).
-          properties:
-            province:
-              type: string
-            city:
-              type: string
-            district:
-              type: string
-            address:
-              type: string
-            zipCode:
-              type: string
-            village:
-              type: string
         platformInformation:
           type: object
           description: User information on the partner platform.
           properties:
-            userCreditScore:
-              type: number
-              format: double
-              description: Partner-side credit score, decimal between 0 and 1.
             creditProfile:
-              type: string
-              description: 'JSON string carrying partner risk model scores and engineered features,
-
-                e.g. `{"modelScores":[...],"features":[{"key":"...","value":"..."}]}`.
-
-                '
+              $ref: '#/components/schemas/CreditProfile'
+            sceneType:
+              $ref: '#/components/schemas/CreditSceneType'
             deviceInfo:
-              type: object
-              description: User's device information at the time of submission.
-              properties:
-                platform:
-                  type: string
-                  enum:
-                  - ANDROID
-                  - IOS
-                gps:
-                  type: object
-                  properties:
-                    longitude:
-                      type: string
-                    latitude:
-                      type: string
-                    time:
-                      type: string
-                      description: GPS sample time (Unix milliseconds, as string).
-                device:
-                  type: object
-                  properties:
-                    utdid:
-                      type: string
-                    isRoot:
-                      type: boolean
-                    androidId:
-                      type: string
-                    build:
-                      type: object
-                      description: Android `Build.*` fields; required for Android clients.
-                      properties:
-                        board:
-                          type: string
-                        brand:
-                          type: string
-                        cpuAbi:
-                          type: string
-                        device:
-                          type: string
-                        manufacturer:
-                          type: string
-                        model:
-                          type: string
-                        product:
-                          type: string
-                wifiList:
-                  type: array
-                  description: Visible Wi-Fi networks at submission time.
-                  items:
-                    type: object
-                    properties:
-                      ssid:
-                        type: string
-                ipAddress:
-                  type: object
-                  properties:
-                    ethIp:
-                      type: string
-                    trueIp:
-                      type: string
+              $ref: '#/components/schemas/PlatformDeviceInfo'
       required:
+      - livenessCheck
       - individualProfile
       - platformInformation
     BillOrder:
@@ -5198,15 +5156,13 @@ components:
           description: Timestamp(unix millisecond)
         event:
           type: string
-          description: 'Repayment type <br/>
+          description: 'Repayment type.<br/>
 
-            NORMAL: The user initiates repayment through partner
-
-            ATOME_REPAYMENT: The user initiates repayment through the ATOME channel.
-
-            OVERPAID_REPAYMENT:The repayment initiated by the overpaid is triggered by the ATOME side.
+            `NORMAL`: Partner-initiated repayment.
 
             '
+          enum:
+          - NORMAL
     BillDetail:
       type: object
       properties:
@@ -5485,19 +5441,13 @@ components:
           description: reactivation fee amount change due to repayment
         event:
           type: string
-          description: 'Repayment type <br/>
+          description: 'Repayment type.<br/>
 
-            NORMAL: The user initiates repayment through partner
-
-            ATOME_REPAYMENT: The user initiates repayment through the ATOME channel.
-
-            OVERPAID_REPAYMENT:The repayment initiated by the overpaid is triggered by the ATOME side.
+            `NORMAL`: Partner-initiated repayment.
 
             '
           enum:
           - NORMAL
-          - ATOME_REPAYMENT
-          - OVERPAID_REPAYMENT
         createTime:
           type: integer
           description: type is timestamp; repayment success time
@@ -5786,19 +5736,13 @@ components:
           description: reactivation fee amount change due to repayment
         event:
           type: string
-          description: 'Repayment type <br/>
+          description: 'Repayment type.<br/>
 
-            NORMAL: The user initiates repayment through partner
-
-            ATOME_REPAYMENT: The user initiates repayment through the ATOME channel.
-
-            OVERPAID_REPAYMENT:The repayment initiated by the overpaid is triggered by the ATOME side.
+            `NORMAL`: Partner-initiated repayment.
 
             '
           enum:
           - NORMAL
-          - ATOME_REPAYMENT
-          - OVERPAID_REPAYMENT
         createTime:
           type: integer
           description: type is timestamp; repayment success time

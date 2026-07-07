@@ -2,7 +2,6 @@ package credit
 
 import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
-	"github.com/atome-fin/atome-fin-go-sdk/atomefin/payment"
 )
 
 // Spec-stamped maxLength constraints. Used by the validators to
@@ -32,24 +31,8 @@ func validateCreditInformation(req *CreditInformationParam) error {
 	if len(req.ExternalReferenceUID) > maxExternalReferenceUID {
 		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "exceeds spec maxlength 64"}
 	}
-	if req.EventType == "" {
-		return &atomefin.ValidationError{Field: "eventType", Message: "required"}
-	}
-	// Permissive enum check: warn-but-pass on unknown values
-	// (mirrors atomefin.Currency.IsValid pattern). Strict rejection
-	// would block forward-compat additions like a new event-type
-	// the spec adds before the SDK rebuilds.
-	if req.EventType != EventTypeNewApplication && req.EventType != EventTypeSwitchApplication {
-		return &atomefin.ValidationError{
-			Field:   "eventType",
-			Message: "must be one of NEW_APPLICATION | SWITCH_APPLICATION",
-		}
-	}
-	if req.EventType != EventTypeNewApplication && req.MobileNumber == "" {
-		return &atomefin.ValidationError{
-			Field:   "mobileNumber",
-			Message: "required when eventType != NEW_APPLICATION",
-		}
+	if req.MobileNumber == "" {
+		return &atomefin.ValidationError{Field: "mobileNumber", Message: "required"}
 	}
 	if req.Email == "" {
 		return &atomefin.ValidationError{Field: "email", Message: "required"}
@@ -66,18 +49,22 @@ func validateCreditInformation(req *CreditInformationParam) error {
 			Message: "only ID is currently supported by the spec",
 		}
 	}
-	if req.ExtendInfo != nil {
-		if req.ExtendInfo.Language == "" {
-			return &atomefin.ValidationError{
-				Field:   "extendInfo.language",
-				Message: "required when extendInfo is present",
-			}
+	if req.ApplicationEssentialInfo == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo",
+			Message: "required",
 		}
-		if !req.ExtendInfo.Language.IsValid() {
-			return &atomefin.ValidationError{
-				Field:   "extendInfo.language",
-				Message: "must be one of en | id",
-			}
+	}
+	if req.ApplicationEssentialInfo.OCRResult == nil || req.ApplicationEssentialInfo.OCRResult.FullName == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.ocrResult.fullName",
+			Message: "required",
+		}
+	}
+	if req.ExtendInfo != nil && req.ExtendInfo.Language != "" && !req.ExtendInfo.Language.IsValid() {
+		return &atomefin.ValidationError{
+			Field:   "extendInfo.language",
+			Message: "must be one of en | id",
 		}
 	}
 	return nil
@@ -122,6 +109,24 @@ func validateCreditApplication(req *CreditApplicationParam) error {
 			Message: "required",
 		}
 	}
+	if req.ApplicationEssentialInfo.LivenessCheck == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.livenessCheck",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.LivenessCheck.Result == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.livenessCheck.result",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.LivenessCheck.SnapshotPhoto == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.livenessCheck.snapshotPhoto",
+			Message: "required",
+		}
+	}
 	if req.ApplicationEssentialInfo.IndividualProfile == nil {
 		return &atomefin.ValidationError{
 			Field:   "applicationEssentialInfo.individualProfile",
@@ -132,17 +137,6 @@ func validateCreditApplication(req *CreditApplicationParam) error {
 		return &atomefin.ValidationError{
 			Field:   "applicationEssentialInfo.platformInformation",
 			Message: "required",
-		}
-	}
-	// userCreditScore is in [0, 1] when set; reuse payment.IsValidScore
-	// so the rule cannot drift between credit-application and
-	// auth/capture/precheck/plan validators.
-	if pi := req.ApplicationEssentialInfo.PlatformInformation; pi != nil {
-		if !payment.IsValidScore(pi.UserCreditScore) {
-			return &atomefin.ValidationError{
-				Field:   "applicationEssentialInfo.platformInformation.userCreditScore",
-				Message: "must be in [0, 1] (per spec)",
-			}
 		}
 	}
 	if req.ExtendInfo == nil {

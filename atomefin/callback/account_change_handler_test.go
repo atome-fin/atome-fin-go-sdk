@@ -13,7 +13,6 @@ import (
 
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/callback"
-	"github.com/atome-fin/atome-fin-go-sdk/atomefin/payment"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/sign"
 )
 
@@ -22,7 +21,7 @@ import (
 func TestAccountChangeHandler_HappyPath(t *testing.T) {
 	h := newHarness(t)
 
-	body := []byte(`{"code":"SUCCESS","message":"account state changed","data":{"eventId":"ACE-1","externalReferenceUid":"user-42","eventTime":1746748800000,"accountChanges":{"version":1746748800000,"externalReferenceUid":"user-42","previousStatus":"NORMAL","currentStatus":"NORMAL","totalCreditChange":5000000,"usedCreditChange":0,"frozenCreditChange":0,"availableCreditChange":5000000,"overpaidAmountChange":0,"lateFeeAmountChange":0,"interestAmountChange":0}}}`)
+	body := []byte(`{"callbackRequestId":"ACE-1","externalReferenceUid":"user-42","externalRequestId":"REQ-1","event":"FIXED_CREDIT_LIMIT_BOOST","scene":"CREDIT_LIMIT_ADJUSTMENT","previousStatus":"NORMAL","currentStatus":"NORMAL","currency":"IDR","amountChange":5000000,"version":1746748800000,"creditInfo":{"totalCredit":35000000,"availableCredit":35000000,"usedCredit":0,"userStatus":"NORMAL"}}`)
 
 	var seen *callback.AccountChangeEvent
 	handler := callback.AccountChangeHandler(h.verifier, func(ctx context.Context, e *callback.AccountChangeEvent) error {
@@ -52,14 +51,14 @@ func TestAccountChangeHandler_HappyPath(t *testing.T) {
 	if seen == nil {
 		t.Fatal("user handler was not invoked")
 	}
-	if seen.Data == nil || seen.Data.EventID != "ACE-1" {
-		t.Errorf("event Data = %#v", seen.Data)
+	if seen.CallbackRequestID != "ACE-1" {
+		t.Errorf("CallbackRequestID = %q", seen.CallbackRequestID)
 	}
-	if seen.Data.AccountChanges == nil {
-		t.Fatal("AccountChanges nil — credit-change vector should round-trip")
+	if seen.CreditInfo == nil {
+		t.Fatal("CreditInfo nil")
 	}
-	if seen.Data.AccountChanges.AvailableCreditChange != 5000000 {
-		t.Errorf("AvailableCreditChange = %d", seen.Data.AccountChanges.AvailableCreditChange)
+	if seen.AmountChange != 5000000 {
+		t.Errorf("AmountChange = %d", seen.AmountChange)
 	}
 }
 
@@ -105,7 +104,7 @@ func TestAccountChangeHandler_MultiCert_OldKeyStillVerifies(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := []byte(`{"code":"SUCCESS","message":"account state changed","data":{"eventId":"ACE-1","externalReferenceUid":"user-42","eventTime":1,"accountChanges":{"version":1,"externalReferenceUid":"user-42","previousStatus":"NORMAL","currentStatus":"NORMAL","totalCreditChange":0,"usedCreditChange":0,"frozenCreditChange":0,"availableCreditChange":0,"overpaidAmountChange":0,"lateFeeAmountChange":0,"interestAmountChange":0}}}`)
+	body := []byte(`{"callbackRequestId":"ACE-1","externalReferenceUid":"user-42","event":"ATOME_CONTROL","scene":"ACCOUNT_STATUS_CHANGE","currency":"IDR","version":1,"creditInfo":{"totalCredit":1,"availableCredit":1,"usedCredit":0,"userStatus":"NORMAL"}}`)
 	sig, _ := signer.Sign(context.Background(), body)
 
 	r := httptest.NewRequest(http.MethodPost, "/atome/account-change", bytes.NewReader(body))
@@ -130,7 +129,7 @@ func TestAccountChangeHandler_MultiCert_OldKeyStillVerifies(t *testing.T) {
 
 func TestAccountChangeHandler_ReplayInvokesUserFnTwice(t *testing.T) {
 	h := newHarness(t)
-	body := []byte(`{"code":"SUCCESS","message":"x","data":{"eventId":"ACE-DUP","externalReferenceUid":"u","eventTime":1,"accountChanges":{"version":1,"externalReferenceUid":"u","previousStatus":"NORMAL","currentStatus":"NORMAL","totalCreditChange":0,"usedCreditChange":0,"frozenCreditChange":0,"availableCreditChange":0,"overpaidAmountChange":0,"lateFeeAmountChange":0,"interestAmountChange":0}}}`)
+	body := []byte(`{"callbackRequestId":"ACE-DUP","externalReferenceUid":"u","event":"ATOME_CONTROL","scene":"ACCOUNT_STATUS_CHANGE","currency":"IDR","version":1,"creditInfo":{"totalCredit":1,"availableCredit":1,"usedCredit":0,"userStatus":"NORMAL"}}`)
 
 	var calls int32
 	handler := callback.AccountChangeHandler(h.verifier, func(ctx context.Context, e *callback.AccountChangeEvent) error {
@@ -154,7 +153,7 @@ func TestAccountChangeHandler_ReplayInvokesUserFnTwice(t *testing.T) {
 
 func TestAccountChangeHandler_500OnUserError(t *testing.T) {
 	h := newHarness(t)
-	body := []byte(`{"code":"SUCCESS","message":"x","data":{"eventId":"ACE-1","externalReferenceUid":"u","eventTime":1,"accountChanges":{"version":1,"externalReferenceUid":"u","previousStatus":"NORMAL","currentStatus":"NORMAL","totalCreditChange":0,"usedCreditChange":0,"frozenCreditChange":0,"availableCreditChange":0,"overpaidAmountChange":0,"lateFeeAmountChange":0,"interestAmountChange":0}}}`)
+	body := []byte(`{"callbackRequestId":"ACE-1","externalReferenceUid":"u","event":"ATOME_CONTROL","scene":"ACCOUNT_STATUS_CHANGE","currency":"IDR","version":1,"creditInfo":{"totalCredit":1,"availableCredit":1,"usedCredit":0,"userStatus":"NORMAL"}}`)
 
 	rec := httptest.NewRecorder()
 	callback.AccountChangeHandler(h.verifier, func(ctx context.Context, e *callback.AccountChangeEvent) error {
@@ -203,22 +202,17 @@ func TestAccountChangeHandler_DecodesFixture_BalanceIncrease(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if seen == nil || seen.Data == nil {
+	if seen == nil {
 		t.Fatal("event data nil")
 	}
-	if seen.Data.AccountChanges.TotalCreditChange != 5000000 {
-		t.Errorf("TotalCreditChange = %d", seen.Data.AccountChanges.TotalCreditChange)
+	if seen.AmountChange != 5000000 {
+		t.Errorf("AmountChange = %d", seen.AmountChange)
 	}
-	if seen.Data.ExtendInfo == nil || seen.Data.ExtendInfo.Reason != "credit-limit-increase" {
-		t.Errorf("ExtendInfo = %#v", seen.Data.ExtendInfo)
+	if seen.ExtendInfo == nil || seen.ExtendInfo.CreditLimitAdjustmentReason != "PERMANENT_CREDIT_INCREASE" {
+		t.Errorf("ExtendInfo = %#v", seen.ExtendInfo)
 	}
 }
 
-// Q24 position-scoped enum: currentStatus = ACCOUNT_CLOSED is valid;
-// previousStatus = ACCOUNT_CLOSED would be invalid (caught by
-// payment.IsValidPreviousStatus). The status-close fixture pairs
-// previousStatus=ACCOUNT_BLOCKED_OVERDUE with currentStatus=
-// ACCOUNT_CLOSED, which is the canonical close transition.
 func TestAccountChangeHandler_DecodesFixture_StatusClose_Q24(t *testing.T) {
 	h := newHarness(t)
 	body := readFile(t, "../../qa/testdata/callback_account_change_status_close.json")
@@ -233,41 +227,26 @@ func TestAccountChangeHandler_DecodesFixture_StatusClose_Q24(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if seen == nil || seen.Data == nil || seen.Data.AccountChanges == nil {
+	if seen == nil {
 		t.Fatal("event data nil")
 	}
-	ac := seen.Data.AccountChanges
-
 	// Sanity: this is the spec-canonical close transition.
-	if ac.PreviousStatus != atomefin.AccountStatusBlockedOverdue {
-		t.Errorf("previousStatus = %q, want ACCOUNT_BLOCKED_OVERDUE", ac.PreviousStatus)
+	if seen.PreviousStatus != atomefin.AccountStatusBlockedOverdue {
+		t.Errorf("previousStatus = %q, want ACCOUNT_BLOCKED_OVERDUE", seen.PreviousStatus)
 	}
-	if ac.CurrentStatus != atomefin.AccountStatusClosed {
-		t.Errorf("currentStatus = %q, want ACCOUNT_CLOSED", ac.CurrentStatus)
-	}
-
-	// Q24 position-scoped rule still holds:
-	if !payment.IsValidPreviousStatus(ac.PreviousStatus) {
-		t.Error("previousStatus must validate for the close transition")
-	}
-	if !payment.IsValidCurrentStatus(ac.CurrentStatus) {
-		t.Error("currentStatus must validate (ACCOUNT_CLOSED is allowed only on currentStatus)")
-	}
-	// Negative-pin: swapping ACCOUNT_CLOSED into the previousStatus
-	// slot would fail validation.
-	if payment.IsValidPreviousStatus(atomefin.AccountStatusClosed) {
-		t.Error("Q24 invariant broken: ACCOUNT_CLOSED must NOT be valid for previousStatus")
+	if seen.CurrentStatus != atomefin.AccountStatusClosed {
+		t.Errorf("currentStatus = %q, want ACCOUNT_CLOSED", seen.CurrentStatus)
 	}
 }
 
 // ---------- AccountChangeEvent.IsSuccess helper ----------
 
 func TestAccountChangeEvent_IsSuccess(t *testing.T) {
-	if (&callback.AccountChangeEvent{Code: atomefin.CodeSuccess}).IsSuccess() != true {
-		t.Error("SUCCESS envelope must report IsSuccess = true")
+	if (&callback.AccountChangeEvent{CallbackRequestID: "cb-1"}).IsSuccess() != true {
+		t.Error("non-empty callbackRequestId must report IsSuccess = true")
 	}
-	if (&callback.AccountChangeEvent{Code: atomefin.CodeServerError}).IsSuccess() != false {
-		t.Error("SERVER_ERROR envelope must report IsSuccess = false")
+	if (&callback.AccountChangeEvent{}).IsSuccess() != false {
+		t.Error("empty event must report IsSuccess = false")
 	}
 	var nilEvent *callback.AccountChangeEvent
 	if nilEvent.IsSuccess() != false {

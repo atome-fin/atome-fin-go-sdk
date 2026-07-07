@@ -91,11 +91,11 @@ func specSampleCreditInformationParam() *credit.CreditInformationParam {
 	return &credit.CreditInformationParam{
 		RequestID:            "r-spec-info",
 		ExternalReferenceUID: "u-spec-1",
-		EventType:            credit.EventTypeNewApplication,
+		MobileNumber:         "+6281298000000",
 		Email:                "spec@example.com",
 		Country:              credit.CountryIndonesia,
-		ExtendInfo: &credit.CreditInformationExtendInfo{
-			Language: credit.LanguageEnglish,
+		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
+			OCRResult: &credit.CreditInformationOCRResult{FullName: "Spec User"},
 		},
 	}
 }
@@ -108,6 +108,10 @@ func specSampleCreditApplicationParam() *credit.CreditApplicationParam {
 		Email:                "spec@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.ApplicationEssentialInfo{
+			LivenessCheck: &credit.LivenessCheck{
+				Result:        "PASS",
+				SnapshotPhoto: "base64-photo",
+			},
 			IndividualProfile:   &credit.IndividualProfile{IDType: "KTP"},
 			PlatformInformation: &credit.PlatformInformation{},
 		},

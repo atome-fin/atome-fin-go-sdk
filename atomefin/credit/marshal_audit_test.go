@@ -56,8 +56,7 @@ func TestCallback_CreditInformation_Roundtrip(t *testing.T) {
 }
 
 func TestCallback_CreditApplication_Roundtrip(t *testing.T) {
-	// Callback body == /credit-result envelope; same type.
-	marshal.GoldenRoundTrip[credit.CreditApplicationResponse](t, fixtureRoot+"callback_credit_application_terminal_success.json")
+	marshal.GoldenRoundTrip[credit.CreditApplicationResult](t, fixtureRoot+"callback_credit_application_terminal_success.json")
 }
 
 // ---------- /query-balance-history (paginated-list pattern) ----------
@@ -183,7 +182,7 @@ func TestR12_CreditApplicationResult_IntegerLiterals(t *testing.T) {
 
 func TestR3_CreditInformationParam_OmitsExtendInfo(t *testing.T) {
 	marshal.AssertOmitemptyZero[credit.CreditInformationParam](t,
-		"extendInfo", "mobileNumber",
+		"extendInfo",
 	)
 }
 
@@ -197,7 +196,8 @@ func TestR3_CloseAccountResponse_OmitsNothing(t *testing.T) {
 
 func TestR4_CreditInformationParam_RequiredEmitsAtZero(t *testing.T) {
 	marshal.AssertRequiredEmits[credit.CreditInformationParam](t,
-		"requestId", "externalReferenceUid", "eventType", "email", "country",
+		"requestId", "externalReferenceUid", "mobileNumber", "email", "country",
+		"applicationEssentialInfo",
 	)
 }
 

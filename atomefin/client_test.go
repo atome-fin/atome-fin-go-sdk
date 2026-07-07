@@ -150,13 +150,13 @@ func TestNewDefaultsBaseURLFromEnvironment(t *testing.T) {
 	key := mustGenKey(t)
 	c, err := New(
 		WithPrivateKeyPEM(mustPEM(t, key)),
-		WithEnvironment(EnvTest),
+		WithEnvironment(EnvPre),
 		WithPartnerID("p"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, _ := BaseURL(EnvTest)
+	want, _ := BaseURL(EnvPre)
 	if c.BaseURL() != want {
 		t.Errorf("BaseURL = %q, want %q", c.BaseURL(), want)
 	}
@@ -185,7 +185,7 @@ func TestNewMutuallyExclusiveSigners(t *testing.T) {
 		WithSigner(signer),
 		WithPrivateKeyPEM(mustPEM(t, key)),
 		WithPartnerID("p"),
-		WithEnvironment(EnvTest),
+		WithEnvironment(EnvPre),
 	)
 	if err == nil {
 		t.Fatal("expected error when both WithSigner and WithPrivateKeyPEM are passed")

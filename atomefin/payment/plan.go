@@ -9,36 +9,49 @@ import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
 )
 
-// PaymentPlanRequest is the POST /payment-plan body. v0.2 chunk #7
-// (pre-checkout). Run this BEFORE /auth to retrieve the available
-// installment-plan options (tenors + per-month breakdown) for a
+// PaymentPlanRequest is the POST /payment-plan body. Run this BEFORE
+// /auth to retrieve the available installment-plan options for a
 // proposed transaction.
-//
-// The server returns one CommerceInstallmentPlan per offered
-// `periodType`; partners surface the choice to the user, the user
-// picks a tenor, the partner submits /auth with that periodType
-// (and `subOrders` matching the plan input).
 type PaymentPlanRequest struct {
-	// RequestID is partner-generated; max 64 chars.
-	RequestID string `json:"requestId"` // max 64
+	// RequestID is client-side only for idempotency logging; not in the
+	// spec body. Populated by the SDK when empty before the network call.
+	RequestID string `json:"-"`
 	// ExternalReferenceUID is the partner's user identifier.
 	ExternalReferenceUID string `json:"externalReferenceUid"`
 	// TotalAmount in minor units; Σ(SubOrders[].Amount) must equal.
 	TotalAmount atomefin.Amount `json:"totalAmount"`
-	// Currency. v0.1.1 enum-locked to IDR.
-	Currency atomefin.Currency `json:"currency"`
 	// SubOrders enumerates the cart contents to plan against.
 	SubOrders []PlanSubOrder `json:"subOrders"`
-	// ExtendInfo (re-uses RequestExtendInfo).
-	ExtendInfo *RequestExtendInfo `json:"extendInfo,omitempty"`
+	// ExtendInfo carries optional checkout extension fields.
+	ExtendInfo *CheckoutExtendInfo `json:"extendInfo,omitempty"`
+
+	// Sessionid is the per-checkout session token. Required for
+	// /payment-plan, ≤ 64 chars. Travels in the HTTP header, not
+	// the JSON body (json:"-").
+	Sessionid string `json:"-"` // max 64
 }
 
-// PlanSubOrder is one cart line on a plan request. Smaller than
-// the full SubOrder — plan only needs the amount-bearing fields.
+// CheckoutExtendInfo is the extendInfo bag on /payment-plan (and
+// optionally other checkout endpoints).
+type CheckoutExtendInfo struct {
+	OrderType PaymentOrderType `json:"orderType,omitempty"`
+	RiskInfo  *PaymentRiskInfo `json:"riskInfo,omitempty"`
+}
+
+// PlanSubOrder is one cart line on a plan or pre-check request.
+// Field set aligns with the spec's PlanSubOrder schema (one SKU = one
+// sub-order) and mirrors the commerce-domain required fields on /auth.
 type PlanSubOrder struct {
-	SubOrderID string          `json:"subOrderId"`
-	Amount     atomefin.Amount `json:"amount"`
-	Quantity   int             `json:"quantity"`
+	SubOrderID      string              `json:"subOrderId"`
+	SkuID           string              `json:"skuId"`
+	SkuName         string              `json:"skuName,omitempty"`
+	CategoryID      string              `json:"categoryId"`
+	CategoryOneName string              `json:"categoryOneName"`
+	CategoryCodes   []string            `json:"categoryCodes,omitempty"`
+	Quantity        int                 `json:"quantity"`
+	Amount          atomefin.Amount     `json:"amount"`
+	MerchantID      string              `json:"merchantId"`
+	ExtendInfo      *SubOrderExtendInfo `json:"extendInfo,omitempty"`
 }
 
 // PaymentPlanResponse is the POST /payment-plan envelope.
@@ -49,63 +62,74 @@ type PaymentPlanResponse struct {
 }
 
 // PaymentPlanData is the `data` body of PaymentPlanResponse.
-//
-// Plans is bare `json:"plans"` (no `,omitempty`) per the
-// paginated-list pattern codified in v0.2 chunk #3 (bill): an
-// empty plan list (e.g., user not eligible) round-trips as `[]`
-// rather than disappearing — partner code reading data.plans
-// shouldn't need to nil-check on a 0-tenor response.
 type PaymentPlanData struct {
-	RequestID            string                    `json:"requestId"`
-	ExternalReferenceUID string                    `json:"externalReferenceUid,omitempty"`
-	Plans                []CommerceInstallmentPlan `json:"plans"`
+	Currency                 atomefin.Currency                  `json:"currency,omitempty"`
+	SubOrderInstallmentPlans []CommerceSubOrderInstallmentPlans `json:"subOrderInstallmentPlans"`
+	ExtendInfo               *PaymentPlanDataExtendInfo         `json:"extendInfo,omitempty"`
 }
 
-// CommerceInstallmentPlan is one tenor option returned by
-// /payment-plan. Each plan describes the per-month cash-flow for a
-// given `periodType` (installment count). Partners typically
-// surface the list to the user; the user picks one; the partner
-// uses the selected `periodType` on the subsequent /auth.
-//
-// Distinct from `payment.InstallmentPlan` (which is the per-sub-
-// order schedule returned by /auth/capture's response data) —
-// `CommerceInstallmentPlan` is the pre-checkout option-list shape.
+// CommerceSubOrderInstallmentPlans groups plan options for one sub-order.
+type CommerceSubOrderInstallmentPlans struct {
+	SubOrderID       string                    `json:"subOrderId"`
+	OrderAmount      atomefin.Amount           `json:"orderAmount"`
+	InstallmentPlans []CommerceInstallmentPlan `json:"installmentPlans"`
+}
+
+// PaymentPlanDataExtendInfo carries aggregate order-level installment plans.
+type PaymentPlanDataExtendInfo struct {
+	SumOrderInstallmentPlans *SumOrderInstallmentPlans `json:"sumOrderInstallmentPlans,omitempty"`
+}
+
+// SumOrderInstallmentPlans groups aggregate order-level plan options.
+type SumOrderInstallmentPlans struct {
+	SumOrderAmount   atomefin.Amount           `json:"sumOrderAmount,omitempty"`
+	InstallmentPlans []SumOrderInstallmentPlan `json:"installmentPlans,omitempty"`
+}
+
+// SumOrderInstallmentPlan is one aggregate order-level tenor option.
+type SumOrderInstallmentPlan struct {
+	TotalTenor             int                         `json:"totalTenor"`
+	SumOrderRepayAmount    atomefin.Amount             `json:"sumOrderRepayAmount"`
+	SumOrderInterestAmount atomefin.Amount             `json:"sumOrderInterestAmount"`
+	SumOrderDiscountAmount atomefin.Amount             `json:"sumOrderDiscountAmount"`
+	InstallmentDetails     []SumOrderInstallmentDetail `json:"installmentDetails"`
+}
+
+// SumOrderInstallmentDetail is one aggregate installment row.
+type SumOrderInstallmentDetail struct {
+	TotalTenor      int             `json:"totalTenor"`
+	CurrentTenor    int             `json:"currentTenor"`
+	RepayAmount     atomefin.Amount `json:"repayAmount"`
+	PrincipalAmount atomefin.Amount `json:"principalAmount"`
+	InterestAmount  atomefin.Amount `json:"interestAmount"`
+	DiscountAmount  atomefin.Amount `json:"discountAmount,omitempty"`
+	BillID          string          `json:"billId"`
+	BillDate        string          `json:"billDate"`
+	DueDate         string          `json:"dueDate"`
+}
+
+// CommerceInstallmentPlan is one sub-order tenor option returned by
+// /payment-plan.
 type CommerceInstallmentPlan struct {
-	// PeriodType is the installment count (1, 3, 6, 9, 12 per
-	// DESIGN.md §1.5).
-	PeriodType int `json:"periodType"`
-	// Currency for this plan's amount fields. Always matches the
-	// request's Currency at v0.1.1 (IDR-only); kept on each plan
-	// row for forward-compat with multi-currency v2.
-	Currency atomefin.Currency `json:"currency"`
-	// TotalAmount is the total the user will pay over the plan
-	// (= principal + fees + interest, summed across installments).
-	TotalAmount atomefin.Amount `json:"totalAmount"`
-	// TotalFee is the partner-facing fee surface (informational —
-	// fees may be split into Fee + Interest on Installments[]).
-	TotalFee atomefin.Amount `json:"totalFee,omitempty"`
-	// Installments is the per-month breakdown. Optional — some
-	// servers return only the aggregate. When present, length
-	// equals PeriodType.
-	Installments []CommerceInstallmentDetail `json:"installments,omitempty"`
+	TotalTenor          int                         `json:"totalTenor"`
+	OrderRepayAmount    atomefin.Amount             `json:"orderRepayAmount"`
+	OrderInterestAmount atomefin.Amount             `json:"orderInterestAmount"`
+	OrderDiscountAmount atomefin.Amount             `json:"orderDiscountAmount"`
+	InstallmentDetails  []CommerceInstallmentDetail `json:"installmentDetails"`
 }
 
-// CommerceInstallmentDetail is one row of a CommerceInstallmentPlan's
-// per-month breakdown. Each row sums to `Amount = Principal + Fee +
-// Interest`.
-//
-// Distinct from `payment.InstallmentDetail` (which is the per-
-// installment row inside response.data.subOrderInstallmentPlans) —
-// `CommerceInstallmentDetail` is the pre-checkout plan-row shape.
+// CommerceInstallmentDetail is one row of a sub-order installment plan.
 type CommerceInstallmentDetail struct {
-	InstallmentID string `json:"installmentId"`
-	// DueDate is yyyy-MM-dd. TZ unspecified per DESIGN §13/Q11.
-	DueDate   string          `json:"dueDate"`
-	Principal atomefin.Amount `json:"principal"`
-	Fee       atomefin.Amount `json:"fee"`
-	Interest  atomefin.Amount `json:"interest"`
-	// Amount is the row total — equal to principal + fee + interest.
-	Amount atomefin.Amount `json:"amount"`
+	SubOrderID      string          `json:"subOrderId"`
+	TotalTenor      int             `json:"totalTenor"`
+	CurrentTenor    int             `json:"currentTenor"`
+	RepayAmount     atomefin.Amount `json:"repayAmount"`
+	PrincipalAmount atomefin.Amount `json:"principalAmount"`
+	InterestAmount  atomefin.Amount `json:"interestAmount"`
+	DiscountAmount  atomefin.Amount `json:"discountAmount,omitempty"`
+	BillID          string          `json:"billId"`
+	BillDate        string          `json:"billDate"`
+	DueDate         string          `json:"dueDate"`
 }
 
 // PaymentPlan submits POST /payment-plan. Auto-mints RequestID
@@ -128,7 +152,11 @@ func (s *Service) PaymentPlan(ctx context.Context, req *PaymentPlanRequest) (*Pa
 	if err != nil {
 		return nil, &atomefin.SignatureError{Reason: "marshal", Err: err}
 	}
-	resp, err := s.c.DoSigned(ctx, http.MethodPost, "/payment-plan", body)
+	opts := []atomefin.DoSignedOption{}
+	if req.Sessionid != "" {
+		opts = append(opts, atomefin.WithRequestHeader("sessionid", req.Sessionid))
+	}
+	resp, err := s.c.DoSigned(ctx, http.MethodPost, "/payment-plan", body, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -158,25 +186,13 @@ func validatePaymentPlanRequest(req *PaymentPlanRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
-	if req.Currency == "" {
-		return &atomefin.ValidationError{Field: "currency", Message: "required"}
-	}
-	if !req.Currency.IsValid() {
-		return &atomefin.ValidationError{Field: "currency", Message: "must be IDR (Q10 enum-locked at v0.1.1)"}
-	}
 	if len(req.SubOrders) == 0 {
 		return &atomefin.ValidationError{Field: "subOrders", Message: "must be non-empty"}
 	}
 	var sum atomefin.Amount
 	for _, so := range req.SubOrders {
-		if so.SubOrderID == "" {
-			return &atomefin.ValidationError{Field: "subOrders[].subOrderId", Message: "required"}
-		}
-		if so.Amount <= 0 {
-			return &atomefin.ValidationError{Field: "subOrders[].amount", Message: "must be > 0 (minor units)"}
-		}
-		if so.Quantity < 1 {
-			return &atomefin.ValidationError{Field: "subOrders[].quantity", Message: "must be >= 1"}
+		if err := validatePlanSubOrder(so); err != nil {
+			return err
 		}
 		sum += so.Amount
 	}
@@ -186,8 +202,11 @@ func validatePaymentPlanRequest(req *PaymentPlanRequest) error {
 			Message: "must equal sum of subOrders[].amount",
 		}
 	}
-	if req.ExtendInfo != nil && !IsValidScore(req.ExtendInfo.UserCreditScore) {
-		return &atomefin.ValidationError{Field: "extendInfo.userCreditScore", Message: "must be in [0, 1]"}
+	if req.Sessionid == "" {
+		return &atomefin.ValidationError{Field: "sessionid", Message: "required (HTTP header on /payment-plan)"}
+	}
+	if len(req.Sessionid) > 64 {
+		return &atomefin.ValidationError{Field: "sessionid", Message: "exceeds spec maxlength 64"}
 	}
 	return nil
 }

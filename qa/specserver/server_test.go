@@ -206,8 +206,8 @@ func TestServer_POST_RejectsMissingNestedRequired(t *testing.T) {
 	if len(failures) != 1 {
 		t.Fatalf("failures = %d, want 1", len(failures))
 	}
-	if !strings.Contains(failures[0].Field, "subOrderId") {
-		t.Errorf("field = %q; want subOrderId reference", failures[0].Field)
+	if !strings.Contains(failures[0].Field, "categoryId") {
+		t.Errorf("field = %q; want categoryId reference", failures[0].Field)
 	}
 }
 

@@ -78,7 +78,7 @@ func TestService_Refund_Success(t *testing.T) {
 		gotBody, _ = io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"refunded","data":{"requestId":"r-1","externalReferenceUid":"u-1","authOrderId":"AUTH-1","refundOrderId":"RFD-1","currency":"IDR","refundAmount":1000,"status":"SUCCESS"}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"refunded","data":{"requestId":"r-1","captureRequestId":"CAP-1","refundId":"RFD-1","currency":"IDR","refundAmount":1000,"status":"SUCCESS"}}`))
 	}))
 	defer srv.Close()
 
@@ -98,8 +98,8 @@ func TestService_Refund_Success(t *testing.T) {
 	if !resp.IsTerminal() {
 		t.Error("expected terminal")
 	}
-	if resp.Data.RefundOrderID != "RFD-1" {
-		t.Errorf("RefundOrderID = %q", resp.Data.RefundOrderID)
+	if resp.Data.RefundID != "RFD-1" {
+		t.Errorf("RefundID = %q", resp.Data.RefundID)
 	}
 	if gotPath != "/refund" {
 		t.Errorf("path = %q, want /refund", gotPath)
@@ -174,7 +174,7 @@ func TestService_QueryRefund_Success(t *testing.T) {
 			t.Errorf("method = %s, want GET", r.Method)
 		}
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","externalReferenceUid":"u-1","authOrderId":"AUTH-1","refundOrderId":"RFD-1","currency":"IDR","refundAmount":1000,"status":"SUCCESS"}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","captureRequestId":"CAP-1","refundId":"RFD-1","currency":"IDR","refundAmount":1000,"status":"SUCCESS"}}`))
 	}))
 	defer srv.Close()
 
@@ -221,11 +221,11 @@ func TestService_RefundPollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 		n := atomic.AddInt32(&hits, 1)
 		if n < 2 {
 			w.WriteHeader(200)
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","externalReferenceUid":"u-1","authOrderId":"AUTH-1","refundOrderId":"RFD-1","currency":"IDR","refundAmount":1,"status":"PROCESSING"}}`))
+			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","captureRequestId":"CAP-1","refundId":"RFD-1","currency":"IDR","refundAmount":1,"status":"PROCESSING"}}`))
 			return
 		}
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","externalReferenceUid":"u-1","authOrderId":"AUTH-1","refundOrderId":"RFD-1","currency":"IDR","refundAmount":1,"status":"SUCCESS"}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","captureRequestId":"CAP-1","refundId":"RFD-1","currency":"IDR","refundAmount":1,"status":"SUCCESS"}}`))
 	}))
 	defer srv.Close()
 

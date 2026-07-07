@@ -22,7 +22,7 @@
 //
 //	c, err := atomefin.New(
 //	    atomefin.WithPrivateKeyPEM(privKeyPEM),
-//	    atomefin.WithEnvironment(atomefin.EnvTest),
+//	    atomefin.WithEnvironment(atomefin.EnvPre),
 //	    atomefin.WithPartnerID("partner-foo"),
 //	)
 //	if err != nil { log.Fatal(err) }
@@ -37,8 +37,8 @@
 // configuration for each via a functional Option so partners can update
 // without an SDK release once the partner confirms.
 //
-//   - Q1 — Final base URLs per environment. EnvTest/EnvPre/EnvProd are wired
-//     to the spec placeholders; partners with a confirmed gateway URL pass
+//   - Q1 — Final base URLs per environment. EnvPre/EnvProd are wired to the
+//     partner gateway URLs; partners with a different gateway URL pass
 //     WithBaseURL to override.
 //   - Q2 — Authorization header format. Default is SchemeRawBase64 (raw
 //     base64 signature, per DESIGN §5 + team-lead 2026-05-05 confirmation);

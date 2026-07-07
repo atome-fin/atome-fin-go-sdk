@@ -47,6 +47,7 @@ const (
 	CodeAccountTempBlocked           Code = "ACCOUNT_TEMP_BLOCKED"
 	CodeFeeChange                    Code = "FEE_CHANGE"
 	CodeUserCreditLimitInsufficient  Code = "USER_CREDIT_LIMIT_INSUFFICIENT"
+	CodeRiskReject                   Code = "RISK_REJECT"
 
 	// Codes that surface in non-200 envelopes; included here so a caller can
 	// type-switch a single APIError.Code field without juggling multiple

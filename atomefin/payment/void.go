@@ -27,13 +27,10 @@ type VoidAuthResponse struct {
 	Data    *VoidResultData `json:"data,omitempty"`
 }
 
-// IsTerminal reports whether the response carries a terminal Status.
-// Nil-safe.
+// IsTerminal reports whether the response is a successful void
+// acknowledgement. /voidAuth data no longer carries a status field.
 func (r *VoidAuthResponse) IsTerminal() bool {
-	if r == nil || r.Data == nil {
-		return false
-	}
-	return r.Data.Status.IsTerminal()
+	return r != nil && r.Code == atomefin.CodeSuccess && r.Data != nil
 }
 
 // VoidResultData is the `data` body of VoidAuthResponse.
@@ -41,12 +38,10 @@ func (r *VoidAuthResponse) IsTerminal() bool {
 // Per spec re-read: VoidResultData carries no extendInfo. There is no
 // VoidExtendInfoResp type.
 type VoidResultData struct {
-	RequestID            string               `json:"requestId"`
-	ExternalReferenceUID string               `json:"externalReferenceUid"`
-	AuthOrderID          string               `json:"authOrderId"`
-	Status               atomefin.Status      `json:"status"`
-	FailureCode          atomefin.FailureCode `json:"failureCode,omitempty"`
-	AccountChanges       *AccountChanges      `json:"accountChanges,omitempty"`
+	RequestID            string          `json:"requestId"`
+	ExternalReferenceUID string          `json:"externalReferenceUid"`
+	AuthOrderID          string          `json:"authOrderId"`
+	AccountChanges       *AccountChanges `json:"accountChanges,omitempty"`
 }
 
 // VoidAuth submits a /voidAuth call.

@@ -2,16 +2,32 @@
   "code": "SUCCESS",
   "message": "ok",
   "data": {
-    "tradeId": "TRD-2026-0501-B",
-    "transactionType": "PAYMENT",
-    "authOrderId": "AUTH-2026-0501-0001",
-    "orderId": "ORD-2026-0501-A",
-    "externalReferenceUid": "user-42",
     "currency": "IDR",
-    "amount": 1500000,
-    "tradeStatus": "SUCCESS",
-    "tradeTime": 1746089800000,
-    "billId": "202605",
-    "notes": "Captured via partner-initiated checkout flow"
+    "paymentInfo": {
+      "captureRequestId": "CAP-2026-0501-A",
+      "orderId": "ORD-2026-0501-A",
+      "totalTenor": 3,
+      "createTime": 1746089800000,
+      "principalAmount": 1450000,
+      "interestAmount": 50000,
+      "subOrders": [
+        {
+          "subOrderId": "so-1",
+          "principalAmount": 1450000,
+          "interestAmount": 50000,
+          "billOrderDetails": [
+            {
+              "billId": "202605",
+              "billDate": "20260515",
+              "dueDate": "20260615",
+              "totalAmount": 1500000,
+              "repaidAmount": 0,
+              "principalAmount": 1450000,
+              "interestAmount": 50000
+            }
+          ]
+        }
+      ]
+    }
   }
 }

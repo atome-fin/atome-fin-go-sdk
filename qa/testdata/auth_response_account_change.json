@@ -19,13 +19,6 @@
       "overpaidAmountChange": 0,
       "lateFeeAmountChange": 0,
       "interestAmountChange": 0
-    },
-    "extendInfo": {
-      "agreementUrl": "https://atome.example/agreements/AUTH-2026-0501-0004.pdf",
-      "version": 1746489600000,
-      "billId": "202605",
-      "billDate": "2026-05-15",
-      "dueDate": "2026-06-15"
     }
   }
 }

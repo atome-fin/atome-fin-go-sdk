@@ -71,7 +71,6 @@ var inboundCallbacks = []string{
 	"POST /<captureNotifyUrl>",
 	"POST /<refundNotifyUrl>",
 	"POST /<creditApplicationNotifyUrl>",
-	"POST /<creditInformationNotifyUrl>",
 	"POST /repayment-callback",
 	"POST /account_change_callback",
 }

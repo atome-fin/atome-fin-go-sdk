@@ -2,21 +2,20 @@
   "code": "SUCCESS",
   "message": "ok",
   "data": {
-    "pageNumber": 1,
-    "pageSize": 20,
-    "total": 1,
-    "bills": [
-      {
-        "billId": "202603",
-        "billDate": "2026-03-15",
-        "dueDate": "2026-04-15",
-        "externalReferenceUid": "user-42",
-        "currency": "IDR",
-        "totalAmount": 600000,
-        "paidAmount": 0,
-        "unpaidAmount": 600000,
-        "overdueStatus": "OVERDUE"
-      }
-    ]
+    "billedAmountToBeRepaid": 600000,
+    "billedPrincipalAmountToBeRepaid": 580000,
+    "billedInterestAmountToBeRepaid": 15000,
+    "billedLateFeeAmountToBeRepaid": 5000,
+    "billedCurrentBillId": "202603",
+    "overdueStatus": "OVERDUE",
+    "daysPastDue": 10,
+    "billedCurrentDueDate": "20260415",
+    "billedCurrentBillDate": "20260315",
+    "billedCurrentStartDate": "20260301",
+    "billedCurrentEndDate": "20260331",
+    "totalAmountToBeRepaid": 600000,
+    "totalPrincipalAmountToBeRepaid": 580000,
+    "totalInterestAmountToBeRepaid": 15000,
+    "totalLateFeeAmountToBeRepaid": 5000
   }
 }

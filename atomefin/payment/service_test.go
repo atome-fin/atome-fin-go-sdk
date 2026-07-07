@@ -76,7 +76,7 @@ func TestService_Auth_Success(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1000,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1000)},
 		Sessionid:            "session-token-abc",
 	}
 	resp, err := svc.Auth(context.Background(), req)
@@ -118,7 +118,7 @@ func TestService_Auth_AutoMintsRequestID(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
 		Sessionid:            "s",
 	}
 	if _, err := payment.New(c).Auth(context.Background(), req); err != nil {
@@ -140,7 +140,10 @@ func TestService_Auth_ValidationRejectsZeroSum(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1000,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 999, Quantity: 1}},
+		SubOrders: func() []payment.SubOrder {
+			so := specSampleSubOrder(999)
+			return []payment.SubOrder{so}
+		}(),
 		Sessionid:            "s",
 	}
 	_, err := svc.Auth(context.Background(), req)
@@ -166,7 +169,7 @@ func TestService_Auth_4xxBecomesAPIError(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
 		Sessionid:            "s",
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
@@ -195,7 +198,7 @@ func TestService_Capture_Success(t *testing.T) {
 		AuthOrderID:          "AUTH-1",
 		TotalAmount:          1000,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1000)},
 	})
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
@@ -263,7 +266,7 @@ func TestService_AuthPollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
 		Sessionid:            "s",
 	}
 	resp, err := svc.AuthPollUntilTerminal(context.Background(), req, payment.PollOptions{
@@ -298,7 +301,7 @@ func TestService_AuthPollUntilTerminal_RespectsMaxWait(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
 		Sessionid:            "s",
 	}, payment.PollOptions{MaxWait: 100 * time.Millisecond, InitialDelay: 1 * time.Millisecond, MaxDelay: 5 * time.Millisecond, Multiplier: 1.1})
 	dur := time.Since(start)
@@ -334,7 +337,7 @@ func TestService_CapturePollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 		AuthOrderID:          "AUTH-1",
 		TotalAmount:          1,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
 	}, payment.PollOptions{
 		MaxWait:      2 * time.Second,
 		InitialDelay: 1 * time.Millisecond,

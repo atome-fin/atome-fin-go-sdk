@@ -109,7 +109,7 @@ func TestR10_AuthRequest_TotalAmount(t *testing.T) {
 			TotalAmount:          v,
 			PeriodType:           1,
 			SubOrders: []payment.SubOrder{
-				{SubOrderID: "so-1", Amount: v, Quantity: 1},
+				specSampleSubOrder(v),
 			},
 		}
 	})
@@ -119,6 +119,10 @@ func TestR10_SubOrder_OriginalAmount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[payment.SubOrder](t, func(v int64) payment.SubOrder {
 		return payment.SubOrder{
 			SubOrderID:     "so-1",
+			SkuID:          "sku-1",
+			CategoryID:     "cat-1",
+			CategoryOneName: "Food",
+			MerchantID:     "merchant-1",
 			Amount:         1,
 			Quantity:       1,
 			OriginalAmount: v,
@@ -171,8 +175,14 @@ func TestR12_AuthRequest_IntegerLiterals(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders: []payment.SubOrder{
-			{SubOrderID: "so-1", Amount: 1000000, Quantity: 1, OriginalAmount: 1100000},
-			{SubOrderID: "so-2", Amount: 500000, Quantity: 2},
+			specSampleSubOrder(1000000),
+			func() payment.SubOrder {
+				so := specSampleSubOrder(500000)
+				so.SubOrderID = "so-2"
+				so.Quantity = 2
+				so.OriginalAmount = 1100000
+				return so
+			}(),
 		},
 	}
 	marshal.AssertAmountKeysAreInteger[payment.AuthRequest](t, in,

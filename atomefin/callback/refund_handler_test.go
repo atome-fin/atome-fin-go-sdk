@@ -22,9 +22,9 @@ import (
 func TestRefundHandler_HappyPath(t *testing.T) {
 	h := newHarness(t)
 
-	body := []byte(`{"code":"SUCCESS","message":"refund terminal","data":{"requestId":"r-1","externalReferenceUid":"u-1","authOrderId":"AUTH-1","refundOrderId":"RFD-1","currency":"IDR","refundAmount":1500000,"status":"SUCCESS"}}`)
+	body := []byte(`{"requestId":"r-1","captureRequestId":"CAP-1","refundId":"RFD-1","currency":"IDR","refundAmount":1500000,"status":"SUCCESS"}`)
 
-	var seen *refund.RefundResponse
+	var seen *refund.RefundResult
 	handler := callback.RefundHandler(h.verifier, func(ctx context.Context, e *callback.RefundEvent) error {
 		seen = e
 		return nil
@@ -52,8 +52,8 @@ func TestRefundHandler_HappyPath(t *testing.T) {
 	if seen == nil {
 		t.Fatal("user handler was not invoked")
 	}
-	if seen.Data == nil || seen.Data.RefundOrderID != "RFD-1" {
-		t.Errorf("event Data.RefundOrderID = %#v", seen.Data)
+	if seen.RefundID != "RFD-1" {
+		t.Errorf("event RefundID = %q", seen.RefundID)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestRefundHandler_MultiCert_OldKeyStillVerifies(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := []byte(`{"code":"SUCCESS","message":"refund terminal","data":{"requestId":"r-1","externalReferenceUid":"u-1","authOrderId":"AUTH-1","refundOrderId":"RFD-1","currency":"IDR","refundAmount":1,"status":"SUCCESS"}}`)
+	body := []byte(`{"requestId":"r-1","captureRequestId":"CAP-1","refundId":"RFD-1","currency":"IDR","refundAmount":1,"status":"SUCCESS"}`)
 	sig, _ := signer.Sign(context.Background(), body)
 
 	r := httptest.NewRequest(http.MethodPost, "/atome/refund", bytes.NewReader(body))
@@ -124,7 +124,7 @@ func TestRefundHandler_MultiCert_OldKeyStillVerifies(t *testing.T) {
 
 func TestRefundHandler_ReplayInvokesUserFnTwice(t *testing.T) {
 	h := newHarness(t)
-	body := []byte(`{"code":"SUCCESS","message":"refund terminal","data":{"requestId":"r-dup","externalReferenceUid":"u-1","authOrderId":"AUTH-1","refundOrderId":"RFD-1","currency":"IDR","refundAmount":1,"status":"SUCCESS"}}`)
+	body := []byte(`{"requestId":"r-dup","captureRequestId":"CAP-1","refundId":"RFD-1","currency":"IDR","refundAmount":1,"status":"SUCCESS"}`)
 
 	var calls int32
 	handler := callback.RefundHandler(h.verifier, func(ctx context.Context, e *callback.RefundEvent) error {
@@ -148,7 +148,7 @@ func TestRefundHandler_ReplayInvokesUserFnTwice(t *testing.T) {
 
 func TestRefundHandler_500OnUserError(t *testing.T) {
 	h := newHarness(t)
-	body := []byte(`{"code":"SUCCESS","message":"refund terminal","data":{"requestId":"r-1","externalReferenceUid":"u-1","authOrderId":"AUTH-1","refundOrderId":"RFD-1","currency":"IDR","refundAmount":1,"status":"SUCCESS"}}`)
+	body := []byte(`{"requestId":"r-1","captureRequestId":"CAP-1","refundId":"RFD-1","currency":"IDR","refundAmount":1,"status":"SUCCESS"}`)
 
 	rec := httptest.NewRecorder()
 	callback.RefundHandler(h.verifier, func(ctx context.Context, e *callback.RefundEvent) error {

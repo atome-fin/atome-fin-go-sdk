@@ -63,10 +63,13 @@ func TestServer_Idempotency_EncryptedPOST_DecryptsAndExtractsRequestID(t *testin
 	req := &credit.CreditInformationParam{
 		RequestID:            "encrypted-idem-1",
 		ExternalReferenceUID: "user-1",
-		EventType:            credit.EventTypeNewApplication,
+		MobileNumber:         "+6281298000000",
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
-		ExtendInfo:           &credit.CreditInformationExtendInfo{Language: credit.LanguageEnglish},
+		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
+			OCRResult: &credit.CreditInformationOCRResult{FullName: "Test User"},
+		},
+		ExtendInfo: &credit.CreditInformationExtendInfo{Language: credit.LanguageEnglish},
 	}
 
 	for i := 0; i < 2; i++ {
@@ -114,10 +117,13 @@ func TestServer_Idempotency_EncryptedPOST_BypassesWithoutDecryptKey(t *testing.T
 	req := &credit.CreditInformationParam{
 		RequestID:            "encrypted-idem-bypass",
 		ExternalReferenceUID: "user-1",
-		EventType:            credit.EventTypeNewApplication,
+		MobileNumber:         "+6281298000000",
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
-		ExtendInfo:           &credit.CreditInformationExtendInfo{Language: credit.LanguageEnglish},
+		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
+			OCRResult: &credit.CreditInformationOCRResult{FullName: "Test User"},
+		},
+		ExtendInfo: &credit.CreditInformationExtendInfo{Language: credit.LanguageEnglish},
 	}
 	for i := 0; i < 2; i++ {
 		req.RequestID = "encrypted-idem-bypass"
@@ -178,7 +184,7 @@ func TestServer_AutoCallback_PanicIsolation(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1500000,
 		PeriodType:           3,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1500000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
 		Sessionid:            "s",
 	})
 	if err != nil {

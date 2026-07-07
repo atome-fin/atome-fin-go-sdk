@@ -68,9 +68,12 @@ func validInformationParam() *credit.CreditInformationParam {
 	return &credit.CreditInformationParam{
 		RequestID:            "info-1",
 		ExternalReferenceUID: "user-42",
-		EventType:            credit.EventTypeNewApplication,
+		MobileNumber:         "+628129801929",
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
+		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
+			OCRResult: &credit.CreditInformationOCRResult{FullName: "Test User"},
+		},
 	}
 }
 
@@ -82,8 +85,12 @@ func validApplicationParam() *credit.CreditApplicationParam {
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.ApplicationEssentialInfo{
+			LivenessCheck: &credit.LivenessCheck{
+				Result:        "PASS",
+				SnapshotPhoto: "base64-photo",
+			},
 			IndividualProfile:   &credit.IndividualProfile{IDType: "KTP"},
-			PlatformInformation: &credit.PlatformInformation{UserCreditScore: ptrFloat64(0.5)},
+			PlatformInformation: &credit.PlatformInformation{},
 		},
 		ExtendInfo: &credit.CreditApplicationExtendInfo{
 			CreditInformationRequestID: "info-1",
@@ -91,9 +98,7 @@ func validApplicationParam() *credit.CreditApplicationParam {
 	}
 }
 
-// ptrFloat64 is a tiny helper for the *float64 fields on credit
-// types (e.g. PlatformInformation.UserCreditScore). Pointer-typed so
-// that 0.0 round-trips faithfully.
+// ptrFloat64 is a tiny helper for optional *float64 test fixtures.
 func ptrFloat64(v float64) *float64 { return &v }
 
 // ---------- POST /credit-information + /credit-application — BLOCKED in v0.2.x ----------

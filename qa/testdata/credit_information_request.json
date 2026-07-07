@@ -1,9 +1,14 @@
 {
   "requestId": "01HCRDIN1234567890ABCDEFGH",
   "externalReferenceUid": "user-42",
-  "eventType": "NEW_APPLICATION",
+  "mobileNumber": "+628129801929",
   "email": "user42@example.com",
   "country": "ID",
+  "applicationEssentialInfo": {
+    "ocrResult": {
+      "fullName": "Luna Zhang"
+    }
+  },
   "extendInfo": {
     "language": "id"
   }

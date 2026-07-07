@@ -163,7 +163,7 @@ func WithBaseURL(u string) Option {
 }
 
 // WithEnvironment selects one of the spec-defined placeholder URLs
-// (EnvTest / EnvPre / EnvProd). If WithBaseURL is also passed, the
+// (EnvPre / EnvProd). If WithBaseURL is also passed, the
 // explicit base URL wins. Default is EnvProd.
 func WithEnvironment(env Environment) Option {
 	return func(c *config) error {

@@ -7,12 +7,9 @@ import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/refund"
 )
 
-// RefundEvent is the JSON shape posted to the partner's
-// refund-callback endpoint. Byte-for-byte the same envelope as the
-// synchronous /refund response — partners do not learn a parallel
-// callback schema (DESIGN.md §8 contract; mirrors AuthEvent /
-// CaptureEvent).
-type RefundEvent = refund.RefundResponse
+// RefundEvent is the flat JSON shape posted to the partner's
+// refund-callback endpoint.
+type RefundEvent = refund.RefundResult
 
 // RefundHandlerFunc is the user-supplied callback for the inbound
 // refund-terminal events. Returning nil acks (HTTP 200);

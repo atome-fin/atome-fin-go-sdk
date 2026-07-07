@@ -250,7 +250,7 @@ func TestClientAccessorsAfterNew(t *testing.T) {
 	key := mustGenKey(t)
 	c, err := New(
 		WithPrivateKeyPEM(mustPEM(t, key)),
-		WithEnvironment(EnvTest),
+		WithEnvironment(EnvPre),
 		WithPartnerID("p"),
 		WithMerchantID("m"),
 		WithUserAgent("ua/1"),
@@ -265,7 +265,7 @@ func TestClientAccessorsAfterNew(t *testing.T) {
 	if c.MerchantID() != "m" {
 		t.Errorf("MerchantID = %q", c.MerchantID())
 	}
-	if c.Environment() != EnvTest {
+	if c.Environment() != EnvPre {
 		t.Errorf("Environment = %q", c.Environment())
 	}
 	if c.HTTPClient() == nil {

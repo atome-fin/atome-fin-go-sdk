@@ -2,41 +2,69 @@
   "code": "SUCCESS",
   "message": "ok",
   "data": {
-    "billId": "202605",
-    "billDate": "2026-05-15",
-    "dueDate": "2026-06-15",
-    "externalReferenceUid": "user-42",
     "currency": "IDR",
-    "totalAmount": 800000,
-    "paidAmount": 0,
-    "unpaidAmount": 800000,
-    "overdueStatus": "ON_TIME",
+    "bill": {
+      "billId": "202605",
+      "billMonth": "202605",
+      "billStartDate": "20260501",
+      "billEndDate": "20260531",
+      "billTotalAmount": 800000,
+      "outstandingAmount": 800000,
+      "repaidAmount": 0,
+      "principalAmount": 780000,
+      "interestAmount": 20000,
+      "dueDate": "20260615",
+      "status": "BILLED",
+      "repaymentStatus": "UNPAID",
+      "overdueStatus": "NOT_OVERDUE",
+      "refundStatus": "NOT_REFUNDED",
+      "discounts": {
+        "discountAmount": 50000,
+        "interestAmountAfterDiscount": 0,
+        "billTotalAmountAfterDiscount": 750000,
+        "repaidAmountExcludeDiscount": 0
+      }
+    },
     "orders": [
       {
-        "authOrderId": "AUTH-2026-0501-0001",
         "orderId": "ORD-2026-0501-A",
-        "amount": 500000,
-        "status": "SUCCESS"
+        "requestId": "CAP-2026-0501-A",
+        "createTime": 1746086400000,
+        "periodType": "3",
+        "currentPeriod": 1,
+        "totalAmount": 500000,
+        "outstandingAmount": 500000,
+        "repaidAmount": 0,
+        "principalAmount": 490000,
+        "interestAmount": 10000,
+        "dueDate": "20260615",
+        "status": "BILLED",
+        "repaymentStatus": "UNPAID",
+        "overdueStatus": "NOT_OVERDUE",
+        "refundStatus": "NOT_REFUNDED"
       },
       {
-        "authOrderId": "AUTH-2026-0512-0007",
         "orderId": "ORD-2026-0512-B",
-        "amount": 300000,
-        "status": "SUCCESS"
+        "requestId": "CAP-2026-0512-B",
+        "createTime": 1747036800000,
+        "periodType": "3",
+        "currentPeriod": 1,
+        "totalAmount": 300000,
+        "outstandingAmount": 300000,
+        "repaidAmount": 0,
+        "principalAmount": 290000,
+        "interestAmount": 10000,
+        "dueDate": "20260615",
+        "status": "BILLED",
+        "repaymentStatus": "UNPAID",
+        "overdueStatus": "NOT_OVERDUE",
+        "refundStatus": "NOT_REFUNDED"
       }
     ],
-    "discounts": {
-      "totalDiscount": 50000,
-      "items": [
-        {
-          "discountId": "PROMO-MAY-1",
-          "amount": 50000,
-          "detail": {
-            "description": "May campaign coupon",
-            "sourceCode": "MAY2026"
-          }
-        }
-      ]
+    "paginator": {
+      "start": 1,
+      "count": 10,
+      "totalCount": 2
     }
   }
 }

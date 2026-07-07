@@ -22,6 +22,20 @@ import "github.com/atome-fin/atome-fin-go-sdk/atomefin"
 
 // ---------- SubOrder ----------
 
+// PaymentOrderType is the order business line (Grab integration).
+type PaymentOrderType string
+
+const (
+	OrderTypeTransport           PaymentOrderType = "TRANSPORT"
+	OrderTypeGrabFood            PaymentOrderType = "GRAB_FOOD"
+	OrderTypeGrabMart            PaymentOrderType = "GRAB_MART"
+	OrderTypeSpecializedDelivery PaymentOrderType = "SPECIALIZED_DELIVERY"
+)
+
+// CreditProfile is an integration-agreed JSON risk-control payload
+// (opaque string on the wire).
+type CreditProfile string
+
 // SubOrder is one line item inside an Auth / Capture request body.
 //
 // On /capture the SubOrders slice MUST equal the /auth set byte-for-byte
@@ -38,18 +52,18 @@ type SubOrder struct {
 	// PeriodType — installment tenor for this line; see Q17 for the
 	// relationship to the order-level periodType.
 	PeriodType *int `json:"periodType,omitempty"`
-	// SkuID — mandate per merchant per Q13 (currently optional).
-	SkuID string `json:"skuId,omitempty"`
+	// SkuID — product SKU identifier (required per spec).
+	SkuID string `json:"skuId"`
 	// CreatorID — merchant staff / channel that created this line.
 	CreatorID string `json:"creatorId,omitempty"`
 	// SkuName — display label.
 	SkuName string `json:"skuName,omitempty"`
 	// SpuID — catalog parent identifier.
 	SpuID string `json:"spuId,omitempty"`
-	// CategoryID — partner taxonomy id; max 128.
-	CategoryID string `json:"categoryId,omitempty"` // max 128
-	// CategoryOneName — top-level category name; max 128.
-	CategoryOneName string `json:"categoryOneName,omitempty"` // max 128
+	// CategoryID — partner taxonomy id (required per spec).
+	CategoryID string `json:"categoryId"`
+	// CategoryOneName — top-level category name (required per spec).
+	CategoryOneName string `json:"categoryOneName"`
 	// CategoryCodes — additional category codes; emit as `[]` not `null`
 	// (R8: required-empty parity).
 	CategoryCodes []string `json:"categoryCodes,omitempty"`
@@ -60,9 +74,14 @@ type SubOrder struct {
 	// hold it as int64. Any partner-side fractional payload fails
 	// decode loudly — caught by qa/marshal R11.
 	OriginalAmount atomefin.Amount `json:"originalAmount,omitempty"`
-	// MerchantID — partner-merchant identifier when the SubOrder
-	// belongs to a sub-merchant.
-	MerchantID string `json:"merchantId,omitempty"`
+	// MerchantID — merchant or driver identifier (required per spec).
+	MerchantID string `json:"merchantId"`
+	// MerchantName — merchant or driver display name.
+	MerchantName string `json:"merchantName,omitempty"`
+	// MerchantCategory — merchant category (Food & Mart); omit for Transport.
+	MerchantCategory string `json:"merchantCategory,omitempty"`
+	// MerchantJoinedDate — merchant onboarding or driver registration date.
+	MerchantJoinedDate string `json:"merchantJoinedDate,omitempty"`
 	// ExtendInfo — per-line metadata bag (typed; no map[string]any).
 	ExtendInfo *SubOrderExtendInfo `json:"extendInfo,omitempty"`
 }
@@ -109,6 +128,12 @@ type RequestExtendInfo struct {
 	// IsValidScore before passing to /auth.
 	UserCreditScore *float64 `json:"userCreditScore,omitempty"`
 
+	// OrderType is the Grab order business line (TRANSPORT, GRAB_FOOD, …).
+	OrderType PaymentOrderType `json:"orderType,omitempty"`
+
+	// CreditProfile is an integration-agreed JSON risk-control payload.
+	CreditProfile CreditProfile `json:"creditProfile,omitempty"`
+
 	// DeviceInfo describes the device originating the request.
 	DeviceInfo *DeviceInfo `json:"deviceInfo,omitempty"`
 
@@ -116,14 +141,9 @@ type RequestExtendInfo struct {
 	// PII — DESIGN.md §10 redaction list.
 	Address *Address `json:"address,omitempty"`
 
-	// RiskInfo carries partner-side risk signals. The spec body is
-	// empty (Q12); kept as a typed placeholder until the partner
-	// defines the shape.
+	// RiskInfo carries partner-side risk signals. Driver and trip
+	// fields apply to TRANSPORT orders.
 	RiskInfo *PaymentRiskInfo `json:"riskInfo,omitempty"`
-
-	// ReapplyTime is a Unix-ms timestamp; semantics per Q15 (open).
-	// On the wire it is int64 ms-since-epoch — never time.Time.
-	ReapplyTime *int64 `json:"reapplyTime,omitempty"`
 }
 
 // IsValidScore reports whether s is in the spec's 0..1 range.
@@ -145,25 +165,25 @@ type DeviceInfo struct {
 	IPAddress *IPAddress     `json:"ipAddress,omitempty"`
 }
 
-// GeoPoint is a (longitude, latitude, time) triple.
-//
-// The two coordinate floats here are NOT subject to the
-// userCreditScore-only rule because they are geographical coordinates,
-// not money. the spec forbids float for amounts; the rule does
-// not apply to spatial / spec-level non-monetary numerics.
+// GeoPoint is a (longitude, latitude, time) triple. The spec models
+// all three values as strings in PlatformDeviceInfo.
 type GeoPoint struct {
-	Longitude float64 `json:"longitude"`
-	Latitude  float64 `json:"latitude"`
-	Time      int64   `json:"time"` // Unix-ms
+	Longitude string `json:"longitude,omitempty"`
+	Latitude  string `json:"latitude,omitempty"`
+	Time      string `json:"time,omitempty"` // Unix-ms as a string
 }
 
 // DeviceProfile holds device fingerprint fields.
 // Most fields are PII — DESIGN.md §10 redaction list.
 type DeviceProfile struct {
-	UTDID     string     `json:"utdid,omitempty"`     // PII
-	IsRoot    *bool      `json:"isRoot,omitempty"`    // pointer: distinguish false from absent
-	AndroidID string     `json:"androidId,omitempty"` // PII
-	Build     *BuildInfo `json:"build,omitempty"`
+	DeviceID            string     `json:"deviceId,omitempty"`
+	GoogleAdvertisingID string     `json:"googleAdvertisingId,omitempty"`
+	IDFA                string     `json:"idfa,omitempty"`
+	IDFV                string     `json:"idfv,omitempty"`
+	UTDID               string     `json:"utdid,omitempty"`     // PII
+	IsRoot              *bool      `json:"isRoot,omitempty"`    // pointer: distinguish false from absent
+	AndroidID           string     `json:"androidId,omitempty"` // PII
+	Build               *BuildInfo `json:"build,omitempty"`
 }
 
 // BuildInfo is the device's android.os.Build snapshot.
@@ -207,10 +227,23 @@ type ShippingAddress struct {
 	Address2 string `json:"address2,omitempty"`
 }
 
-// PaymentRiskInfo is reserved for the riskInfo block (Q12).
-// The spec defines it as an empty object; we keep it typed so v0.2
-// can fill it in without breaking the AuthRequest signature.
-type PaymentRiskInfo struct{}
+// PaymentRiskInfo is the auth/capture riskInfo block.
+type PaymentRiskInfo struct {
+	DriverInfo   *DriverInfo   `json:"driverInfo,omitempty"`
+	TripMetadata *TripMetadata `json:"tripMetadata,omitempty"`
+}
+
+// DriverInfo carries transport driver signals.
+type DriverInfo struct {
+	AverageRating *float64 `json:"averageRating,omitempty"`
+	IsVerified    *bool    `json:"isVerified,omitempty"`
+}
+
+// TripMetadata carries transport trip context.
+type TripMetadata struct {
+	EstimatedDistance string `json:"estimatedDistance,omitempty"`
+	PickupLocation    string `json:"pickupLocation,omitempty"`
+}
 
 // ---------- AccountChanges ----------
 
@@ -282,41 +315,39 @@ func IsValidCurrentStatus(s atomefin.AccountStatus) bool {
 // InstallmentDetail is one row of a per-sub-order installment schedule.
 // All money fields are minor units (R10/R12 corpus applies).
 type InstallmentDetail struct {
-	InstallmentID string          `json:"installmentId"`
-	DueDate       string          `json:"dueDate"` // yyyy-MM-dd; TZ unspecified (Q11)
-	Amount        atomefin.Amount `json:"amount"`
-	Principal     atomefin.Amount `json:"principal"`
-	Fee           atomefin.Amount `json:"fee"`
-	Interest      atomefin.Amount `json:"interest"`
+	SubOrderID      string          `json:"subOrderId"`
+	TotalTenor      int             `json:"totalTenor"`
+	CurrentTenor    int             `json:"currentTenor"`
+	RepayAmount     atomefin.Amount `json:"repayAmount"`
+	PrincipalAmount atomefin.Amount `json:"principalAmount"`
+	InterestAmount  atomefin.Amount `json:"interestAmount"`
+	BillID          string          `json:"billId"`
+	BillDate        string          `json:"billDate"`
+	DueDate         string          `json:"dueDate"`
 }
 
-// InstallmentPlan groups InstallmentDetail rows for a single SubOrder.
+// InstallmentPlan is one tenor option for a sub-order.
 type InstallmentPlan struct {
-	SubOrderID   string              `json:"subOrderId"`
-	Installments []InstallmentDetail `json:"installments"`
+	TotalTenor          int                 `json:"totalTenor"`
+	OrderRepayAmount    atomefin.Amount     `json:"orderRepayAmount"`
+	OrderInterestAmount atomefin.Amount     `json:"orderInterestAmount"`
+	InstallmentDetails  []InstallmentDetail `json:"installmentDetails"`
 }
 
 // SubOrderInstallmentPlans is the response-side wrapper used in
 // AuthorizationData.SubOrderInstallmentPlans and
-// PaymentResult.SubOrderInstallmentPlans. The wire shape is identical
-// to InstallmentPlan; we keep both types so DESIGN.md §5's response
-// shape uses the spec's exact name.
-type SubOrderInstallmentPlans = InstallmentPlan
+// PaymentResult.SubOrderInstallmentPlans.
+type SubOrderInstallmentPlans struct {
+	SubOrderID       string            `json:"subOrderId"`
+	OrderAmount      atomefin.Amount   `json:"orderAmount"`
+	InstallmentPlans []InstallmentPlan `json:"installmentPlans"`
+}
 
 // ---------- Response-side extendInfo ----------
 
-// AuthExtendInfoResp is the AUTH-time response extendInfo. Carries a
-// flat `agreementUrl` plus billing fields.
-//
-// **Distinct from CaptureExtendInfoResp** — see Q23. The two response
-// shapes are not interchangeable; the auth-time URL and the
-// capture-time URL are different artifacts.
+// AuthExtendInfoResp is the AUTH-time response extendInfo.
 type AuthExtendInfoResp struct {
-	AgreementURL string `json:"agreementUrl,omitempty"` // PII per Q14
-	Version      int64  `json:"version,omitempty"`      // Unix-ms (Q20)
-	BillID       string `json:"billId,omitempty"`       // yyyyMM
-	BillDate     string `json:"billDate,omitempty"`     // yyyy-MM-dd; TZ unspecified (Q11)
-	DueDate      string `json:"dueDate,omitempty"`      // yyyy-MM-dd; TZ unspecified (Q11)
+	ReapplyTime *int64 `json:"reapplyTime,omitempty"` // Unix-ms
 }
 
 // CaptureExtendInfoResp is the CAPTURE-time response extendInfo

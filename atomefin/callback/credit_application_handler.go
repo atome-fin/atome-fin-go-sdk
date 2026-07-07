@@ -7,12 +7,9 @@ import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/credit"
 )
 
-// CreditApplicationEvent is the JSON shape posted to the partner's
-// credit-application callback endpoint. Byte-for-byte the same
-// envelope as the synchronous /credit-application response —
-// partners do not learn a parallel callback schema (DESIGN.md §8
-// contract; mirrors AuthEvent / CaptureEvent / RefundEvent).
-type CreditApplicationEvent = credit.CreditApplicationResponse
+// CreditApplicationEvent is the flat JSON shape posted to the
+// partner's credit-application callback endpoint.
+type CreditApplicationEvent = credit.CreditApplicationResult
 
 // CreditApplicationHandlerFunc is the user-supplied callback for
 // the inbound credit-application terminal events. Returning nil

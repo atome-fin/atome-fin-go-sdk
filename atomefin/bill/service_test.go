@@ -7,11 +7,9 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -74,15 +72,15 @@ func TestService_Bills_Success(t *testing.T) {
 		gotQuery = r.URL.RawQuery
 		gotMethod = r.Method
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":20,"total":1,"bills":[{"billId":"202605","currency":"IDR","totalAmount":800000,"unpaidAmount":800000,"overdueStatus":"ON_TIME"}]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":[{"billId":"202605","billMonth":"202605","billTotalAmount":800000,"outstandingAmount":800000,"repaidAmount":0,"principalAmount":780000,"interestAmount":20000,"dueDate":"20260615","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE","currency":"IDR"}]}`))
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
 	resp, err := bill.New(c).Bills(context.Background(), &bill.BillsParams{
 		ExternalReferenceUID: "user-42",
-		PageNumber:           1,
-		PageSize:             20,
+		StartMonth:           "202605",
+		EndMonth:             "202605",
 	})
 	if err != nil {
 		t.Fatalf("Bills: %v", err)
@@ -90,7 +88,7 @@ func TestService_Bills_Success(t *testing.T) {
 	if !resp.IsSuccess() {
 		t.Errorf("expected SUCCESS, got %q", resp.Code)
 	}
-	if resp.Data == nil || len(resp.Data.Bills) != 1 {
+	if len(resp.Data) != 1 {
 		t.Fatalf("expected 1 bill, got %#v", resp.Data)
 	}
 	if gotMethod != http.MethodGet {
@@ -99,8 +97,7 @@ func TestService_Bills_Success(t *testing.T) {
 	if gotPath != "/bills" {
 		t.Errorf("path = %q, want /bills", gotPath)
 	}
-	// Three keys, alphabetically sorted: externalReferenceUid, pageNumber, pageSize.
-	wantQuery := "externalReferenceUid=user-42&pageNumber=1&pageSize=20"
+	wantQuery := "endMonth=202605&externalReferenceUid=user-42&startMonth=202605"
 	if gotQuery != wantQuery {
 		t.Errorf("RawQuery = %q, want %q", gotQuery, wantQuery)
 	}
@@ -142,7 +139,7 @@ func TestService_Bills_MultiParam_R13_AtScale(t *testing.T) {
 				r.URL.RawQuery, gotCanonical)
 		}
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":2,"pageSize":50,"total":0,"bills":[]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":[]}`))
 	}))
 	defer srv.Close()
 
@@ -161,17 +158,13 @@ func TestService_Bills_MultiParam_R13_AtScale(t *testing.T) {
 	}
 	_ = signer
 
-	// 6-param query: pageNumber, pageSize, externalReferenceUid,
-	// billId, startMonth, endMonth. Alphabetical sort produces
-	// billId < endMonth < externalReferenceUid < pageNumber <
-	// pageSize < startMonth — exercises full sort behaviour.
+	// Multi-param query including repeated filter keys.
 	if _, err := bill.New(c).Bills(context.Background(), &bill.BillsParams{
-		PageNumber:           2,
-		PageSize:             50,
 		ExternalReferenceUID: "user-42",
-		BillID:               "202605",
 		StartMonth:           "202604",
 		EndMonth:             "202605",
+		Status:               []bill.BillStatus{bill.BillStatusBilled},
+		OverdueStatus:        []bill.OverdueStatus{bill.OverdueStatusNotOverdue},
 	}); err != nil {
 		t.Fatalf("Bills: %v", err)
 	}
@@ -193,7 +186,7 @@ func TestService_BillDetail_Success(t *testing.T) {
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"billId":"202605","currency":"IDR","totalAmount":800000,"orders":[{"authOrderId":"AUTH-1","amount":500000}]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","bill":{"billId":"202605","billMonth":"202605","billTotalAmount":800000,"outstandingAmount":800000,"repaidAmount":0,"principalAmount":780000,"interestAmount":20000,"dueDate":"20260615","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE"},"orders":[{"orderId":"ORD-1","requestId":"CAP-1","createTime":1746489600000,"periodType":"3","currentPeriod":1,"totalAmount":500000,"outstandingAmount":500000,"repaidAmount":0,"principalAmount":490000,"interestAmount":10000,"dueDate":"20260615","status":"BILLED","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE"}]}}`))
 	}))
 	defer srv.Close()
 
@@ -205,7 +198,7 @@ func TestService_BillDetail_Success(t *testing.T) {
 	if !resp.IsSuccess() {
 		t.Errorf("Code = %q", resp.Code)
 	}
-	if resp.Data == nil || resp.Data.BillID != "202605" {
+	if resp.Data == nil || resp.Data.Bill == nil || resp.Data.Bill.BillID != "202605" {
 		t.Errorf("Data = %#v", resp.Data)
 	}
 	if len(resp.Data.Orders) != 1 {
@@ -244,7 +237,7 @@ func TestService_BillsUnpaid_Success(t *testing.T) {
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":20,"total":1,"bills":[{"billId":"202603","currency":"IDR","totalAmount":600000,"unpaidAmount":600000,"overdueStatus":"OVERDUE"}]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"billedAmountToBeRepaid":600000,"billedPrincipalAmountToBeRepaid":580000,"billedInterestAmountToBeRepaid":15000,"billedLateFeeAmountToBeRepaid":5000}}`))
 	}))
 	defer srv.Close()
 
@@ -261,62 +254,53 @@ func TestService_BillsUnpaid_Success(t *testing.T) {
 	if gotPath != "/billUnpaid" {
 		t.Errorf("path = %q", gotPath)
 	}
-	// Default pageNumber=1, pageSize=20 + externalReferenceUid filter.
-	wantQuery := "externalReferenceUid=user-42&pageNumber=1&pageSize=20"
+	wantQuery := "externalReferenceUid=user-42"
 	if gotQuery != wantQuery {
 		t.Errorf("RawQuery = %q, want %q", gotQuery, wantQuery)
 	}
 }
 
-// ---------- BillsAll auto-pagination ----------
+// ---------- BillsAll compatibility wrapper ----------
 
-func TestService_BillsAll_AutoPaginates(t *testing.T) {
-	var hits int32
+func TestService_BillsAll_ReturnsSingleResponseRows(t *testing.T) {
+	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		page := r.URL.Query().Get("pageNumber")
-		atomic.AddInt32(&hits, 1)
+		hits++
 		w.WriteHeader(200)
-		switch page {
-		case "1":
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":2,"total":5,"bills":[{"billId":"202601","currency":"IDR","totalAmount":1},{"billId":"202602","currency":"IDR","totalAmount":1}]}}`))
-		case "2":
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":2,"pageSize":2,"total":5,"bills":[{"billId":"202603","currency":"IDR","totalAmount":1},{"billId":"202604","currency":"IDR","totalAmount":1}]}}`))
-		case "3":
-			// Short page → loop terminates after this.
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":3,"pageSize":2,"total":5,"bills":[{"billId":"202605","currency":"IDR","totalAmount":1}]}}`))
-		default:
-			t.Errorf("unexpected pageNumber=%q", page)
-		}
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":[{"billId":"202601","billMonth":"202601","billTotalAmount":1,"outstandingAmount":1,"repaidAmount":0,"principalAmount":1,"interestAmount":0,"dueDate":"20260215","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE","currency":"IDR"},{"billId":"202602","billMonth":"202602","billTotalAmount":1,"outstandingAmount":1,"repaidAmount":0,"principalAmount":1,"interestAmount":0,"dueDate":"20260315","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE","currency":"IDR"}]}`))
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	all, err := bill.New(c).BillsAll(context.Background(), &bill.BillsParams{PageSize: 2})
+	all, err := bill.New(c).BillsAll(context.Background(), &bill.BillsParams{
+		ExternalReferenceUID: "user-42",
+		StartMonth:           "202601",
+		EndMonth:             "202602",
+	})
 	if err != nil {
 		t.Fatalf("BillsAll: %v", err)
 	}
-	if got := len(all); got != 5 {
-		t.Errorf("BillsAll len = %d, want 5", got)
+	if got := len(all); got != 2 {
+		t.Errorf("BillsAll len = %d, want 2", got)
 	}
-	if got := atomic.LoadInt32(&hits); got != 3 {
-		t.Errorf("hits = %d, want 3 (pages 1+2+3)", got)
-	}
-	for i, expectedID := range []string{"202601", "202602", "202603", "202604", "202605"} {
-		if all[i].BillID != expectedID {
-			t.Errorf("all[%d].BillID = %q, want %q", i, all[i].BillID, expectedID)
-		}
+	if hits != 1 {
+		t.Errorf("hits = %d, want 1", hits)
 	}
 }
 
 func TestService_BillsAll_TerminatesOnEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":20,"total":0,"bills":[]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":[]}`))
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	all, err := bill.New(c).BillsAll(context.Background(), nil)
+	all, err := bill.New(c).BillsAll(context.Background(), &bill.BillsParams{
+		ExternalReferenceUID: "user-42",
+		StartMonth:           "202601",
+		EndMonth:             "202602",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +319,11 @@ func TestService_Bills_4xxBecomesAPIError(t *testing.T) {
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	_, err := bill.New(c).Bills(context.Background(), nil)
+	_, err := bill.New(c).Bills(context.Background(), &bill.BillsParams{
+		ExternalReferenceUID: "user-42",
+		StartMonth:           "202601",
+		EndMonth:             "202602",
+	})
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
 		t.Fatalf("err = %v; want *APIError", err)
@@ -390,9 +378,9 @@ func TestBills_Validate(t *testing.T) {
 		p         *bill.BillsParams
 		wantField string
 	}{
-		{"negative-pageNumber", &bill.BillsParams{PageNumber: -1}, "pageNumber"},
-		{"negative-pageSize", &bill.BillsParams{PageSize: -1}, "pageSize"},
-		{"oversize-pageSize", &bill.BillsParams{PageSize: 1001}, "pageSize"},
+		{"missing-externalReferenceUid", &bill.BillsParams{StartMonth: "202601", EndMonth: "202602"}, "externalReferenceUid"},
+		{"missing-startMonth", &bill.BillsParams{ExternalReferenceUID: "u", EndMonth: "202602"}, "startMonth"},
+		{"missing-endMonth", &bill.BillsParams{ExternalReferenceUID: "u", StartMonth: "202601"}, "endMonth"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -413,9 +401,7 @@ func TestBillsUnpaid_Validate(t *testing.T) {
 		p         *bill.BillsUnpaidParams
 		wantField string
 	}{
-		{"negative-pageNumber", &bill.BillsUnpaidParams{PageNumber: -1}, "pageNumber"},
-		{"negative-pageSize", &bill.BillsUnpaidParams{PageSize: -1}, "pageSize"},
-		{"oversize-pageSize", &bill.BillsUnpaidParams{PageSize: 1001}, "pageSize"},
+		{"missing-externalReferenceUid", &bill.BillsUnpaidParams{}, "externalReferenceUid"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -429,8 +415,7 @@ func TestBillsUnpaid_Validate(t *testing.T) {
 
 func TestOverdueStatus_IsValid(t *testing.T) {
 	for _, s := range []bill.OverdueStatus{
-		bill.OverdueStatusOnTime,
-		bill.OverdueStatusGracePeriod,
+		bill.OverdueStatusNotOverdue,
 		bill.OverdueStatusOverdue,
 	} {
 		if !s.IsValid() {
@@ -450,23 +435,15 @@ func TestOverdueStatus_StringIsWireLiteral(t *testing.T) {
 	}
 }
 
-// ---------- Default-pagination expansion ----------
+// ---------- Required query params ----------
 
-func TestBills_NilParamsUsesDefaults(t *testing.T) {
-	var gotQuery string
+func TestBills_NilParamsRejected(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuery = r.URL.RawQuery
-		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":20,"total":0,"bills":[]}}`))
+		t.Error("server must NOT be reached on nil params")
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	if _, err := bill.New(c).Bills(context.Background(), nil); err != nil {
-		t.Fatalf("Bills(nil): %v", err)
-	}
-	want := fmt.Sprintf("pageNumber=%d&pageSize=%d", bill.DefaultPageNumber, bill.DefaultPageSize)
-	if gotQuery != want {
-		t.Errorf("RawQuery = %q, want %q", gotQuery, want)
-	}
+	_, err := bill.New(c).Bills(context.Background(), nil)
+	mustValidationError(t, err, "externalReferenceUid")
 }

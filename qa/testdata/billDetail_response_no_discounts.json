@@ -2,22 +2,40 @@
   "code": "SUCCESS",
   "message": "ok",
   "data": {
-    "billId": "202604",
-    "billDate": "2026-04-15",
-    "dueDate": "2026-05-15",
-    "externalReferenceUid": "user-42",
     "currency": "IDR",
-    "totalAmount": 1500000,
-    "paidAmount": 1500000,
-    "unpaidAmount": 0,
-    "overdueStatus": "ON_TIME",
+    "bill": {
+      "billId": "202604",
+      "billMonth": "202604",
+      "billStartDate": "20260401",
+      "billEndDate": "20260430",
+      "billTotalAmount": 1500000,
+      "outstandingAmount": 0,
+      "repaidAmount": 1500000,
+      "principalAmount": 1450000,
+      "interestAmount": 50000,
+      "dueDate": "20260515",
+      "status": "BILLED",
+      "repaymentStatus": "REPAID",
+      "overdueStatus": "NOT_OVERDUE"
+    },
     "orders": [
       {
-        "authOrderId": "AUTH-2026-0401-0001",
         "orderId": "ORD-2026-0401-A",
-        "amount": 1500000,
-        "status": "SUCCESS"
+        "requestId": "CAP-2026-0401-A",
+        "createTime": 1743484800000,
+        "periodType": "3",
+        "currentPeriod": 1,
+        "totalAmount": 1500000,
+        "outstandingAmount": 0,
+        "repaidAmount": 1500000,
+        "principalAmount": 1450000,
+        "interestAmount": 50000,
+        "dueDate": "20260515",
+        "status": "BILLED",
+        "repaymentStatus": "REPAID",
+        "overdueStatus": "NOT_OVERDUE"
       }
-    ]
+    ],
+    "paginator": {"start": 1, "count": 10, "totalCount": 1}
   }
 }

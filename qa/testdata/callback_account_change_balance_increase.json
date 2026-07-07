@@ -1,26 +1,21 @@
 {
-  "code": "SUCCESS",
-  "message": "account state changed",
-  "data": {
-    "eventId": "ACE-2026-0506-001",
-    "externalReferenceUid": "user-42",
-    "eventTime": 1746748800000,
-    "accountChanges": {
-      "version": 1746748800000,
-      "externalReferenceUid": "user-42",
-      "previousStatus": "NORMAL",
-      "currentStatus": "NORMAL",
-      "totalCreditChange": 5000000,
-      "usedCreditChange": 0,
-      "frozenCreditChange": 0,
-      "availableCreditChange": 5000000,
-      "overpaidAmountChange": 0,
-      "lateFeeAmountChange": 0,
-      "interestAmountChange": 0
-    },
-    "extendInfo": {
-      "reason": "credit-limit-increase",
-      "triggerSource": "RISK_ENGINE"
-    }
+  "callbackRequestId": "ACE-2026-0506-001",
+  "externalReferenceUid": "user-42",
+  "externalRequestId": "REQ-2026-0506-001",
+  "event": "FIXED_CREDIT_LIMIT_BOOST",
+  "scene": "CREDIT_LIMIT_ADJUSTMENT",
+  "previousStatus": "NORMAL",
+  "currentStatus": "NORMAL",
+  "currency": "IDR",
+  "amountChange": 5000000,
+  "version": 1746748800000,
+  "creditInfo": {
+    "totalCredit": 35000000,
+    "availableCredit": 35000000,
+    "usedCredit": 0,
+    "userStatus": "NORMAL"
+  },
+  "extendInfo": {
+    "creditLimitAdjustmentReason": "PERMANENT_CREDIT_INCREASE"
   }
 }

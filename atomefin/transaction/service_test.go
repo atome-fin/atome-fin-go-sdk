@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -74,15 +73,16 @@ func TestService_Transactions_Success(t *testing.T) {
 		gotQuery = r.URL.RawQuery
 		gotMethod = r.Method
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":20,"total":1,"items":[{"tradeId":"TRD-1","transactionType":"PAYMENT","authOrderId":"AUTH-1","currency":"IDR","amount":1000,"tradeStatus":"SUCCESS","tradeTime":1746084600000}]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[{"captureRequestId":"CAP-1","orderId":"ORD-1","totalTenor":3,"createTime":1746084600000}],"paginator":{"start":1,"count":10,"totalCount":1}}}`))
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
 	resp, err := transaction.New(c).Transactions(context.Background(), &transaction.TransactionsParams{
 		ExternalReferenceUID: "user-42",
-		PageNumber:           1,
-		PageSize:             20,
+		StartDate:            "20260501",
+		EndDate:              "20260531",
+		TransactionType:      transaction.TransactionTypePayment,
 	})
 	if err != nil {
 		t.Fatalf("Transactions: %v", err)
@@ -90,11 +90,11 @@ func TestService_Transactions_Success(t *testing.T) {
 	if !resp.IsSuccess() {
 		t.Errorf("Code = %q", resp.Code)
 	}
-	if resp.Data == nil || len(resp.Data.Items) != 1 {
+	if resp.Data == nil || len(resp.Data.PaymentInfo) != 1 {
 		t.Fatalf("Data = %#v", resp.Data)
 	}
-	if resp.Data.Items[0].TransactionType != transaction.TransactionTypePayment {
-		t.Errorf("TransactionType = %q", resp.Data.Items[0].TransactionType)
+	if resp.Data.PaymentInfo[0].CaptureRequestID != "CAP-1" {
+		t.Errorf("CaptureRequestID = %q", resp.Data.PaymentInfo[0].CaptureRequestID)
 	}
 	if gotMethod != http.MethodGet {
 		t.Errorf("method = %q, want GET", gotMethod)
@@ -102,7 +102,7 @@ func TestService_Transactions_Success(t *testing.T) {
 	if gotPath != "/transactions" {
 		t.Errorf("path = %q", gotPath)
 	}
-	wantQuery := "externalReferenceUid=user-42&pageNumber=1&pageSize=20"
+	wantQuery := "count=10&endDate=20260531&externalReferenceUid=user-42&start=1&startDate=20260501&transactionType=PAYMENT"
 	if gotQuery != wantQuery {
 		t.Errorf("RawQuery = %q, want %q", gotQuery, wantQuery)
 	}
@@ -134,7 +134,7 @@ func TestService_Transactions_MultiParam_R13_AtScale(t *testing.T) {
 				r.URL.RawQuery, gotCanonical)
 		}
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":2,"pageSize":50,"total":0,"items":[]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[],"paginator":{"start":2,"count":50,"totalCount":0}}}`))
 	}))
 	defer srv.Close()
 
@@ -151,18 +151,13 @@ func TestService_Transactions_MultiParam_R13_AtScale(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 7-param query: pageNumber, pageSize, externalReferenceUid,
-	// authOrderId, transactionType, startDate, endDate. Alphabetical
-	// sort shuffles them: authOrderId < endDate < externalReferenceUid <
-	// pageNumber < pageSize < startDate < transactionType.
 	if _, err := transaction.New(c).Transactions(context.Background(), &transaction.TransactionsParams{
-		PageNumber:           2,
-		PageSize:             50,
 		ExternalReferenceUID: "user-42",
-		AuthOrderID:          "AUTH-2026-0501-0001",
 		TransactionType:      transaction.TransactionTypeRefund,
 		StartDate:            "20260501",
 		EndDate:              "20260531",
+		Start:                2,
+		Count:                50,
 	}); err != nil {
 		t.Fatalf("Transactions: %v", err)
 	}
@@ -176,7 +171,7 @@ func TestService_TransactionDetail_Success(t *testing.T) {
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"tradeId":"TRD-1","transactionType":"PAYMENT","authOrderId":"AUTH-1","orderId":"ORD-1","currency":"IDR","amount":1000,"tradeStatus":"SUCCESS","tradeTime":1746089800000,"billId":"202605","notes":"x"}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":{"captureRequestId":"REQ-1","orderId":"ORD-1","totalTenor":3,"createTime":1746089800000,"principalAmount":1000,"subOrders":[{"subOrderId":"so-1","principalAmount":1000,"billOrderDetails":[{"billId":"202605","billDate":"20260515","dueDate":"20260615","totalAmount":1000,"repaidAmount":0,"principalAmount":1000,"interestAmount":0}]}]}}}`))
 	}))
 	defer srv.Close()
 
@@ -188,11 +183,11 @@ func TestService_TransactionDetail_Success(t *testing.T) {
 	if !resp.IsSuccess() {
 		t.Errorf("Code = %q", resp.Code)
 	}
-	if resp.Data == nil || resp.Data.TradeID != "TRD-1" {
+	if resp.Data == nil || resp.Data.PaymentInfo == nil || resp.Data.PaymentInfo.CaptureRequestID != "REQ-1" {
 		t.Errorf("Data = %#v", resp.Data)
 	}
-	if resp.Data.BillID != "202605" {
-		t.Errorf("BillID = %q", resp.Data.BillID)
+	if resp.Data.PaymentInfo.SubOrders[0].BillOrderDetails[0].BillID != "202605" {
+		t.Errorf("BillID = %q", resp.Data.PaymentInfo.SubOrders[0].BillOrderDetails[0].BillID)
 	}
 	if gotPath != "/transactionDetail" {
 		t.Errorf("path = %q", gotPath)
@@ -233,26 +228,32 @@ func TestService_TransactionDetail_Validate(t *testing.T) {
 func TestService_TransactionsAll_AutoPaginates(t *testing.T) {
 	var hits int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		page := r.URL.Query().Get("pageNumber")
+		start := r.URL.Query().Get("start")
 		atomic.AddInt32(&hits, 1)
 		w.WriteHeader(200)
-		switch page {
+		switch start {
 		case "1":
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":2,"total":3,"items":[{"tradeId":"TRD-1","transactionType":"PAYMENT","authOrderId":"A","currency":"IDR","amount":1,"tradeStatus":"SUCCESS","tradeTime":1},{"tradeId":"TRD-2","transactionType":"PAYMENT","authOrderId":"A","currency":"IDR","amount":1,"tradeStatus":"SUCCESS","tradeTime":2}]}}`))
-		case "2":
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":2,"pageSize":2,"total":3,"items":[{"tradeId":"TRD-3","transactionType":"REFUND","authOrderId":"A","currency":"IDR","amount":1,"tradeStatus":"SUCCESS","tradeTime":3}]}}`))
+			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[{"captureRequestId":"CAP-1","orderId":"ORD-1","totalTenor":3,"createTime":1},{"captureRequestId":"CAP-2","orderId":"ORD-2","totalTenor":3,"createTime":2}],"paginator":{"start":1,"count":2,"totalCount":3}}}`))
+		case "3":
+			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[{"captureRequestId":"CAP-3","orderId":"ORD-3","totalTenor":3,"createTime":3}],"paginator":{"start":3,"count":2,"totalCount":3}}}`))
 		default:
-			t.Errorf("unexpected pageNumber=%q", page)
+			t.Errorf("unexpected start=%q", start)
 		}
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	all, err := transaction.New(c).TransactionsAll(context.Background(), &transaction.TransactionsParams{PageSize: 2})
+	all, err := transaction.New(c).TransactionsAll(context.Background(), &transaction.TransactionsParams{
+		ExternalReferenceUID: "u",
+		StartDate:            "20260501",
+		EndDate:              "20260531",
+		TransactionType:      transaction.TransactionTypePayment,
+		Count:                2,
+	})
 	if err != nil {
 		t.Fatalf("TransactionsAll: %v", err)
 	}
-	if got := len(all); got != 3 {
+	if got := len(all.PaymentInfo); got != 3 {
 		t.Errorf("len = %d, want 3", got)
 	}
 	if got := atomic.LoadInt32(&hits); got != 2 {
@@ -270,7 +271,12 @@ func TestService_Transactions_4xxBecomesAPIError(t *testing.T) {
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	_, err := transaction.New(c).Transactions(context.Background(), nil)
+	_, err := transaction.New(c).Transactions(context.Background(), &transaction.TransactionsParams{
+		ExternalReferenceUID: "u",
+		StartDate:            "20260501",
+		EndDate:              "20260531",
+		TransactionType:      transaction.TransactionTypePayment,
+	})
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
 		t.Fatalf("err = %v; want *APIError", err)
@@ -322,9 +328,13 @@ func TestTransactions_Validate(t *testing.T) {
 		p         *transaction.TransactionsParams
 		wantField string
 	}{
-		{"negative-pageNumber", &transaction.TransactionsParams{PageNumber: -1}, "pageNumber"},
-		{"negative-pageSize", &transaction.TransactionsParams{PageSize: -1}, "pageSize"},
-		{"oversize-pageSize", &transaction.TransactionsParams{PageSize: 1001}, "pageSize"},
+		{"missing-externalReferenceUid", &transaction.TransactionsParams{StartDate: "20260501", EndDate: "20260531", TransactionType: transaction.TransactionTypePayment}, "externalReferenceUid"},
+		{"missing-startDate", &transaction.TransactionsParams{ExternalReferenceUID: "u", EndDate: "20260531", TransactionType: transaction.TransactionTypePayment}, "startDate"},
+		{"missing-endDate", &transaction.TransactionsParams{ExternalReferenceUID: "u", StartDate: "20260501", TransactionType: transaction.TransactionTypePayment}, "endDate"},
+		{"missing-transactionType", &transaction.TransactionsParams{ExternalReferenceUID: "u", StartDate: "20260501", EndDate: "20260531"}, "transactionType"},
+		{"negative-start", &transaction.TransactionsParams{ExternalReferenceUID: "u", StartDate: "20260501", EndDate: "20260531", TransactionType: transaction.TransactionTypePayment, Start: -1}, "start"},
+		{"negative-count", &transaction.TransactionsParams{ExternalReferenceUID: "u", StartDate: "20260501", EndDate: "20260531", TransactionType: transaction.TransactionTypePayment, Count: -1}, "count"},
+		{"oversize-count", &transaction.TransactionsParams{ExternalReferenceUID: "u", StartDate: "20260501", EndDate: "20260531", TransactionType: transaction.TransactionTypePayment, Count: 51}, "count"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -359,23 +369,15 @@ func TestTransactionType_StringIsWireLiteral(t *testing.T) {
 	}
 }
 
-// ---------- Default-pagination expansion ----------
+// ---------- Required query params ----------
 
-func TestTransactions_NilParamsUsesDefaults(t *testing.T) {
-	var gotQuery string
+func TestTransactions_NilParamsRejected(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuery = r.URL.RawQuery
-		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"pageNumber":1,"pageSize":20,"total":0,"items":[]}}`))
+		t.Error("server must NOT be reached on nil params")
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv)
-	if _, err := transaction.New(c).Transactions(context.Background(), nil); err != nil {
-		t.Fatalf("Transactions(nil): %v", err)
-	}
-	want := fmt.Sprintf("pageNumber=%d&pageSize=%d", transaction.DefaultPageNumber, transaction.DefaultPageSize)
-	if gotQuery != want {
-		t.Errorf("RawQuery = %q, want %q", gotQuery, want)
-	}
+	_, err := transaction.New(c).Transactions(context.Background(), nil)
+	mustValidationError(t, err, "externalReferenceUid")
 }

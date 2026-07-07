@@ -64,13 +64,13 @@ func TestNewClient_RefusesEnvProd(t *testing.T) {
 	}
 }
 
-func TestNewClient_AcceptsEnvTest(t *testing.T) {
+func TestNewClient_DefaultsToEnvPre(t *testing.T) {
 	c := mock.NewClient(t, mock.WithMockKeysAllowed())
 	if c == nil {
 		t.Fatal("nil client")
 	}
-	if c.Environment() != atomefin.EnvTest {
-		t.Errorf("Environment = %q, want %q", c.Environment(), atomefin.EnvTest)
+	if c.Environment() != atomefin.EnvPre {
+		t.Errorf("Environment = %q, want %q", c.Environment(), atomefin.EnvPre)
 	}
 }
 
@@ -96,7 +96,7 @@ func TestNewClient_DefaultScenario_AlwaysSuccess(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1500000,
 		PeriodType:           3,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1500000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
 		Sessionid:            "s",
 	})
 	if err != nil {
@@ -117,7 +117,7 @@ func TestNewClient_AlwaysAPIError_400(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1500000,
 		PeriodType:           3,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1500000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
 		Sessionid:            "s",
 	})
 	var ae *atomefin.APIError
@@ -153,7 +153,7 @@ func TestNewClient_PerEndpoint_RoutesByOp(t *testing.T) {
 		AuthOrderID:          "AUTH-1",
 		TotalAmount:          1500000,
 		PeriodType:           3,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1500000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
 	})
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
@@ -255,7 +255,7 @@ func validAuth() *payment.AuthRequest {
 		ExternalReferenceUID: "u-mock-1",
 		TotalAmount:          1500000,
 		PeriodType:           3,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "so-1", Amount: 1500000, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
 		Sessionid:            "s",
 	}
 }

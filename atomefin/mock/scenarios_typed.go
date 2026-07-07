@@ -193,7 +193,7 @@ func CaptureFailed(failureCode atomefin.FailureCode) Scenario {
 func VoidAuthSuccess() Scenario {
 	resp := &payment.VoidAuthResponse{
 		Code: atomefin.CodeSuccess, Message: "ok",
-		Data: &payment.VoidResultData{Status: atomefin.StatusSuccess},
+		Data: &payment.VoidResultData{},
 	}
 	status, body := jsonOK(resp)
 	return &typedScenario{respStatus: status, respBody: body}
@@ -203,11 +203,9 @@ func VoidAuthSuccess() Scenario {
 func VoidAuthFailed(failureCode atomefin.FailureCode) Scenario {
 	resp := &payment.VoidAuthResponse{
 		Code: atomefin.CodeSuccess, Message: "ok",
-		Data: &payment.VoidResultData{
-			Status:      atomefin.StatusFailed,
-			FailureCode: failureCode,
-		},
+		Data: &payment.VoidResultData{},
 	}
+	_ = failureCode
 	status, body := jsonOK(resp)
 	return &typedScenario{respStatus: status, respBody: body}
 }
@@ -219,9 +217,9 @@ func RefundSuccess(refundOrderID string) Scenario {
 	resp := &refund.RefundResponse{
 		Code: atomefin.CodeSuccess, Message: "ok",
 		Data: &refund.RefundResult{
-			RefundOrderID: refundOrderID,
-			Currency:      atomefin.CurrencyIDR,
-			Status:        atomefin.StatusSuccess,
+			RefundID: refundOrderID,
+			Currency: atomefin.CurrencyIDR,
+			Status:   atomefin.StatusSuccess,
 		},
 	}
 	status, body := jsonOK(resp)

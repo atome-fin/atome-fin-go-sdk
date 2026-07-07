@@ -22,9 +22,9 @@ import (
 func TestRepaymentHandler_HappyPath(t *testing.T) {
 	h := newHarness(t)
 
-	body := []byte(`{"code":"SUCCESS","message":"repayment terminal","data":{"requestId":"r-1","repaymentId":"RPM-1","status":"SUCCESS","currency":"IDR","repaymentAmount":1500000,"event":"NORMAL"}}`)
+	body := []byte(`{"requestId":"r-1","repaymentId":"RPM-1","status":"SUCCESS","currency":"IDR","repaymentAmount":1500000,"event":"NORMAL"}`)
 
-	var seen *repayment.RepaymentResponse
+	var seen *repayment.RepaymentResult
 	handler := callback.RepaymentHandler(h.verifier, func(ctx context.Context, e *callback.RepaymentEvent) error {
 		seen = e
 		return nil
@@ -52,8 +52,8 @@ func TestRepaymentHandler_HappyPath(t *testing.T) {
 	if seen == nil {
 		t.Fatal("user handler was not invoked")
 	}
-	if seen.Data == nil || seen.Data.RepaymentID != "RPM-1" {
-		t.Errorf("event Data.RepaymentID = %#v", seen.Data)
+	if seen.RepaymentID != "RPM-1" {
+		t.Errorf("event RepaymentID = %q", seen.RepaymentID)
 	}
 }
 
@@ -173,7 +173,7 @@ func TestRepaymentHandler_MultiCert_OldKeyStillVerifies(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := []byte(`{"code":"SUCCESS","message":"repayment terminal","data":{"requestId":"r-1","repaymentId":"RPM-1","status":"SUCCESS","currency":"IDR","repaymentAmount":1,"event":"NORMAL"}}`)
+	body := []byte(`{"requestId":"r-1","repaymentId":"RPM-1","status":"SUCCESS","currency":"IDR","repaymentAmount":1,"event":"NORMAL"}`)
 	sig, _ := signer.Sign(context.Background(), body)
 
 	r := httptest.NewRequest(http.MethodPost, "/atome/repayment", bytes.NewReader(body))
@@ -198,7 +198,7 @@ func TestRepaymentHandler_MultiCert_OldKeyStillVerifies(t *testing.T) {
 
 func TestRepaymentHandler_ReplayInvokesUserFnTwice(t *testing.T) {
 	h := newHarness(t)
-	body := []byte(`{"code":"SUCCESS","message":"repayment terminal","data":{"requestId":"r-dup","repaymentId":"RPM-1","status":"SUCCESS","currency":"IDR","repaymentAmount":1,"event":"ATOME_REPAYMENT"}}`)
+	body := []byte(`{"requestId":"r-dup","repaymentId":"RPM-1","status":"SUCCESS","currency":"IDR","repaymentAmount":1,"event":"NORMAL"}`)
 
 	var calls int32
 	handler := callback.RepaymentHandler(h.verifier, func(ctx context.Context, e *callback.RepaymentEvent) error {
@@ -222,7 +222,7 @@ func TestRepaymentHandler_ReplayInvokesUserFnTwice(t *testing.T) {
 
 func TestRepaymentHandler_500OnUserError(t *testing.T) {
 	h := newHarness(t)
-	body := []byte(`{"code":"SUCCESS","message":"repayment terminal","data":{"requestId":"r-1","repaymentId":"RPM-1","status":"SUCCESS","currency":"IDR","repaymentAmount":1,"event":"NORMAL"}}`)
+	body := []byte(`{"requestId":"r-1","repaymentId":"RPM-1","status":"SUCCESS","currency":"IDR","repaymentAmount":1,"event":"NORMAL"}`)
 
 	rec := httptest.NewRecorder()
 	callback.RepaymentHandler(h.verifier, func(ctx context.Context, e *callback.RepaymentEvent) error {

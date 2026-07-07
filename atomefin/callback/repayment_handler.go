@@ -7,12 +7,9 @@ import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/repayment"
 )
 
-// RepaymentEvent is the JSON shape posted to the partner's
-// /repayment-callback endpoint. Byte-for-byte the same envelope as
-// the synchronous /repayment-request response — partners do not learn
-// a parallel callback schema (DESIGN.md §8 contract; mirrors AuthEvent
-// / CaptureEvent / RefundEvent).
-type RepaymentEvent = repayment.RepaymentResponse
+// RepaymentEvent is the flat JSON shape posted to the partner's
+// /repayment-callback endpoint.
+type RepaymentEvent = repayment.RepaymentResult
 
 // RepaymentHandlerFunc is the user-supplied callback for the inbound
 // repayment-terminal events. Returning nil acks (HTTP 200);

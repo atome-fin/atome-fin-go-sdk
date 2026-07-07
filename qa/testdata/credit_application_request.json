@@ -5,6 +5,10 @@
   "email": "user42@example.com",
   "country": "ID",
   "applicationEssentialInfo": {
+    "livenessCheck": {
+      "result": "PASS",
+      "snapshotPhoto": "base64-photo"
+    },
     "individualProfile": {
       "idType": "KTP",
       "ocrResult": {
@@ -17,7 +21,7 @@
       "manuallyEducation": "BACHELOR"
     },
     "platformInformation": {
-      "userCreditScore": 0.233,
+      "sceneType": "CHECKOUT_PAGE",
       "creditProfile": "{\"modelScores\":[{\"scoreType\":\"application_model\",\"scoreValue\":\"-99\"}]}",
       "deviceInfo": {
         "platform": "ANDROID",

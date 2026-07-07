@@ -7,6 +7,9 @@
     "authOrderId": "AUTH-2026-0501-0003",
     "totalAmount": 1500000,
     "status": "FAILED",
-    "failureCode": "RISK_REJECT"
+    "failureCode": "RISK_REJECT",
+    "extendInfo": {
+      "reapplyTime": 1746576000000
+    }
   }
 }

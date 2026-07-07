@@ -2,14 +2,12 @@
   "code": "SUCCESS",
   "message": "ok",
   "data": {
-    "tradeId": "TRD-2026-0508-D",
-    "transactionType": "PAYMENT",
-    "authOrderId": "AUTH-2026-0508-0009",
-    "externalReferenceUid": "user-42",
     "currency": "IDR",
-    "amount": 800000,
-    "tradeStatus": "FAILED",
-    "tradeTime": 1746748800000,
-    "failureCode": "RISK_REJECT"
+    "refundInfo": {
+      "refundRequestId": "RFD-REQ-2026-0508-D",
+      "captureRequestId": "CAP-2026-0508-D",
+      "refundAmount": 800000,
+      "createTime": 1746748800000
+    }
   }
 }

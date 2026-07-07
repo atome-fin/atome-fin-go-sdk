@@ -5,17 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
-)
-
-// Default pagination parameters used when caller passes the zero
-// value. Tuned to match the spec's recommended page size; partners
-// can override per call.
-const (
-	DefaultPageNumber = 1
-	DefaultPageSize   = 20
 )
 
 // Service is the outbound bill-query client. Construct via
@@ -61,12 +52,7 @@ func (s *Service) checkConfigured() error {
 	return nil
 }
 
-// Bills retrieves one page of the partner's bill list.
-//
-// Spec endpoint: GET /bills?pageNumber=N&pageSize=M&...
-//
-// Pass nil for the default first page (PageNumber=1, PageSize=20,
-// no filters); pass &BillsParams{...} for explicit control.
+// Bills retrieves the partner's bill list.
 func (s *Service) Bills(ctx context.Context, params *BillsParams) (*BillsResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
@@ -138,12 +124,8 @@ func (s *Service) BillDetail(ctx context.Context, billID, externalReferenceUID s
 	return &out, nil
 }
 
-// BillsUnpaid retrieves one page of the partner's unpaid bills. The
-// endpoint pre-filters to OverdueStatus != ON_TIME (or to bills
-// where UnpaidAmount > 0 — exact server-side semantics may evolve).
-//
-// Spec endpoint: GET /billUnpaid?pageNumber=N&pageSize=M&...
-func (s *Service) BillsUnpaid(ctx context.Context, params *BillsUnpaidParams) (*BillsResponse, error) {
+// BillsUnpaid retrieves the partner's unpaid bill summary.
+func (s *Service) BillsUnpaid(ctx context.Context, params *BillsUnpaidParams) (*BillUnpaidResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
@@ -159,7 +141,7 @@ func (s *Service) BillsUnpaid(ctx context.Context, params *BillsUnpaidParams) (*
 	if err != nil {
 		return nil, err
 	}
-	var out BillsResponse
+	var out BillUnpaidResponse
 	if uerr := json.Unmarshal(resp.Body, &out); uerr != nil {
 		return nil, &atomefin.TransportError{
 			Op:  "unmarshal",
@@ -170,110 +152,47 @@ func (s *Service) BillsUnpaid(ctx context.Context, params *BillsUnpaidParams) (*
 	return &out, nil
 }
 
-// BillsAll walks every page of GET /bills and returns the
-// concatenated rows. Convenience wrapper — partners that need
-// per-page control should call Bills directly.
-//
-// The loop honours params (filters carry through every page) and
-// terminates when the cumulative count reaches Data.Total OR the
-// server returns fewer rows than PageSize. The starting PageNumber
-// can be set on params; if zero, the loop begins at PageNumber=1.
-//
-// ctx cancellation is honoured between pages; each individual
-// Bills call is itself cancellable.
-func (s *Service) BillsAll(ctx context.Context, params *BillsParams) ([]Bill, error) {
+// BillsAll is retained for compatibility; /bills no longer paginates
+// in the 2026-07 spec, so it returns the single response's data rows.
+func (s *Service) BillsAll(ctx context.Context, params *BillsParams) ([]BillsResponseItem, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
-	if params == nil {
-		params = &BillsParams{}
+	resp, err := s.Bills(ctx, params)
+	if err != nil || resp == nil {
+		return nil, err
 	}
-	// Make a copy so we can mutate PageNumber without touching
-	// the caller's struct.
-	cur := *params
-	if cur.PageNumber <= 0 {
-		cur.PageNumber = DefaultPageNumber
-	}
-	if cur.PageSize <= 0 {
-		cur.PageSize = DefaultPageSize
-	}
-
-	var all []Bill
-	for {
-		if err := ctx.Err(); err != nil {
-			return all, err
-		}
-		page, err := s.Bills(ctx, &cur)
-		if err != nil {
-			return all, err
-		}
-		if page == nil || page.Data == nil {
-			break
-		}
-		all = append(all, page.Data.Bills...)
-		// Termination: short page OR we've reached Total.
-		if len(page.Data.Bills) < cur.PageSize {
-			break
-		}
-		if page.Data.Total > 0 && len(all) >= page.Data.Total {
-			break
-		}
-		cur.PageNumber++
-	}
-	return all, nil
+	return resp.Data, nil
 }
 
 // ---------- Validation ----------
 
 func validateBillsParams(p *BillsParams) error {
-	if p.PageNumber < 0 {
-		return &atomefin.ValidationError{Field: "pageNumber", Message: "must be >= 0 (0 → default 1)"}
+	if p.ExternalReferenceUID == "" {
+		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "required"}
 	}
-	if p.PageSize < 0 {
-		return &atomefin.ValidationError{Field: "pageSize", Message: "must be >= 0 (0 → default 20)"}
+	if p.StartMonth == "" {
+		return &atomefin.ValidationError{Field: "startMonth", Message: "required"}
 	}
-	if p.PageSize > 1000 {
-		return &atomefin.ValidationError{Field: "pageSize", Message: "must be <= 1000 (sanity cap)"}
+	if p.EndMonth == "" {
+		return &atomefin.ValidationError{Field: "endMonth", Message: "required"}
 	}
 	return nil
 }
 
 func validateBillsUnpaidParams(p *BillsUnpaidParams) error {
-	if p.PageNumber < 0 {
-		return &atomefin.ValidationError{Field: "pageNumber", Message: "must be >= 0 (0 → default 1)"}
-	}
-	if p.PageSize < 0 {
-		return &atomefin.ValidationError{Field: "pageSize", Message: "must be >= 0 (0 → default 20)"}
-	}
-	if p.PageSize > 1000 {
-		return &atomefin.ValidationError{Field: "pageSize", Message: "must be <= 1000 (sanity cap)"}
+	if p.ExternalReferenceUID == "" {
+		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "required"}
 	}
 	return nil
 }
 
 // ---------- Query construction ----------
 
-// buildBillsQuery materialises a BillsParams into a url.Values whose
-// CanonicalQuery output is the signing canonical. Defaults are
-// applied here so the wire query always carries pageNumber +
-// pageSize.
 func buildBillsQuery(p *BillsParams) url.Values {
 	q := url.Values{}
-	pn := p.PageNumber
-	if pn <= 0 {
-		pn = DefaultPageNumber
-	}
-	ps := p.PageSize
-	if ps <= 0 {
-		ps = DefaultPageSize
-	}
-	q.Set("pageNumber", strconv.Itoa(pn))
-	q.Set("pageSize", strconv.Itoa(ps))
 	if p.ExternalReferenceUID != "" {
 		q.Set("externalReferenceUid", p.ExternalReferenceUID)
-	}
-	if p.BillID != "" {
-		q.Set("billId", p.BillID)
 	}
 	if p.StartMonth != "" {
 		q.Set("startMonth", p.StartMonth)
@@ -281,21 +200,23 @@ func buildBillsQuery(p *BillsParams) url.Values {
 	if p.EndMonth != "" {
 		q.Set("endMonth", p.EndMonth)
 	}
+	for _, v := range p.Status {
+		q.Add("status", string(v))
+	}
+	for _, v := range p.RepaymentStatus {
+		q.Add("repaymentStatus", v)
+	}
+	for _, v := range p.OverdueStatus {
+		q.Add("overdueStatus", string(v))
+	}
+	for _, v := range p.RefundStatus {
+		q.Add("refundStatus", string(v))
+	}
 	return q
 }
 
 func buildBillsUnpaidQuery(p *BillsUnpaidParams) url.Values {
 	q := url.Values{}
-	pn := p.PageNumber
-	if pn <= 0 {
-		pn = DefaultPageNumber
-	}
-	ps := p.PageSize
-	if ps <= 0 {
-		ps = DefaultPageSize
-	}
-	q.Set("pageNumber", strconv.Itoa(pn))
-	q.Set("pageSize", strconv.Itoa(ps))
 	if p.ExternalReferenceUID != "" {
 		q.Set("externalReferenceUid", p.ExternalReferenceUID)
 	}

@@ -34,8 +34,7 @@ func TestQueryRefundResponse_Roundtrip(t *testing.T) {
 }
 
 func TestCallback_Refund_Terminal_Success(t *testing.T) {
-	// Callback body shape == /refund response; same RefundResponse type.
-	marshal.GoldenRoundTrip[refund.RefundResponse](t, fixtureRoot+"callback_refund_terminal_success.json")
+	marshal.GoldenRoundTrip[refund.RefundResult](t, fixtureRoot+"callback_refund_terminal_success.json")
 }
 
 // ---------- R10 — full int64 amount round-trip ----------

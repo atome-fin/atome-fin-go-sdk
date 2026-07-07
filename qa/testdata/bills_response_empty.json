@@ -1,10 +1,5 @@
 {
   "code": "SUCCESS",
   "message": "ok",
-  "data": {
-    "pageNumber": 1,
-    "pageSize": 20,
-    "total": 0,
-    "bills": []
-  }
+  "data": []
 }

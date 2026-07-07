@@ -28,7 +28,7 @@ func TestAuth_Validate_RejectsEmptySessionid(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
 		// Sessionid intentionally empty — must fail validation BEFORE
 		// the server is hit (pre-fix this slipped through).
 	}
@@ -57,7 +57,7 @@ func TestAuth_Validate_RejectsLongSessionid_StillFires(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
 		Sessionid:            strings.Repeat("a", 65),
 	}
 	_, err := svc.Auth(context.Background(), req)

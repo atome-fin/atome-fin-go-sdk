@@ -25,7 +25,7 @@ func TestService_PaymentPlan_Success(t *testing.T) {
 		gotBody, _ = io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","plans":[{"periodType":3,"currency":"IDR","totalAmount":1545000,"totalFee":45000},{"periodType":6,"currency":"IDR","totalAmount":1590000,"totalFee":90000}]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","subOrderInstallmentPlans":[{"subOrderId":"so-1","orderAmount":1500000,"installmentPlans":[{"totalTenor":3,"orderRepayAmount":1545000,"orderInterestAmount":45000,"orderDiscountAmount":0,"installmentDetails":[{"subOrderId":"so-1","totalTenor":3,"currentTenor":1,"repayAmount":515000,"principalAmount":500000,"interestAmount":15000,"billId":"202606","billDate":"2026-06-15","dueDate":"2026-06-15"}]},{"totalTenor":6,"orderRepayAmount":1590000,"orderInterestAmount":90000,"orderDiscountAmount":0,"installmentDetails":[{"subOrderId":"so-1","totalTenor":6,"currentTenor":1,"repayAmount":265000,"principalAmount":250000,"interestAmount":15000,"billId":"202606","billDate":"2026-06-15","dueDate":"2026-06-15"}]}]}]}}`))
 	}))
 	defer srv.Close()
 
@@ -34,10 +34,10 @@ func TestService_PaymentPlan_Success(t *testing.T) {
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1500000,
-		Currency:             atomefin.CurrencyIDR,
 		SubOrders: []payment.PlanSubOrder{
-			{SubOrderID: "so-1", Amount: 1500000, Quantity: 1},
+			specSamplePlanSubOrder(1500000),
 		},
+		Sessionid: "session-plan",
 	})
 	if err != nil {
 		t.Fatalf("PaymentPlan: %v", err)
@@ -45,11 +45,12 @@ func TestService_PaymentPlan_Success(t *testing.T) {
 	if resp.Code != atomefin.CodeSuccess {
 		t.Errorf("Code = %q", resp.Code)
 	}
-	if resp.Data == nil || len(resp.Data.Plans) != 2 {
-		t.Fatalf("expected 2 plans, got %#v", resp.Data)
+	if resp.Data == nil || len(resp.Data.SubOrderInstallmentPlans) != 1 {
+		t.Fatalf("expected 1 sub-order plan group, got %#v", resp.Data)
 	}
-	if resp.Data.Plans[0].PeriodType != 3 || resp.Data.Plans[1].PeriodType != 6 {
-		t.Errorf("PeriodType ordering = %d, %d", resp.Data.Plans[0].PeriodType, resp.Data.Plans[1].PeriodType)
+	plans := resp.Data.SubOrderInstallmentPlans[0].InstallmentPlans
+	if len(plans) != 2 || plans[0].TotalTenor != 3 || plans[1].TotalTenor != 6 {
+		t.Errorf("TotalTenor ordering = %#v", plans)
 	}
 	if gotMethod != http.MethodPost {
 		t.Errorf("method = %q", gotMethod)
@@ -57,8 +58,8 @@ func TestService_PaymentPlan_Success(t *testing.T) {
 	if gotPath != "/payment-plan" {
 		t.Errorf("path = %q", gotPath)
 	}
-	if !strings.Contains(string(gotBody), `"requestId":"r-1"`) {
-		t.Errorf("body missing requestId: %s", gotBody)
+	if strings.Contains(string(gotBody), "requestId") {
+		t.Errorf("body must not contain requestId per spec: %s", gotBody)
 	}
 }
 
@@ -73,10 +74,10 @@ func TestService_PaymentPlan_AutoMintsRequestID(t *testing.T) {
 	req := &payment.PaymentPlanRequest{
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
-		Currency:             atomefin.CurrencyIDR,
 		SubOrders: []payment.PlanSubOrder{
-			{SubOrderID: "so-1", Amount: 1, Quantity: 1},
+			specSamplePlanSubOrder(1),
 		},
+		Sessionid: "session-plan",
 	}
 	if _, err := payment.New(c).PaymentPlan(context.Background(), req); err != nil {
 		t.Fatalf("PaymentPlan: %v", err)
@@ -98,10 +99,10 @@ func TestService_PaymentPlan_4xxBecomesAPIError(t *testing.T) {
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
-		Currency:             atomefin.CurrencyIDR,
 		SubOrders: []payment.PlanSubOrder{
-			{SubOrderID: "so-1", Amount: 1, Quantity: 1},
+			specSamplePlanSubOrder(1),
 		},
+		Sessionid: "session-plan",
 	})
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
@@ -129,36 +130,32 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 		{"missing-externalReferenceUid", &payment.PaymentPlanRequest{
 			RequestID:   "r",
 			TotalAmount: 1,
-			Currency:    atomefin.CurrencyIDR,
-			SubOrders:   []payment.PlanSubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
+			SubOrders:   []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			Sessionid:   "s",
 		}, "externalReferenceUid"},
 		{"zero-totalAmount", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			TotalAmount:          0,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders:            []payment.PlanSubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			Sessionid:            "s",
 		}, "totalAmount"},
-		{"non-IDR-currency", &payment.PaymentPlanRequest{
-			RequestID:            "r",
-			ExternalReferenceUID: "u",
-			TotalAmount:          1,
-			Currency:             "EUR",
-			SubOrders:            []payment.PlanSubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
-		}, "currency"},
 		{"empty-subOrders", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			TotalAmount:          1,
-			Currency:             atomefin.CurrencyIDR,
 			SubOrders:            []payment.PlanSubOrder{},
+			Sessionid:            "s",
 		}, "subOrders"},
 		{"sum-mismatch", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			TotalAmount:          1000,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders:            []payment.PlanSubOrder{{SubOrderID: "s", Amount: 999, Quantity: 1}},
+			SubOrders: func() []payment.PlanSubOrder {
+				so := specSamplePlanSubOrder(999)
+				return []payment.PlanSubOrder{so}
+			}(),
+			Sessionid: "s",
 		}, "totalAmount"},
 	}
 	for _, tc := range cases {
@@ -179,10 +176,7 @@ func TestPaymentPlanResponse_Roundtrip(t *testing.T) {
 	marshal.GoldenRoundTrip[payment.PaymentPlanResponse](t, fixtureRoot+"payment_plan_response.json")
 }
 
-// Empty-plans round-trip pin — the paginated-list pattern from chunk #3
-// applies to PaymentPlanData.Plans (bare json:"plans", no omitempty)
-// so a 0-tenor response round-trips as `"plans":[]` rather than
-// disappearing.
+// Empty sub-order plan round-trip pin.
 func TestPaymentPlanResponse_Roundtrip_Empty(t *testing.T) {
 	marshal.GoldenRoundTrip[payment.PaymentPlanResponse](t, fixtureRoot+"payment_plan_response_empty.json")
 }
@@ -190,13 +184,9 @@ func TestPaymentPlanResponse_Roundtrip_Empty(t *testing.T) {
 func TestR10_PaymentPlanRequest_TotalAmount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[payment.PaymentPlanRequest](t, func(v int64) payment.PaymentPlanRequest {
 		return payment.PaymentPlanRequest{
-			RequestID:            "r-1",
 			ExternalReferenceUID: "u-1",
 			TotalAmount:          v,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders: []payment.PlanSubOrder{
-				{SubOrderID: "so-1", Amount: v, Quantity: 1},
-			},
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(v)},
 		}
 	})
 }
@@ -204,32 +194,36 @@ func TestR10_PaymentPlanRequest_TotalAmount(t *testing.T) {
 func TestR10_CommerceInstallmentDetail_AllAmounts(t *testing.T) {
 	marshal.AssertAmountRoundtrip[payment.CommerceInstallmentDetail](t, func(v int64) payment.CommerceInstallmentDetail {
 		return payment.CommerceInstallmentDetail{
-			InstallmentID: "INS-1",
-			DueDate:       "2026-06-15",
-			Principal:     v,
-			Fee:           v,
-			Interest:      v,
-			Amount:        v,
+			SubOrderID:      "so-1",
+			TotalTenor:      3,
+			CurrentTenor:    1,
+			RepayAmount:     v,
+			PrincipalAmount: v,
+			InterestAmount:  v,
+			DiscountAmount:  v,
+			BillID:          "202606",
+			BillDate:        "2026-06-15",
+			DueDate:         "2026-06-15",
 		}
 	})
 }
 
 func TestR11_PaymentPlan_RejectsFractional(t *testing.T) {
-	body := []byte(`{"requestId":"r","externalReferenceUid":"u","totalAmount":1.5,"currency":"IDR","subOrders":[]}`)
+	body := []byte(`{"externalReferenceUid":"u","totalAmount":1.5,"subOrders":[]}`)
 	marshal.AssertRejectsFractionalAmount[payment.PaymentPlanRequest](t, body)
 }
 
 func TestR12_CommerceInstallmentPlan_IntegerLiterals(t *testing.T) {
 	in := payment.CommerceInstallmentPlan{
-		PeriodType:  3,
-		Currency:    atomefin.CurrencyIDR,
-		TotalAmount: 1545000,
-		TotalFee:    45000,
-		Installments: []payment.CommerceInstallmentDetail{
-			{InstallmentID: "INS-1", DueDate: "2026-06-15", Principal: 500000, Fee: 15000, Interest: 0, Amount: 515000},
+		TotalTenor:          3,
+		OrderRepayAmount:    1545000,
+		OrderInterestAmount: 45000,
+		OrderDiscountAmount: 0,
+		InstallmentDetails: []payment.CommerceInstallmentDetail{
+			{SubOrderID: "so-1", TotalTenor: 3, CurrentTenor: 1, RepayAmount: 515000, PrincipalAmount: 500000, InterestAmount: 15000, BillID: "202606", BillDate: "2026-06-15", DueDate: "2026-06-15"},
 		},
 	}
 	marshal.AssertAmountKeysAreInteger[payment.CommerceInstallmentPlan](t, in,
-		"totalAmount", "totalFee", "principal", "fee", "interest", "amount",
+		"orderRepayAmount", "orderInterestAmount", "orderDiscountAmount", "repayAmount", "principalAmount", "interestAmount",
 	)
 }

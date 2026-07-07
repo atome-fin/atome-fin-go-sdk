@@ -10,12 +10,11 @@ import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
 )
 
-// Default pagination parameters used when caller passes the zero
-// value. Match bill's defaults so partners using both Service
-// families get one consistent paging shape.
+// Default pagination parameters used when caller passes the zero value.
 const (
-	DefaultPageNumber = 1
-	DefaultPageSize   = 20
+	DefaultStart = 1
+	DefaultCount = 10
+	MaxCount     = 50
 )
 
 // Service is the outbound transaction-query client. Construct via
@@ -64,10 +63,7 @@ func (s *Service) checkConfigured() error {
 // Transactions retrieves one page of the partner's transaction
 // list.
 //
-// Spec endpoint: GET /transactions?pageNumber=N&pageSize=M&...
-//
-// Pass nil for the default first page (PageNumber=1, PageSize=20,
-// no filters); pass &TransactionsParams{...} for explicit control.
+// Spec endpoint: GET /transactions?externalReferenceUid=...&startDate=...&endDate=...&transactionType=...
 func (s *Service) Transactions(ctx context.Context, params *TransactionsParams) (*TransactionsResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
@@ -156,14 +152,9 @@ func (s *Service) TransactionDetail(ctx context.Context, requestID, externalRefe
 	return &out, nil
 }
 
-// TransactionsAll walks every page of GET /transactions and returns
-// the concatenated rows. Convenience wrapper — partners that need
-// per-page control should call Transactions directly.
-//
-// Mirrors bill.BillsAll's termination logic: short page OR
-// cumulative count reaches Total. ctx cancellation honoured between
-// pages.
-func (s *Service) TransactionsAll(ctx context.Context, params *TransactionsParams) ([]Transaction, error) {
+// TransactionsAll walks pages using start/count and returns the final
+// concatenated grouped payload.
+func (s *Service) TransactionsAll(ctx context.Context, params *TransactionsParams) (*TransactionsData, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
@@ -171,53 +162,74 @@ func (s *Service) TransactionsAll(ctx context.Context, params *TransactionsParam
 		params = &TransactionsParams{}
 	}
 	cur := *params
-	if cur.PageNumber <= 0 {
-		cur.PageNumber = DefaultPageNumber
+	if cur.Start <= 0 {
+		cur.Start = DefaultStart
 	}
-	if cur.PageSize <= 0 {
-		cur.PageSize = DefaultPageSize
+	if cur.Count <= 0 {
+		cur.Count = DefaultCount
 	}
 
-	var all []Transaction
+	out := &TransactionsData{}
 	for {
 		if err := ctx.Err(); err != nil {
-			return all, err
+			return out, err
 		}
 		page, err := s.Transactions(ctx, &cur)
 		if err != nil {
-			return all, err
+			return out, err
 		}
 		if page == nil || page.Data == nil {
 			break
 		}
-		all = append(all, page.Data.Items...)
-		if len(page.Data.Items) < cur.PageSize {
+		if out.Currency == "" {
+			out.Currency = page.Data.Currency
+		}
+		out.PaymentInfo = append(out.PaymentInfo, page.Data.PaymentInfo...)
+		out.RefundInfo = append(out.RefundInfo, page.Data.RefundInfo...)
+		out.RepaymentInfo = append(out.RepaymentInfo, page.Data.RepaymentInfo...)
+		out.Paginator = page.Data.Paginator
+		got := len(page.Data.PaymentInfo) + len(page.Data.RefundInfo) + len(page.Data.RepaymentInfo)
+		if got < cur.Count {
 			break
 		}
-		if page.Data.Total > 0 && len(all) >= page.Data.Total {
+		if page.Data.Paginator != nil && page.Data.Paginator.TotalCount > 0 {
+			total := len(out.PaymentInfo) + len(out.RefundInfo) + len(out.RepaymentInfo)
+			if total >= page.Data.Paginator.TotalCount {
+				break
+			}
+		}
+		if cur.Count <= 0 {
 			break
 		}
-		cur.PageNumber++
+		cur.Start += cur.Count
 	}
-	return all, nil
+	return out, nil
 }
 
 // ---------- Validation ----------
 
 func validateTransactionsParams(p *TransactionsParams) error {
-	if p.PageNumber < 0 {
-		return &atomefin.ValidationError{Field: "pageNumber", Message: "must be >= 0 (0 → default 1)"}
+	if p.ExternalReferenceUID == "" {
+		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "required"}
 	}
-	if p.PageSize < 0 {
-		return &atomefin.ValidationError{Field: "pageSize", Message: "must be >= 0 (0 → default 20)"}
+	if p.StartDate == "" {
+		return &atomefin.ValidationError{Field: "startDate", Message: "required"}
 	}
-	if p.PageSize > 1000 {
-		return &atomefin.ValidationError{Field: "pageSize", Message: "must be <= 1000 (sanity cap)"}
+	if p.EndDate == "" {
+		return &atomefin.ValidationError{Field: "endDate", Message: "required"}
 	}
-	// TransactionType is intentionally NOT strict-validated here —
-	// partners passing an unknown literal hit the server's
-	// NOT_FOUND-style envelope and forward-compat works (matches the
-	// bill enum pattern).
+	if p.TransactionType == "" {
+		return &atomefin.ValidationError{Field: "transactionType", Message: "required"}
+	}
+	if p.Start < 0 {
+		return &atomefin.ValidationError{Field: "start", Message: "must be >= 0 (0 → default 1)"}
+	}
+	if p.Count < 0 {
+		return &atomefin.ValidationError{Field: "count", Message: "must be >= 0 (0 → default 10)"}
+	}
+	if p.Count > MaxCount {
+		return &atomefin.ValidationError{Field: "count", Message: "must be <= 50"}
+	}
 	return nil
 }
 
@@ -225,21 +237,18 @@ func validateTransactionsParams(p *TransactionsParams) error {
 
 func buildTransactionsQuery(p *TransactionsParams) url.Values {
 	q := url.Values{}
-	pn := p.PageNumber
-	if pn <= 0 {
-		pn = DefaultPageNumber
+	start := p.Start
+	if start <= 0 {
+		start = DefaultStart
 	}
-	ps := p.PageSize
-	if ps <= 0 {
-		ps = DefaultPageSize
+	count := p.Count
+	if count <= 0 {
+		count = DefaultCount
 	}
-	q.Set("pageNumber", strconv.Itoa(pn))
-	q.Set("pageSize", strconv.Itoa(ps))
+	q.Set("start", strconv.Itoa(start))
+	q.Set("count", strconv.Itoa(count))
 	if p.ExternalReferenceUID != "" {
 		q.Set("externalReferenceUid", p.ExternalReferenceUID)
-	}
-	if p.AuthOrderID != "" {
-		q.Set("authOrderId", p.AuthOrderID)
 	}
 	if p.TransactionType != "" {
 		q.Set("transactionType", string(p.TransactionType))

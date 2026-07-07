@@ -34,9 +34,12 @@ func internalValidInformationParam() *CreditInformationParam {
 	return &CreditInformationParam{
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
-		EventType:            EventTypeNewApplication,
+		MobileNumber:         "+6281298000000",
 		Email:                "u@example.com",
 		Country:              CountryIndonesia,
+		ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+			OCRResult: &CreditInformationOCRResult{FullName: "Test User"},
+		},
 	}
 }
 
@@ -48,6 +51,10 @@ func internalValidApplicationParam() *CreditApplicationParam {
 		Email:                "u@example.com",
 		Country:              CountryIndonesia,
 		ApplicationEssentialInfo: &ApplicationEssentialInfo{
+			LivenessCheck: &LivenessCheck{
+				Result:        "PASS",
+				SnapshotPhoto: "base64-photo",
+			},
 			IndividualProfile:   &IndividualProfile{IDType: "KTP"},
 			PlatformInformation: &PlatformInformation{},
 		},
@@ -66,78 +73,97 @@ func TestValidateCreditInformation_Internal(t *testing.T) {
 		{"long-requestId", &CreditInformationParam{
 			RequestID:            strings.Repeat("a", 65),
 			ExternalReferenceUID: "u",
-			EventType:            EventTypeNewApplication,
+			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
 			Country:              CountryIndonesia,
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
+			},
 		}, "requestId"},
 		{"long-externalReferenceUid", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: strings.Repeat("u", 65),
-			EventType:            EventTypeNewApplication,
+			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
 			Country:              CountryIndonesia,
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
+			},
 		}, "externalReferenceUid"},
-		{"missing-eventType", &CreditInformationParam{
+		{"missing-mobileNumber", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			Email:                "e@x",
 			Country:              CountryIndonesia,
-		}, "eventType"},
-		{"unknown-eventType", &CreditInformationParam{
-			RequestID:            "r",
-			ExternalReferenceUID: "u",
-			EventType:            EventType("RENEWAL"),
-			Email:                "e@x",
-			Country:              CountryIndonesia,
-		}, "eventType"},
-		{"missing-mobile-when-not-new", &CreditInformationParam{
-			RequestID:            "r",
-			ExternalReferenceUID: "u",
-			EventType:            EventTypeSwitchApplication,
-			Email:                "e@x",
-			Country:              CountryIndonesia,
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
+			},
 		}, "mobileNumber"},
 		{"missing-email", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			EventType:            EventTypeNewApplication,
+			MobileNumber:         "+6281298000000",
 			Country:              CountryIndonesia,
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
+			},
 		}, "email"},
 		{"long-email", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			EventType:            EventTypeNewApplication,
+			MobileNumber:         "+6281298000000",
 			Email:                strings.Repeat("a", 65),
 			Country:              CountryIndonesia,
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
+			},
 		}, "email"},
 		{"missing-country", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			EventType:            EventTypeNewApplication,
+			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
+			},
 		}, "country"},
 		{"unsupported-country", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			EventType:            EventTypeNewApplication,
+			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
 			Country:              Country("US"),
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
+			},
 		}, "country"},
-		{"extendInfo-missing-language", &CreditInformationParam{
+		{"missing-applicationEssentialInfo", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			EventType:            EventTypeNewApplication,
+			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
 			Country:              CountryIndonesia,
-			ExtendInfo:           &CreditInformationExtendInfo{},
-		}, "extendInfo.language"},
+		}, "applicationEssentialInfo"},
+		{"missing-ocr-fullName", &CreditInformationParam{
+			RequestID:            "r",
+			ExternalReferenceUID: "u",
+			MobileNumber:         "+6281298000000",
+			Email:                "e@x",
+			Country:              CountryIndonesia,
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+				OCRResult: &CreditInformationOCRResult{},
+			},
+		}, "applicationEssentialInfo.ocrResult.fullName"},
 		{"extendInfo-bad-language", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			EventType:            EventTypeNewApplication,
+			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
 			Country:              CountryIndonesia,
-			ExtendInfo:           &CreditInformationExtendInfo{Language: Language("zh")},
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
+				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
+			},
+			ExtendInfo: &CreditInformationExtendInfo{Language: Language("zh")},
 		}, "extendInfo.language"},
 	}
 	for _, tc := range cases {
@@ -180,6 +206,14 @@ func TestValidateCreditApplication_Internal(t *testing.T) {
 			req.ApplicationEssentialInfo = nil
 			return req
 		}, "applicationEssentialInfo"},
+		{"missing-livenessCheck", func(req *CreditApplicationParam) *CreditApplicationParam {
+			req.ApplicationEssentialInfo.LivenessCheck = nil
+			return req
+		}, "applicationEssentialInfo.livenessCheck"},
+		{"missing-liveness-result", func(req *CreditApplicationParam) *CreditApplicationParam {
+			req.ApplicationEssentialInfo.LivenessCheck.Result = ""
+			return req
+		}, "applicationEssentialInfo.livenessCheck.result"},
 		{"missing-individualProfile", func(req *CreditApplicationParam) *CreditApplicationParam {
 			req.ApplicationEssentialInfo.IndividualProfile = nil
 			return req
@@ -188,11 +222,6 @@ func TestValidateCreditApplication_Internal(t *testing.T) {
 			req.ApplicationEssentialInfo.PlatformInformation = nil
 			return req
 		}, "platformInformation"},
-		{"out-of-range-userCreditScore", func(req *CreditApplicationParam) *CreditApplicationParam {
-			score := 1.5
-			req.ApplicationEssentialInfo.PlatformInformation.UserCreditScore = &score
-			return req
-		}, "userCreditScore"},
 		{"missing-extendInfo", func(req *CreditApplicationParam) *CreditApplicationParam {
 			req.ExtendInfo = nil
 			return req
@@ -213,7 +242,6 @@ func TestValidateCreditApplication_Internal(t *testing.T) {
 		})
 	}
 
-	// Happy path: a valid request must pass.
 	if err := validateCreditApplication(base()); err != nil {
 		t.Errorf("valid base request: validateCreditApplication = %v; want nil", err)
 	}

@@ -25,3 +25,4 @@ coverage.html
 *.swp
 *~
 .DS_Store
+/docs/grab

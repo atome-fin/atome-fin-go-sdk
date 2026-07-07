@@ -20,7 +20,7 @@ import (
 // Sample callback body — re-used across happy-path / replay / 500
 // tests to keep noise low. Mirrors callback_credit_application_terminal_success.json.
 func creditApplicationCallbackBody() []byte {
-	return []byte(`{"code":"SUCCESS","message":"credit approved","data":{"externalReferenceUid":"user-42","status":"SUCCESS","currency":"IDR","creditInfo":{"totalCredit":30000000,"availableCredit":30000000,"usedCredit":0,"userStatus":"NORMAL","version":1715000000000},"loanCreditInfo":{"loanStatus":"NORMAL"},"billDay":1,"payDay":25}}`)
+	return []byte(`{"externalReferenceUid":"user-42","status":"SUCCESS","currency":"IDR","creditInfo":{"totalCredit":30000000,"availableCredit":30000000,"usedCredit":0,"userStatus":"NORMAL","version":1715000000000},"loanCreditInfo":{"loanStatus":"NORMAL"},"billDay":1,"payDay":25}`)
 }
 
 // ---------- Credit-application handler — happy path ----------
@@ -30,7 +30,7 @@ func TestCreditApplicationHandler_HappyPath(t *testing.T) {
 
 	body := creditApplicationCallbackBody()
 
-	var seen *credit.CreditApplicationResponse
+	var seen *credit.CreditApplicationResult
 	handler := callback.CreditApplicationHandler(h.verifier, func(ctx context.Context, e *callback.CreditApplicationEvent) error {
 		seen = e
 		return nil
@@ -58,11 +58,11 @@ func TestCreditApplicationHandler_HappyPath(t *testing.T) {
 	if seen == nil {
 		t.Fatal("user handler was not invoked")
 	}
-	if seen.Data == nil || seen.Data.Status != credit.CreditStatusSuccess {
-		t.Errorf("event Data.Status = %#v", seen.Data)
+	if seen.Status != credit.CreditStatusSuccess {
+		t.Errorf("event Status = %#v", seen.Status)
 	}
-	if seen.Data.CreditInfo == nil || seen.Data.CreditInfo.TotalCredit != 30000000 {
-		t.Errorf("event Data.CreditInfo = %#v", seen.Data.CreditInfo)
+	if seen.CreditInfo == nil || seen.CreditInfo.TotalCredit != 30000000 {
+		t.Errorf("event CreditInfo = %#v", seen.CreditInfo)
 	}
 }
 
@@ -73,7 +73,7 @@ func TestCreditApplicationHandler_RejectsTamperedBody(t *testing.T) {
 	body := creditApplicationCallbackBody()
 	sig, _ := h.signedBody(t, body)
 
-	tampered := []byte(`{"code":"SUCCESS","message":"x","data":{"externalReferenceUid":"u","status":"FAILED","currency":"IDR"}}`)
+	tampered := []byte(`{"externalReferenceUid":"u","status":"FAILED","currency":"IDR"}`)
 	r := httptest.NewRequest(http.MethodPost, "/atome/credit-application", bytes.NewReader(tampered))
 	r.Header.Set("Authorization", sig)
 

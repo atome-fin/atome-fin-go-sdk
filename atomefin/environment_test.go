@@ -11,9 +11,9 @@ func TestBaseURL(t *testing.T) {
 		wantHost  string
 		wantError bool
 	}{
-		{EnvTest, "id-api.apaylater.net", false},
 		{EnvPre, "id-api-pre.apaylater.net", false},
 		{EnvProd, "api.atome.id", false},
+		{Environment("test"), "", true},
 		{Environment("staging"), "", true},
 		{Environment(""), "", true},
 	}
@@ -32,8 +32,8 @@ func TestBaseURL(t *testing.T) {
 		if !strings.HasPrefix(got, "https://") {
 			t.Errorf("BaseURL(%q) = %q, want https://", tt.env, got)
 		}
-		if !strings.HasSuffix(got, "/white-label/G") {
-			t.Errorf("BaseURL(%q) = %q, want suffix /white-label/G", tt.env, got)
+		if !strings.HasSuffix(got, "/grabpaylater") {
+			t.Errorf("BaseURL(%q) = %q, want suffix /grabpaylater", tt.env, got)
 		}
 	}
 }

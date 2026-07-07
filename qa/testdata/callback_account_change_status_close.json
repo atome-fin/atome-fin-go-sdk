@@ -1,26 +1,18 @@
 {
-  "code": "SUCCESS",
-  "message": "account state changed",
-  "data": {
-    "eventId": "ACE-2026-0506-002",
-    "externalReferenceUid": "user-42",
-    "eventTime": 1746835200000,
-    "accountChanges": {
-      "version": 1746835200000,
-      "externalReferenceUid": "user-42",
-      "previousStatus": "ACCOUNT_BLOCKED_OVERDUE",
-      "currentStatus": "ACCOUNT_CLOSED",
-      "totalCreditChange": -2000000,
-      "usedCreditChange": 0,
-      "frozenCreditChange": 0,
-      "availableCreditChange": -2000000,
-      "overpaidAmountChange": 0,
-      "lateFeeAmountChange": 0,
-      "interestAmountChange": 0
-    },
-    "extendInfo": {
-      "reason": "auto-close-after-overdue",
-      "triggerSource": "OPS_MANUAL"
-    }
+  "callbackRequestId": "ACE-2026-0506-002",
+  "externalReferenceUid": "user-42",
+  "externalRequestId": "REQ-2026-0506-002",
+  "event": "ATOME_CONTROL",
+  "scene": "ACCOUNT_STATUS_CHANGE",
+  "previousStatus": "ACCOUNT_BLOCKED_OVERDUE",
+  "currentStatus": "ACCOUNT_CLOSED",
+  "currency": "IDR",
+  "amountChange": -2000000,
+  "version": 1746835200000,
+  "creditInfo": {
+    "totalCredit": 0,
+    "availableCredit": 0,
+    "usedCredit": 0,
+    "userStatus": "ACCOUNT_BLOCKED"
   }
 }

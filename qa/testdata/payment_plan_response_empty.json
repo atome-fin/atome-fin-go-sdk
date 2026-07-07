@@ -2,8 +2,7 @@
   "code": "SUCCESS",
   "message": "ok",
   "data": {
-    "requestId": "01HPLN1234567890ABCDEFGHJK",
-    "externalReferenceUid": "user-42",
-    "plans": []
+    "currency": "IDR",
+    "subOrderInstallmentPlans": []
   }
 }

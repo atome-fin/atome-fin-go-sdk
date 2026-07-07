@@ -7,6 +7,168 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.0] — 2026-07-07
+
+Syncs the SDK to the upstream **GrabPayLater** Partner API spec
+(white-label `G`, pinned `swagger-2026-07-07-9cc936e9.yaml`). This
+release targets the Grab integration surface: `/grabpaylater` gateway
+prefix, commerce-domain `subOrders` on checkout endpoints, and the
+July 2026 credit / payment schema deltas.
+
+Minor bump (honest semver): request / response shapes, environment
+constants, and client-side validation rules change in ways that
+require partner call-site updates.
+
+### Added
+
+- **`payment.PaymentPlanRequest.Sessionid`** — required HTTP header
+  on `POST /payment-plan` (mirrors `/auth`; `json:"-"`, emitted via
+  `WithRequestHeader`).
+- **`payment.PaymentOrderType`** — `TRANSPORT` / `GRAB_FOOD` /
+  `GRAB_MART` / `SPECIALIZED_DELIVERY`; surfaced on checkout
+  `extendInfo.orderType`.
+- **`payment.CreditProfile`** — opaque JSON string on checkout /
+  auth `extendInfo.creditProfile`.
+- **`payment.SubOrder` commerce fields** — `skuId`, `categoryId`,
+  `categoryOneName`, `merchantId` (required); `merchantName`,
+  `categoryCodes`, `spuId`, `creatorId` (optional).
+- **`payment.PlanSubOrder`** — same commerce field set as `SubOrder`
+  for `/payment-precheck` and `/payment-plan`.
+- **`payment.PaymentPreCheckDataExtendInfo.ReapplyTime`** — Unix-ms
+  retry hint on `RISK_REJECT`.
+- **`credit.CreditInformationEssentialInfo`** / **`CreditInformationOCRResult`**
+  — required on `POST /credit-information`.
+- **`credit.LivenessCheck`** — required on `POST /credit-application`
+  (`result`, `snapshotPhoto`).
+- **`credit.CreditSceneType`** / **`PlatformInformation.SceneType`** —
+  UI entry-point discriminator (replaces `userCreditScore`).
+- **`atomefin.CodeRiskReject`** — typed code constant for payment
+  plan / pre-check risk declines.
+- **`docs/CERTIFICATES.md`** — signing vs encrypt key-pair reference
+  for the Grab integration.
+- **`atomefin/payment/suborder_validate.go`** — shared sub-order
+  client-side guards.
+
+### Changed
+
+- **Pinned spec** — `internal/spec/testdata/swagger-2026-07-07-9cc936e9.yaml`
+  replaces `swagger-2026-05-06-7025b2d2.yaml`.
+- **`atomefin.Environment`** — `EnvPre` →
+  `https://id-api-pre.apaylater.net/grabpaylater`;
+  `EnvProd` → `https://api.atome.id/grabpaylater`.
+- **`payment.PaymentPreCheckRequest`** — drops wire `currency` and
+  `requestId` (idempotency key is client-side only, `json:"-"`).
+  `SubOrders` now uses `PlanSubOrder` (commerce fields required).
+- **`payment.PaymentPreCheckResponse.IsEligible()`** — eligibility is
+  `code == SUCCESS` (no longer a boolean `eligible` field).
+- **`payment.PaymentPreCheckResponse` data shape** — `availableCredit`
+  + `data.extendInfo.reapplyTime` (replaces prior `eligible` /
+  top-level `reapplyTime` layout).
+- **`credit.CreditInformationParam`** — `mobileNumber` +
+  `applicationEssentialInfo.ocrResult.fullName` required; `eventType`
+  removed from the wire shape.
+- **`credit.CreditApplicationParam` validation** — `livenessCheck`
+  required; `PlatformInformation` no longer carries
+  `userCreditScore`.
+- **`credit.OCRResult`** — field renames per spec (`manuallyExpiredDate`,
+  `manuallyCitizenship`, `manuallyRt`, `manuallyRw`).
+- **`repayment.RepaymentEvent.IsValid()`** — only `NORMAL` is enum-
+  valid (spec trimmed `ATOME_REPAYMENT` / `OVERPAID_REPAYMENT` from
+  the closed set; values still round-trip opaquely on decode).
+- **Encrypt AES external vector** — `external_aes_plaintext.txt` /
+  `external_aes_body.txt` updated to the new `/credit-information`
+  plaintext shape.
+- **`qa/testdata/*`** — payment pre-check / plan fixtures and credit
+  request fixtures brought in line with the pinned spec.
+
+### Removed
+
+- **`atomefin.EnvTest`** — test-environment constant dropped; only
+  `EnvPre` (联调) and `EnvProd` remain. Partners on a custom gateway
+  continue to use `WithBaseURL`.
+- **`credit.CreditInformationParam.EventType`** — field removed from
+  the request struct (the `credit.EventType` type remains for forward-
+  compat decode of historical payloads).
+- **`PlatformInformation.UserCreditScore`** — removed from the public
+  struct (risk signals move to `creditProfile` / partner-agreed JSON).
+- **Spec coverage for `POST /<creditInformationNotifyUrl>`** — endpoint
+  removed from the upstream spec; `callback.CreditInformationHandler`
+  is retained for partners who already mounted the webhook.
+
+### Migration
+
+```go
+// Environment — drop EnvTest; paths now use /grabpaylater
+c, _ := atomefin.New(
+    atomefin.WithEnvironment(atomefin.EnvPre), // was EnvTest for sandbox
+    // ...
+)
+
+// /payment-precheck — no currency in body; commerce subOrders required
+_, err := payment.New(c).PaymentPreCheck(ctx, &payment.PaymentPreCheckRequest{
+    ExternalReferenceUID: "user-1",
+    TotalAmount:          1500000,
+    SubOrders: []payment.PlanSubOrder{{
+        SubOrderID: "so-1", SkuID: "sku-1",
+        CategoryID: "cat-1", CategoryOneName: "Food",
+        MerchantID: "merchant-1",
+        Amount: 1500000, Quantity: 1,
+    }},
+})
+// Eligibility: resp.IsEligible()  (checks resp.Code == SUCCESS)
+
+// /payment-plan — sessionid header required
+_, err = payment.New(c).PaymentPlan(ctx, &payment.PaymentPlanRequest{
+    RequestID: "r-1", ExternalReferenceUID: "user-1",
+    TotalAmount: 1500000, Sessionid: "checkout-session",
+    SubOrders: []payment.PlanSubOrder{{ /* same commerce fields */ }},
+})
+
+// /auth + /capture — subOrders must include skuId/categoryId/…
+authReq := &payment.AuthRequest{
+    // ...
+    SubOrders: []payment.SubOrder{{
+        SubOrderID: "so-1", SkuID: "sku-1",
+        CategoryID: "cat-1", CategoryOneName: "Food",
+        MerchantID: "merchant-1",
+        Amount: 1500000, Quantity: 1,
+    }},
+    Sessionid: "checkout-session",
+}
+
+// /credit-information — mobileNumber + applicationEssentialInfo
+info := &credit.CreditInformationParam{
+    RequestID: "info-1", ExternalReferenceUID: "user-1",
+    MobileNumber: "+6281298000000",
+    Email: "u@example.com", Country: credit.CountryIndonesia,
+    ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
+        OCRResult: &credit.CreditInformationOCRResult{FullName: "Jane"},
+    },
+}
+
+// /credit-application — livenessCheck required; no userCreditScore
+app := &credit.CreditApplicationParam{
+    // ...
+    ApplicationEssentialInfo: &credit.ApplicationEssentialInfo{
+        LivenessCheck: &credit.LivenessCheck{
+            Result: "PASS", SnapshotPhoto: "<base64>",
+        },
+        IndividualProfile:   &credit.IndividualProfile{IDType: "KTP"},
+        PlatformInformation: &credit.PlatformInformation{
+            SceneType: credit.SceneCheckoutPage,
+        },
+    },
+}
+```
+
+### Verification
+
+- Pinned spec SHA256 prefix `9cc936e9` matches the local upstream
+  source at `open-api-document/directories/white-label/G/swagger.yaml`.
+- `go test ./...` green.
+- `make test-spec-drift` — upstream URL check is best-effort; local
+  pin is authoritative when the doc host is unreachable.
+
 ## [0.7.0] — 2026-05-07
 
 Removes the dormant RSA-PSS signing scaffolding. Atome
@@ -1735,7 +1897,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.8.0
 [0.7.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.7.0
 [0.6.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.6.1
 [0.6.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.6.0

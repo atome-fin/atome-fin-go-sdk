@@ -25,7 +25,7 @@ func TestService_PaymentPreCheck_Eligible(t *testing.T) {
 		gotBody, _ = io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","externalReferenceUid":"u-1","eligible":true,"availableCredit":5000000}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"availableCredit":5000000}}`))
 	}))
 	defer srv.Close()
 
@@ -34,10 +34,7 @@ func TestService_PaymentPreCheck_Eligible(t *testing.T) {
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1000,
-		Currency:             atomefin.CurrencyIDR,
-		SubOrders: []payment.PaymentPreCheckSubOrder{
-			{SubOrderID: "so-1", Amount: 1000, Quantity: 1},
-		},
+		SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1000)},
 	})
 	if err != nil {
 		t.Fatalf("PaymentPreCheck: %v", err)
@@ -54,15 +51,15 @@ func TestService_PaymentPreCheck_Eligible(t *testing.T) {
 	if gotPath != "/payment-precheck" {
 		t.Errorf("path = %q", gotPath)
 	}
-	if !strings.Contains(string(gotBody), `"requestId":"r-1"`) {
-		t.Errorf("body missing requestId: %s", gotBody)
+	if !strings.Contains(string(gotBody), `"externalReferenceUid":"u-1"`) {
+		t.Errorf("body missing externalReferenceUid: %s", gotBody)
 	}
 }
 
 func TestService_PaymentPreCheck_Denied(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","eligible":false,"deniedReason":"credit-limit-insufficient"}}`))
+		_, _ = w.Write([]byte(`{"code":"RISK_REJECT","message":"risk declined","data":{"extendInfo":{"reapplyTime":1715000000000}}}`))
 	}))
 	defer srv.Close()
 
@@ -71,10 +68,7 @@ func TestService_PaymentPreCheck_Denied(t *testing.T) {
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1000,
-		Currency:             atomefin.CurrencyIDR,
-		SubOrders: []payment.PaymentPreCheckSubOrder{
-			{SubOrderID: "so-1", Amount: 1000, Quantity: 1},
-		},
+		SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1000)},
 	})
 	if err != nil {
 		t.Fatalf("PaymentPreCheck: %v", err)
@@ -82,8 +76,11 @@ func TestService_PaymentPreCheck_Denied(t *testing.T) {
 	if resp.IsEligible() {
 		t.Error("expected Eligible=false")
 	}
-	if resp.Data.DeniedReason != "credit-limit-insufficient" {
-		t.Errorf("DeniedReason = %q", resp.Data.DeniedReason)
+	if resp.Code != atomefin.CodeRiskReject {
+		t.Errorf("Code = %q", resp.Code)
+	}
+	if resp.Data == nil || resp.Data.ExtendInfo == nil || resp.Data.ExtendInfo.ReapplyTime != 1715000000000 {
+		t.Errorf("ReapplyTime missing: %#v", resp.Data)
 	}
 }
 
@@ -98,10 +95,7 @@ func TestService_PaymentPreCheck_AutoMintsRequestID(t *testing.T) {
 	req := &payment.PaymentPreCheckRequest{
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
-		Currency:             atomefin.CurrencyIDR,
-		SubOrders: []payment.PaymentPreCheckSubOrder{
-			{SubOrderID: "so-1", Amount: 1, Quantity: 1},
-		},
+		SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 	}
 	if _, err := payment.New(c).PaymentPreCheck(context.Background(), req); err != nil {
 		t.Fatalf("PaymentPreCheck: %v", err)
@@ -126,10 +120,7 @@ func TestService_PaymentPreCheck_4xxBecomesAPIError(t *testing.T) {
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
-		Currency:             atomefin.CurrencyIDR,
-		SubOrders: []payment.PaymentPreCheckSubOrder{
-			{SubOrderID: "so-1", Amount: 1, Quantity: 1},
-		},
+		SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 	})
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
@@ -154,66 +145,41 @@ func TestPaymentPreCheck_Validate_TableDriven(t *testing.T) {
 		wantField string
 	}{
 		{"nil-request", nil, "request"},
-		{"long-requestId", &payment.PaymentPreCheckRequest{
-			RequestID:            strings.Repeat("a", 65),
-			ExternalReferenceUID: "u",
-			TotalAmount:          1,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders:            []payment.PaymentPreCheckSubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
-		}, "requestId"},
 		{"missing-externalReferenceUid", &payment.PaymentPreCheckRequest{
-			RequestID:   "r",
 			TotalAmount: 1,
-			Currency:    atomefin.CurrencyIDR,
-			SubOrders:   []payment.PaymentPreCheckSubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
+			SubOrders:   []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 		}, "externalReferenceUid"},
 		{"zero-totalAmount", &payment.PaymentPreCheckRequest{
-			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			TotalAmount:          0,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders:            []payment.PaymentPreCheckSubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 		}, "totalAmount"},
-		{"missing-currency", &payment.PaymentPreCheckRequest{
-			RequestID:            "r",
-			ExternalReferenceUID: "u",
-			TotalAmount:          1,
-			SubOrders:            []payment.PaymentPreCheckSubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
-		}, "currency"},
-		{"non-IDR-currency", &payment.PaymentPreCheckRequest{
-			RequestID:            "r",
-			ExternalReferenceUID: "u",
-			TotalAmount:          1,
-			Currency:             "USD",
-			SubOrders:            []payment.PaymentPreCheckSubOrder{{SubOrderID: "s", Amount: 1, Quantity: 1}},
-		}, "currency"},
 		{"empty-subOrders", &payment.PaymentPreCheckRequest{
-			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			TotalAmount:          1,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders:            []payment.PaymentPreCheckSubOrder{},
+			SubOrders:            []payment.PlanSubOrder{},
 		}, "subOrders"},
 		{"empty-subOrderId", &payment.PaymentPreCheckRequest{
-			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			TotalAmount:          1,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders:            []payment.PaymentPreCheckSubOrder{{SubOrderID: "", Amount: 1, Quantity: 1}},
+			SubOrders:            []payment.PlanSubOrder{{Amount: 1, Quantity: 1, SkuID: "sku", CategoryID: "c", CategoryOneName: "n", MerchantID: "m"}},
 		}, "subOrderId"},
 		{"zero-quantity", &payment.PaymentPreCheckRequest{
-			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			TotalAmount:          1,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders:            []payment.PaymentPreCheckSubOrder{{SubOrderID: "s", Amount: 1, Quantity: 0}},
+			SubOrders: func() []payment.PlanSubOrder {
+				so := specSamplePlanSubOrder(1)
+				so.Quantity = 0
+				return []payment.PlanSubOrder{so}
+			}(),
 		}, "quantity"},
 		{"sum-mismatch", &payment.PaymentPreCheckRequest{
-			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			TotalAmount:          1000,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders:            []payment.PaymentPreCheckSubOrder{{SubOrderID: "s", Amount: 999, Quantity: 1}},
+			SubOrders: func() []payment.PlanSubOrder {
+				so := specSamplePlanSubOrder(999)
+				return []payment.PlanSubOrder{so}
+			}(),
 		}, "totalAmount"},
 	}
 	for _, tc := range cases {
@@ -241,31 +207,30 @@ func TestPaymentPreCheckResponse_Roundtrip_Denied(t *testing.T) {
 func TestR10_PaymentPreCheckRequest_TotalAmount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[payment.PaymentPreCheckRequest](t, func(v int64) payment.PaymentPreCheckRequest {
 		return payment.PaymentPreCheckRequest{
-			RequestID:            "r-1",
 			ExternalReferenceUID: "u-1",
 			TotalAmount:          v,
-			Currency:             atomefin.CurrencyIDR,
-			SubOrders: []payment.PaymentPreCheckSubOrder{
-				{SubOrderID: "so-1", Amount: v, Quantity: 1},
-			},
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(v)},
 		}
 	})
 }
 
 func TestR11_PaymentPreCheck_RejectsFractional(t *testing.T) {
-	body := []byte(`{"requestId":"r","externalReferenceUid":"u","totalAmount":1.5,"currency":"IDR","subOrders":[]}`)
+	body := []byte(`{"externalReferenceUid":"u","totalAmount":1.5,"subOrders":[]}`)
 	marshal.AssertRejectsFractionalAmount[payment.PaymentPreCheckRequest](t, body)
 }
 
 func TestR12_PaymentPreCheckRequest_IntegerLiterals(t *testing.T) {
 	in := payment.PaymentPreCheckRequest{
-		RequestID:            "r",
 		ExternalReferenceUID: "u",
 		TotalAmount:          1500000,
-		Currency:             atomefin.CurrencyIDR,
-		SubOrders: []payment.PaymentPreCheckSubOrder{
-			{SubOrderID: "so-1", Amount: 1000000, Quantity: 1},
-			{SubOrderID: "so-2", Amount: 500000, Quantity: 2},
+		SubOrders: []payment.PlanSubOrder{
+			specSamplePlanSubOrder(1000000),
+			func() payment.PlanSubOrder {
+				so := specSamplePlanSubOrder(500000)
+				so.SubOrderID = "so-2"
+				so.Quantity = 2
+				return so
+			}(),
 		},
 	}
 	marshal.AssertAmountKeysAreInteger[payment.PaymentPreCheckRequest](t, in,

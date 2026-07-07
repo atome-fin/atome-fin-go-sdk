@@ -129,20 +129,18 @@ func TestQueryRepayment_Validate(t *testing.T) {
 // ---------- RepaymentEvent / RepaymentStatus enums ----------
 
 func TestRepaymentEvent_IsValid(t *testing.T) {
+	if !repayment.RepaymentEventNormal.IsValid() {
+		t.Errorf("%q.IsValid() = false; want true", repayment.RepaymentEventNormal)
+	}
 	for _, e := range []repayment.RepaymentEvent{
-		repayment.RepaymentEventNormal,
 		repayment.RepaymentEventAtomeRepayment,
 		repayment.RepaymentEventOverpaidRepayment,
+		repayment.RepaymentEvent("UNKNOWN"),
+		repayment.RepaymentEvent(""),
 	} {
-		if !e.IsValid() {
-			t.Errorf("%q.IsValid() = false; want true", e)
+		if e.IsValid() {
+			t.Errorf("%q.IsValid() = true; want false", e)
 		}
-	}
-	if repayment.RepaymentEvent("UNKNOWN").IsValid() {
-		t.Error("UNKNOWN.IsValid() must be false")
-	}
-	if repayment.RepaymentEvent("").IsValid() {
-		t.Error("empty.IsValid() must be false")
 	}
 	// String() returns wire literal verbatim.
 	if got := repayment.RepaymentEventNormal.String(); got != "NORMAL" {

@@ -244,37 +244,48 @@ const (
 
 // CreditInformationParam is the POST /credit-information request
 // body. Lightweight first step of the credit flow: the partner
-// announces user identity, country, and event type; the server
-// returns a jumpUrl into Atome's KYC web flow plus a requestId the
-// partner echoes on the subsequent POST /credit-application.
+// announces user identity and country; the server returns a jumpUrl
+// into Atome's KYC web flow plus a requestId the partner echoes on
+// the subsequent POST /credit-application.
 type CreditInformationParam struct {
 	// RequestID is partner-generated; max 64 chars. Idempotency key.
 	RequestID string `json:"requestId"` // max 64
 	// ExternalReferenceUID is the partner's user identifier.
 	ExternalReferenceUID string `json:"externalReferenceUid"` // max 64
-	// EventType discriminates the scenario (NEW_APPLICATION /
-	// SWITCH_APPLICATION). Required.
-	EventType EventType `json:"eventType"`
 	// MobileNumber is the user's mobile with dialling code prefix,
-	// e.g. "+62XXXXXXXXXXX". Required when EventType !=
-	// NEW_APPLICATION (per spec).
-	MobileNumber string `json:"mobileNumber,omitempty"`
+	// e.g. "+62XXXXXXXXXXX". Required.
+	MobileNumber string `json:"mobileNumber"`
 	// Email is the user's email; required, max 64 chars.
 	Email string `json:"email"` // max 64
 	// Country is the ISO-style market code; currently locked to "ID".
 	Country Country `json:"country"`
+	// ApplicationEssentialInfo carries the minimal KYC fields for
+	// this step (today ocrResult.fullName).
+	ApplicationEssentialInfo *CreditInformationEssentialInfo `json:"applicationEssentialInfo"`
 	// ExtendInfo carries extension fields agreed per integration —
-	// today the only key is `language` for the KYC page.
+	// today the only key is `language` for the KYC page (optional;
+	// defaults to `id` when omitted).
 	ExtendInfo *CreditInformationExtendInfo `json:"extendInfo,omitempty"`
+}
+
+// CreditInformationEssentialInfo is the applicationEssentialInfo bag
+// on /credit-information.
+type CreditInformationEssentialInfo struct {
+	OCRResult *CreditInformationOCRResult `json:"ocrResult"`
+}
+
+// CreditInformationOCRResult is the OCR subset required at the
+// information-collection step.
+type CreditInformationOCRResult struct {
+	FullName string `json:"fullName"`
 }
 
 // CreditInformationExtendInfo is the extendInfo bag on a
 // /credit-information request.
 type CreditInformationExtendInfo struct {
 	// Language is the display language for the Atome-hosted
-	// information collection page. Required when extendInfo is
-	// present.
-	Language Language `json:"language"`
+	// information collection page. Optional; defaults to `id`.
+	Language Language `json:"language,omitempty"`
 }
 
 // CreditApplicationParam is the POST /credit-application request
@@ -350,26 +361,24 @@ type CloseAccountParam struct {
 // CreditApplicationParam. Field shape may differ per country (today
 // only ID); see the request fixture for the canonical sample.
 type ApplicationEssentialInfo struct {
+	// LivenessCheck carries the liveness snapshot result. Required.
+	LivenessCheck *LivenessCheck `json:"livenessCheck"`
 	// IndividualProfile carries the user's KYC profile (idType,
 	// ocrResult, idFrontPhoto, manuallyEducation). Required per
 	// spec.
 	IndividualProfile *IndividualProfile `json:"individualProfile"`
-	// Residential is the user's residential address (sample fields,
-	// subject to integration agreement).
-	Residential *Residential `json:"residential,omitempty"`
 	// PlatformInformation carries partner-side risk signals
-	// (userCreditScore, creditProfile, deviceInfo). Required per
-	// spec.
+	// (creditProfile, sceneType, deviceInfo). Required per spec.
 	PlatformInformation *PlatformInformation `json:"platformInformation"`
-	// WorkInformation is the work-history bag (jobIndustry,
-	// jobPosition, workSince). Optional.
-	WorkInformation *WorkInformation `json:"workInformation,omitempty"`
-	// EmergencyContact is the user's emergency contact info.
-	// Optional.
-	EmergencyContact *EmergencyContact `json:"emergencyContact,omitempty"`
-	// Others is a free-form bag for partner-specific KYC artefacts
-	// (e.g. zolozResults). Optional.
-	Others *EssentialOthers `json:"others,omitempty"`
+}
+
+// LivenessCheck is the liveness result on /credit-application.
+type LivenessCheck struct {
+	Result                string `json:"result"`
+	SnapshotPhoto         string `json:"snapshotPhoto"`
+	LivenessCheckResult01 string `json:"livenessCheckResult01,omitempty"`
+	LivenessCheckResult02 string `json:"livenessCheckResult02,omitempty"`
+	LivenessCheckResult03 string `json:"livenessCheckResult03,omitempty"`
 }
 
 // IndividualProfile is the user's KYC profile.
@@ -390,41 +399,42 @@ type IndividualProfile struct {
 
 // OCRResult is the OCR-extracted fields from the ID document photo.
 type OCRResult struct {
-	IDNumber          string `json:"idNumber,omitempty"`
-	FullName          string `json:"fullName,omitempty"`
-	BirthPlace        string `json:"birthPlace,omitempty"`
-	OCRBloodType      string `json:"ocrBloodType,omitempty"`
-	OCRReligion       string `json:"ocrReligion,omitempty"`
-	OCRGender         string `json:"ocrGender,omitempty"` // enum: MAN | WOMAN
-	ManuallyBirthDate string `json:"manuallyBirthDate,omitempty"`
-	OCRProvince       string `json:"ocrProvince,omitempty"`
-	OCRCity           string `json:"ocrCity,omitempty"`
-	OCRDistrict       string `json:"ocrDistrict,omitempty"`
-	JobType           string `json:"jobType,omitempty"`
-	OCRMaritalStatus  string `json:"ocrMaritalStatus,omitempty"` // SINGLE | MARRIED | DIVORCED | WIDOWED | SEPARATED | OTHERS
+	IDNumber            string `json:"idNumber,omitempty"`
+	FullName            string `json:"fullName,omitempty"`
+	BirthPlace          string `json:"birthPlace,omitempty"`
+	OCRBloodType        string `json:"ocrBloodType,omitempty"`
+	OCRReligion         string `json:"ocrReligion,omitempty"`
+	OCRGender           string `json:"ocrGender,omitempty"` // enum: MAN | WOMAN
+	ManuallyBirthDate   string `json:"manuallyBirthDate,omitempty"`
+	OCRProvince         string `json:"ocrProvince,omitempty"`
+	OCRCity             string `json:"ocrCity,omitempty"`
+	OCRDistrict         string `json:"ocrDistrict,omitempty"`
+	JobType             string `json:"jobType,omitempty"`
+	OCRMaritalStatus    string `json:"ocrMaritalStatus,omitempty"` // SINGLE | MARRIED | DIVORCED | WIDOWED | SEPARATED | OTHERS
+	ManuallyExpiredDate string `json:"manuallyExpiredDate,omitempty"`
+	ManuallyCitizenship string `json:"manuallyCitizenship,omitempty"`
+	ManuallyRt          string `json:"manuallyRt,omitempty"`
+	ManuallyRw          string `json:"manuallyRw,omitempty"`
 }
 
-// Residential is the user's residential address.
-type Residential struct {
-	Province string `json:"province,omitempty"`
-	City     string `json:"city,omitempty"`
-	District string `json:"district,omitempty"`
-	Address  string `json:"address,omitempty"`
-	ZipCode  string `json:"zipCode,omitempty"`
-	Village  string `json:"village,omitempty"`
-}
+// CreditSceneType is the entry scene on the partner UI.
+type CreditSceneType string
+
+const (
+	SceneProductLandingPage   CreditSceneType = "PRODUCT_LANDING_PAGE"
+	ScenePromoBannerPage      CreditSceneType = "PROMO_BANNER_PAGE"
+	SceneMarketingPushEntry   CreditSceneType = "MARKETING_PUSH_ENTRY"
+	SceneCheckoutPage         CreditSceneType = "CHECKOUT_PAGE"
+	SceneWalletDashboardEntry CreditSceneType = "WALLET_DASHBOARD_ENTRY"
+)
 
 // PlatformInformation carries partner-side risk signals.
 type PlatformInformation struct {
-	// UserCreditScore is a partner-side credit score in [0, 1].
-	// Optional. Pointer-typed so a worst-case 0.0 score round-trips
-	// faithfully (a bare float64 with `,omitempty` would silently
-	// drop 0.0 on encode); matches the v0.1 precedent set by
-	// payment.RequestExtendInfo.UserCreditScore.
-	UserCreditScore *float64 `json:"userCreditScore,omitempty"`
 	// CreditProfile is a JSON string carrying partner risk model
 	// scores and engineered features.
 	CreditProfile string `json:"creditProfile,omitempty"`
+	// SceneType is the UI entry point where the user started credit.
+	SceneType CreditSceneType `json:"sceneType,omitempty"`
 	// DeviceInfo is the user's device snapshot at submission time.
 	DeviceInfo *DeviceInfo `json:"deviceInfo,omitempty"`
 }
@@ -455,10 +465,14 @@ type GPSSample struct {
 
 // Device is the device-build snapshot.
 type Device struct {
-	UTDID     string       `json:"utdid,omitempty"`
-	IsRoot    bool         `json:"isRoot,omitempty"`
-	AndroidID string       `json:"androidId,omitempty"`
-	Build     *DeviceBuild `json:"build,omitempty"`
+	DeviceID            string       `json:"deviceId,omitempty"`
+	GoogleAdvertisingID string       `json:"googleAdvertisingId,omitempty"`
+	IDFA                string       `json:"idfa,omitempty"`
+	IDFV                string       `json:"idfv,omitempty"`
+	UTDID               string       `json:"utdid,omitempty"`
+	IsRoot              bool         `json:"isRoot,omitempty"`
+	AndroidID           string       `json:"androidId,omitempty"`
+	Build               *DeviceBuild `json:"build,omitempty"`
 }
 
 // DeviceBuild mirrors the Android Build.* fields.
@@ -481,36 +495,6 @@ type WifiAP struct {
 type IPAddress struct {
 	EthIP  string `json:"ethIp,omitempty"`
 	TrueIP string `json:"trueIp,omitempty"`
-}
-
-// WorkInformation is the work-history bag.
-type WorkInformation struct {
-	WorkSince   string `json:"workSince,omitempty"`
-	JobIndustry string `json:"jobIndustry,omitempty"`
-	JobPosition string `json:"jobPosition,omitempty"`
-}
-
-// EmergencyContact is the emergency-contact bag.
-type EmergencyContact struct {
-	Relation     string `json:"relation,omitempty"` // SPOUSE | PARENTS | CHILDREN | RELATIVES | SIBLINGS | FRIENDS | COLLEAGUES | OTHERS
-	Name         string `json:"name,omitempty"`
-	MobileNumber string `json:"mobileNumber,omitempty"`
-}
-
-// EssentialOthers is the free-form `others` bag inside
-// ApplicationEssentialInfo.
-type EssentialOthers struct {
-	// ZolozResults is the per-factor face-recognition outcomes from
-	// Zoloz. Each entry has a typed factor + result + optional
-	// errorCode.
-	ZolozResults []ZolozResult `json:"zolozResults,omitempty"`
-}
-
-// ZolozResult is one per-factor face-recognition outcome.
-type ZolozResult struct {
-	Type      string `json:"type,omitempty"`      // FACE_FACTOR_RESULT | RISK_FACTOR_RESULT | ID_FACTOR_RESULT
-	Result    string `json:"result,omitempty"`    // SUCCESS | PENDING | FAILED
-	ErrorCode string `json:"errorCode,omitempty"` // NOT_SAME_PERSON | ATTACK_HIGH_RISK | ...
 }
 
 // ---------- Response envelopes & data types ----------

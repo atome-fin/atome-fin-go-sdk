@@ -19,15 +19,24 @@
     {
       "subOrderId": "so-2",
       "amount": 500000,
-      "quantity": 2
+      "quantity": 2,
+      "skuId": "sku-002",
+      "skuName": "Widget Mini",
+      "categoryId": "cat-electronics",
+      "categoryOneName": "Electronics",
+      "merchantId": "merchant-foo"
     }
   ],
   "extendInfo": {
     "userCreditScore": 0.85,
     "deviceInfo": {
       "platform": "ANDROID",
-      "gps": {"longitude": 106.8456, "latitude": -6.2088, "time": 1746489600000},
+      "gps": {"longitude": "106.8456", "latitude": "-6.2088", "time": "1746489600000"},
       "device": {
+        "deviceId": "device-abc",
+        "googleAdvertisingId": "38400000-8cf0-11bd-b23d-10cb46e3a0aa",
+        "idfa": "00000000-0000-0000-0000-000000000000",
+        "idfv": "00000000-0000-0000-0000-000000000001",
         "utdid": "utdid-abc",
         "isRoot": false,
         "androidId": "and-123",
@@ -55,6 +64,9 @@
       "shippingName": "Foo Customer",
       "shippingPhoneNo": "+628123456789"
     },
-    "reapplyTime": 1746489600000
+    "riskInfo": {
+      "driverInfo": {"averageRating": 4.9, "isVerified": true},
+      "tripMetadata": {"estimatedDistance": "12.4km", "pickupLocation": "Mall Entrance"}
+    }
   }
 }

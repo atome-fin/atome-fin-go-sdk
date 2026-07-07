@@ -8,7 +8,7 @@
 //	ATOME_FIN_PRIV_KEY_PEM    path to the partner's RSA-2048 private key (PEM)
 //	ATOME_FIN_PARTNER_ID      partner identifier — OPTIONAL log-enrichment label
 //	                          (Q7 RESOLVED: not transmitted on the wire)
-//	ATOME_FIN_ENV             one of test|pre|prod  (default: test)
+//	ATOME_FIN_ENV             one of pre|prod  (default: pre)
 //	ATOME_FIN_BASE_URL        explicit base URL — overrides ATOME_FIN_ENV
 //	ATOME_FIN_SESSION_ID      sessionid header value for /auth (max 64 chars)
 //	ATOME_FIN_EXTERNAL_UID    partner-side user identifier
@@ -55,14 +55,14 @@ func main() {
 	if base := os.Getenv("ATOME_FIN_BASE_URL"); base != "" {
 		opts = append(opts, atomefin.WithBaseURL(base))
 	} else {
-		env := atomefin.EnvTest
+		env := atomefin.EnvPre
 		switch os.Getenv("ATOME_FIN_ENV") {
-		case "pre":
-			env = atomefin.EnvPre
 		case "prod":
 			env = atomefin.EnvProd
-		case "test", "":
-			env = atomefin.EnvTest
+		case "pre", "":
+			env = atomefin.EnvPre
+		default:
+			log.Fatalf("ATOME_FIN_ENV=%q: want pre or prod", os.Getenv("ATOME_FIN_ENV"))
 		}
 		opts = append(opts, atomefin.WithEnvironment(env))
 	}

@@ -2,34 +2,50 @@
   "code": "SUCCESS",
   "message": "ok",
   "data": {
-    "requestId": "01HPLN1234567890ABCDEFGHJK",
-    "externalReferenceUid": "user-42",
-    "plans": [
+    "currency": "IDR",
+    "subOrderInstallmentPlans": [
       {
-        "periodType": 3,
-        "currency": "IDR",
-        "totalAmount": 1545000,
-        "totalFee": 45000,
-        "installments": [
-          {"installmentId": "INS-3-1", "dueDate": "2026-06-15", "principal": 500000, "fee": 15000, "interest": 0, "amount": 515000},
-          {"installmentId": "INS-3-2", "dueDate": "2026-07-15", "principal": 500000, "fee": 15000, "interest": 0, "amount": 515000},
-          {"installmentId": "INS-3-3", "dueDate": "2026-08-15", "principal": 500000, "fee": 15000, "interest": 0, "amount": 515000}
-        ]
-      },
-      {
-        "periodType": 6,
-        "currency": "IDR",
-        "totalAmount": 1590000,
-        "totalFee": 90000,
-        "installments": [
-          {"installmentId": "INS-6-1", "dueDate": "2026-06-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
-          {"installmentId": "INS-6-2", "dueDate": "2026-07-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
-          {"installmentId": "INS-6-3", "dueDate": "2026-08-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
-          {"installmentId": "INS-6-4", "dueDate": "2026-09-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
-          {"installmentId": "INS-6-5", "dueDate": "2026-10-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000},
-          {"installmentId": "INS-6-6", "dueDate": "2026-11-15", "principal": 250000, "fee": 15000, "interest": 0, "amount": 265000}
+        "subOrderId": "so-1",
+        "orderAmount": 1500000,
+        "installmentPlans": [
+          {
+            "totalTenor": 3,
+            "orderRepayAmount": 1545000,
+            "orderInterestAmount": 45000,
+            "orderDiscountAmount": 0,
+            "installmentDetails": [
+              {"subOrderId": "so-1", "totalTenor": 3, "currentTenor": 1, "repayAmount": 515000, "principalAmount": 500000, "interestAmount": 15000, "billId": "202606", "billDate": "2026-06-15", "dueDate": "2026-06-15"},
+              {"subOrderId": "so-1", "totalTenor": 3, "currentTenor": 2, "repayAmount": 515000, "principalAmount": 500000, "interestAmount": 15000, "billId": "202607", "billDate": "2026-07-15", "dueDate": "2026-07-15"},
+              {"subOrderId": "so-1", "totalTenor": 3, "currentTenor": 3, "repayAmount": 515000, "principalAmount": 500000, "interestAmount": 15000, "billId": "202608", "billDate": "2026-08-15", "dueDate": "2026-08-15"}
+            ]
+          },
+          {
+            "totalTenor": 6,
+            "orderRepayAmount": 1590000,
+            "orderInterestAmount": 90000,
+            "orderDiscountAmount": 0,
+            "installmentDetails": [
+              {"subOrderId": "so-1", "totalTenor": 6, "currentTenor": 1, "repayAmount": 265000, "principalAmount": 250000, "interestAmount": 15000, "billId": "202606", "billDate": "2026-06-15", "dueDate": "2026-06-15"}
+            ]
+          }
         ]
       }
-    ]
+    ],
+    "extendInfo": {
+      "sumOrderInstallmentPlans": {
+        "sumOrderAmount": 1500000,
+        "installmentPlans": [
+          {
+            "totalTenor": 3,
+            "sumOrderRepayAmount": 1545000,
+            "sumOrderInterestAmount": 45000,
+            "sumOrderDiscountAmount": 0,
+            "installmentDetails": [
+              {"totalTenor": 3, "currentTenor": 1, "repayAmount": 515000, "principalAmount": 500000, "interestAmount": 15000, "billId": "202606", "billDate": "2026-06-15", "dueDate": "2026-06-15"}
+            ]
+          }
+        ]
+      }
+    }
   }
 }

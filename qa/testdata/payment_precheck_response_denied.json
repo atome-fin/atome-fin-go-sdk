@@ -1,10 +1,10 @@
 {
-  "code": "SUCCESS",
-  "message": "ok",
+  "code": "RISK_REJECT",
+  "message": "risk declined",
   "data": {
-    "requestId": "01HPRC1234567890ABCDEFGHJK",
-    "externalReferenceUid": "user-42",
-    "eligible": false,
-    "deniedReason": "credit-limit-insufficient"
+    "availableCredit": 0,
+    "extendInfo": {
+      "reapplyTime": 1715000000000
+    }
   }
 }

@@ -11,8 +11,6 @@ import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/credit"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/mock"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/payment"
-	"github.com/atome-fin/atome-fin-go-sdk/atomefin/refund"
-	"github.com/atome-fin/atome-fin-go-sdk/atomefin/repayment"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/sign"
 )
 
@@ -98,14 +96,12 @@ func TestFireRefundCallback_HappyPath(t *testing.T) {
 	})
 
 	mock.FireRefundCallback(t, h, &callback.RefundEvent{
-		Code: "SUCCESS", Message: "ok",
-		Data: &refund.RefundResult{
-			RequestID:     "r-1",
-			RefundOrderID: "RFD-1",
-			Currency:      "IDR",
-			RefundAmount:  1000,
-			Status:        "SUCCESS",
-		},
+		RequestID:        "r-1",
+		CaptureRequestID: "c-1",
+		RefundID:         "RFD-1",
+		Currency:         "IDR",
+		RefundAmount:     1000,
+		Status:           "SUCCESS",
 	}, mock.WithFireMockKey())
 
 	if !hit {
@@ -124,14 +120,11 @@ func TestFireRepaymentCallback_HappyPath(t *testing.T) {
 	})
 
 	mock.FireRepaymentCallback(t, h, &callback.RepaymentEvent{
-		Code: "SUCCESS", Message: "ok",
-		Data: &repayment.RepaymentResult{
-			RequestID:       "r-1",
-			RepaymentID:     "RPY-1",
-			Currency:        "IDR",
-			RepaymentAmount: 100000,
-			Status:          "SUCCESS",
-		},
+		RequestID:       "r-1",
+		RepaymentID:     "RPY-1",
+		Currency:        "IDR",
+		RepaymentAmount: 100000,
+		Status:          "SUCCESS",
 	}, mock.WithFireMockKey())
 
 	if !hit {
@@ -150,12 +143,13 @@ func TestFireAccountChangeCallback_HappyPath(t *testing.T) {
 	})
 
 	mock.FireAccountChangeCallback(t, h, &callback.AccountChangeEvent{
-		Code: "SUCCESS", Message: "ok",
-		Data: &callback.AccountChangeData{
-			EventID:              "ev-1",
-			ExternalReferenceUID: "user-1",
-			EventTime:            1714972800000,
-			AccountChanges:       &payment.AccountChanges{},
+		CallbackRequestID:    "ev-1",
+		ExternalReferenceUID: "user-1",
+		Event:                "ATOME_CONTROL",
+		Scene:                "ACCOUNT_STATUS_CHANGE",
+		Currency:             "IDR",
+		CreditInfo: &callback.AccountChangeCreditInfo{
+			TotalCredit: 1, AvailableCredit: 1, UsedCredit: 0, UserStatus: "NORMAL",
 		},
 	}, mock.WithFireMockKey())
 
@@ -175,12 +169,9 @@ func TestFireCreditApplicationCallback_HappyPath(t *testing.T) {
 	})
 
 	mock.FireCreditApplicationCallback(t, h, &callback.CreditApplicationEvent{
-		Code: "SUCCESS", Message: "ok",
-		Data: &credit.CreditApplicationResult{
-			ExternalReferenceUID: "user-1",
-			Status:               credit.CreditStatus("SUCCESS"),
-			Currency:             "IDR",
-		},
+		ExternalReferenceUID: "user-1",
+		Status:               credit.CreditStatus("SUCCESS"),
+		Currency:             "IDR",
 	}, mock.WithFireMockKey())
 
 	if !hit {

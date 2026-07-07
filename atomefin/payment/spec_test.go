@@ -69,52 +69,12 @@ func TestSpec_PaymentEndpoints(t *testing.T) {
 				_, err := payment.New(c).PaymentPreCheck(context.Background(), specSamplePreCheckRequest())
 				return err
 			},
-			// SDK's PaymentPreCheckSubOrder carries `subOrderId` (used by
-			// /auth and /capture) but the spec's pre-check schema declares
-			// commerce-domain fields (`categoryId`, `categoryOneName`,
-			// `merchantId`, `skuId`) plus a top-level `event`. The
-			// upstream is "Initial draft — version 1, finalised
-			// case-by-case via bilateral integration agreement"; the
-			// fields are tracked toward partner clarification before the
-			// SDK shape grows. Skipping for now keeps the spec server
-			// honest about the gap without forcing a speculative API
-			// extension. Drift the pinned spec or close the partner Q
-			// → re-evaluate.
-			SkipRequired: []string{
-				"event",
-				"subOrders[].categoryId",
-				"subOrders[].categoryOneName",
-				"subOrders[].merchantId",
-				"subOrders[].skuId",
-			},
 		},
 		{
 			Op: "POST /payment-plan",
 			Run: func(c *atomefin.Client) error {
 				_, err := payment.New(c).PaymentPlan(context.Background(), specSamplePaymentPlanRequest())
 				return err
-			},
-			// Same partner-pending rationale as /payment-precheck above;
-			// /payment-plan layers on a deeper extendInfo.ecommerceOrder
-			// tree that the SDK does not yet model. The `sessionid`
-			// header gap is also partner-pending — /auth carries it via
-			// AuthRequest.Sessionid; PaymentPlanRequest does not yet
-			// expose an equivalent. All entries here trace back to the
-			// spec's "Initial draft" disclaimer and will close as
-			// partner integration agreements solidify the shape.
-			SkipRequired: []string{
-				"sessionid",
-				"extendInfo.ecommerceOrder.ecommerceSubOrders",
-				"extendInfo.ecommerceOrder.orderAmount",
-				"extendInfo.paymentType",
-				"subOrders[].categoryId",
-				"subOrders[].categoryOneName",
-				"subOrders[].discounts[].discountDetails",
-				"subOrders[].discounts[].discountDetails[].discountType",
-				"subOrders[].discounts[].funder",
-				"subOrders[].discounts[].totalTenor",
-				"subOrders[].merchantId",
-				"subOrders[].skuId",
 			},
 		},
 	})
@@ -129,7 +89,7 @@ func specSampleAuthRequest() *payment.AuthRequest {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders: []payment.SubOrder{
-			{SubOrderID: "so-1", Amount: 1500000, Quantity: 1},
+			specSampleSubOrder(1500000),
 		},
 		Sessionid: "session-spec",
 	}
@@ -143,7 +103,7 @@ func specSampleCaptureRequest() *payment.CaptureRequest {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders: []payment.SubOrder{
-			{SubOrderID: "so-1", Amount: 1500000, Quantity: 1},
+			specSampleSubOrder(1500000),
 		},
 	}
 }
@@ -158,12 +118,10 @@ func specSampleVoidAuthRequest() *payment.VoidAuthRequest {
 
 func specSamplePreCheckRequest() *payment.PaymentPreCheckRequest {
 	return &payment.PaymentPreCheckRequest{
-		RequestID:            "r-spec-precheck",
 		ExternalReferenceUID: "u-spec-1",
 		TotalAmount:          1500000,
-		Currency:             atomefin.CurrencyIDR,
-		SubOrders: []payment.PaymentPreCheckSubOrder{
-			{SubOrderID: "so-1", Amount: 1500000, Quantity: 1},
+		SubOrders: []payment.PlanSubOrder{
+			specSamplePlanSubOrder(1500000),
 		},
 	}
 }
@@ -173,9 +131,9 @@ func specSamplePaymentPlanRequest() *payment.PaymentPlanRequest {
 		RequestID:            "r-spec-plan",
 		ExternalReferenceUID: "u-spec-1",
 		TotalAmount:          1500000,
-		Currency:             atomefin.CurrencyIDR,
 		SubOrders: []payment.PlanSubOrder{
-			{SubOrderID: "so-1", Amount: 1500000, Quantity: 1},
+			specSamplePlanSubOrder(1500000),
 		},
+		Sessionid: "session-spec",
 	}
 }

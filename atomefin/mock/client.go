@@ -41,13 +41,13 @@ func WithScenario(s Scenario) Option {
 // WithEnvironment sets the atomefin.Environment of the constructed
 // Client. EnvProd is REFUSED — `mock.NewClient` calls `t.Fatalf`
 // rather than return a Client when this is EnvProd. Default:
-// EnvTest.
+// EnvPre.
 //
 // **Side effect:** passing this option clears the package's
 // default mock base URL (`https://mock.atome-fin.test`) so the
 // resolved baseURL is the upstream placeholder
-// (`https://id-api.apaylater.net/white-label/G` for EnvTest, etc.).
-// That means `PerEndpoint` keys must include the `/white-label/G`
+// (`https://id-api-pre.apaylater.net/grabpaylater` for EnvPre, etc.).
+// That means `PerEndpoint` keys must include the `/grabpaylater`
 // path prefix — pass `WithBaseURL("https://mock.atome-fin.test")`
 // alongside if you prefer the clean default.
 //
@@ -132,7 +132,7 @@ func WithMockKeysAllowed() Option {
 //
 // EnvProd is hard-blocked: if `WithEnvironment(EnvProd)` is
 // supplied, `t.Fatalf` is called and the test fails immediately.
-// Default environment is EnvTest.
+// Default environment is EnvPre.
 //
 // Default scenario is AlwaysSuccess. Default signing key is
 // **none** — partners must pass `WithSigningKeyPEM` or
@@ -149,11 +149,11 @@ func NewClient(tb testing.TB, opts ...Option) *atomefin.Client {
 	tb.Helper()
 	cfg := &config{
 		scenario:    AlwaysSuccess(),
-		environment: atomefin.EnvTest,
+		environment: atomefin.EnvPre,
 		// Default to a base URL with NO path prefix so the
 		// transport sees clean "/auth", "/capture", etc. paths.
 		// Partners using PerEndpoint should expect "POST /auth"
-		// keys, not "POST /white-label/G/auth". WithBaseURL
+		// keys, not "POST /grabpaylater/auth". WithBaseURL
 		// overrides; WithEnvironment keeps the placeholder
 		// behaviour by NULL-ing this default.
 		baseURL: "https://mock.atome-fin.test",
@@ -168,7 +168,7 @@ func NewClient(tb testing.TB, opts ...Option) *atomefin.Client {
 	}
 	// EnvProd refusal is the partner-protective #1 guard.
 	if cfg.environment == atomefin.EnvProd {
-		tb.Fatalf("mock.NewClient: EnvProd is REFUSED — mock clients must not co-exist with a production environment configuration. Pass WithEnvironment(atomefin.EnvTest) or WithEnvironment(atomefin.EnvPre) instead.")
+		tb.Fatalf("mock.NewClient: EnvProd is REFUSED — mock clients must not co-exist with a production environment configuration. Pass WithEnvironment(atomefin.EnvPre) instead.")
 		return nil // unreachable but keeps the type checker happy when tb is faked
 	}
 

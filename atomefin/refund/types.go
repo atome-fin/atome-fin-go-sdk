@@ -2,7 +2,7 @@ package refund
 
 import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
-	"github.com/atome-fin/atome-fin-go-sdk/atomefin/payment"
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/repayment"
 )
 
 // RefundParam is the POST /refund request body. v0.2.
@@ -81,24 +81,19 @@ func (r *RefundResponse) IsProcessing() bool {
 }
 
 // RefundResult is the `data` body of RefundResponse.
-//
-// AccountChanges re-uses payment.AccountChanges (the credit-change
-// vector is identical across auth/capture/void/refund). refund
-// imports payment for this — there's no cycle because payment does
-// not import refund.
 type RefundResult struct {
-	RequestID            string `json:"requestId"`
-	ExternalReferenceUID string `json:"externalReferenceUid"`
-	AuthOrderID          string `json:"authOrderId"`
-	// RefundOrderID is the atome-fin-side identifier for this
-	// refund (analog of CaptureResultData.OrderID); max 32.
-	RefundOrderID       string                  `json:"refundOrderId"` // max 32
-	Currency            atomefin.Currency       `json:"currency"`
-	RefundAmount        atomefin.Amount         `json:"refundAmount"`
-	Status              atomefin.Status         `json:"status"`
-	FailureCode         atomefin.FailureCode    `json:"failureCode,omitempty"`
-	SubOrderRefundInfos []SubOrderRefundInfo    `json:"subOrderRefundInfos,omitempty"`
-	AccountChanges      *payment.AccountChanges `json:"accountChanges,omitempty"`
+	RequestID            string                            `json:"requestId"`
+	CaptureRequestID     string                            `json:"captureRequestId"`
+	RefundID             string                            `json:"refundId"`
+	RefundAmount         atomefin.Amount                   `json:"refundAmount"`
+	WaivedInterestAmount atomefin.Amount                   `json:"waivedInterestAmount,omitempty"`
+	RefundDiscountAmount atomefin.Amount                   `json:"refundDiscountAmount,omitempty"`
+	Status               atomefin.Status                   `json:"status"`
+	FailureCode          atomefin.FailureCode              `json:"failureCode,omitempty"`
+	Currency             atomefin.Currency                 `json:"currency"`
+	SubOrders            []SubOrderRefundInfo              `json:"subOrders,omitempty"`
+	AccountChanges       *repayment.CommerceAccountChanges `json:"accountChanges,omitempty"`
+	ExtendInfo           *RefundExtendInfo                 `json:"extendInfo,omitempty"`
 }
 
 // SubOrderRefundInfo is one line in RefundResult.SubOrderRefundInfos.
@@ -106,6 +101,26 @@ type RefundResult struct {
 // same fields the request did, optionally annotated by the server
 // with terminal-state metadata.
 type SubOrderRefundInfo struct {
-	SubOrderID   string          `json:"subOrderId"`
-	RefundAmount atomefin.Amount `json:"refundAmount"`
+	SubOrderID           string                    `json:"subOrderId"`
+	Quantity             int                       `json:"quantity"`
+	TotalAmount          atomefin.Amount           `json:"totalAmount,omitempty"`
+	PrincipalAmount      atomefin.Amount           `json:"principalAmount,omitempty"`
+	InterestAmount       atomefin.Amount           `json:"interestAmount,omitempty"`
+	DiscountAmount       atomefin.Amount           `json:"discountAmount,omitempty"`
+	OverpaidAmountChange atomefin.Amount           `json:"overpaidAmountChange,omitempty"`
+	ExtendInfo           *SubOrderRefundExtendInfo `json:"extendInfo,omitempty"`
+}
+
+// SubOrderRefundExtendInfo is reserved for per-sub-order refund metadata.
+type SubOrderRefundExtendInfo struct{}
+
+// RefundExtendInfo carries optional refund settlement bookkeeping.
+type RefundExtendInfo struct {
+	Settlement *RefundSettlement `json:"settlement,omitempty"`
+}
+
+// RefundSettlement is the settlement object on refund extendInfo.
+type RefundSettlement struct {
+	PayableSubsidyAmount atomefin.Amount `json:"payableSubsidyAmount"`
+	RefundSubsidyAmount  atomefin.Amount `json:"refundSubsidyAmount"`
 }

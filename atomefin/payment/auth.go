@@ -173,14 +173,8 @@ func validateAuthRequest(req *AuthRequest) error {
 	}
 	var sum atomefin.Amount
 	for i, so := range req.SubOrders {
-		if so.SubOrderID == "" {
-			return &atomefin.ValidationError{Field: "subOrders[].subOrderId", Message: "required"}
-		}
-		if so.Amount <= 0 {
-			return &atomefin.ValidationError{
-				Field:   "subOrders[].amount",
-				Message: "must be > 0 (minor units)",
-			}
+		if err := validateCommerceSubOrder(so); err != nil {
+			return err
 		}
 		_ = i
 		sum += so.Amount
