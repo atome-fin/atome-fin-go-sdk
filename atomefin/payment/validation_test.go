@@ -93,7 +93,7 @@ func TestAuth_Validate_RejectsZeroSubOrderAmount(t *testing.T) {
 			so.Amount = 0
 			return []payment.SubOrder{so}
 		}(),
-		Sessionid:            "s",
+		Sessionid: "s",
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
 	mustValidationError(t, err, "amount")

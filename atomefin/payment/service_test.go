@@ -144,7 +144,7 @@ func TestService_Auth_ValidationRejectsZeroSum(t *testing.T) {
 			so := specSampleSubOrder(999)
 			return []payment.SubOrder{so}
 		}(),
-		Sessionid:            "s",
+		Sessionid: "s",
 	}
 	_, err := svc.Auth(context.Background(), req)
 	var ve *atomefin.ValidationError
