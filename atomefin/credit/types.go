@@ -235,7 +235,7 @@ type CreditInformationParam struct {
 	// Country is the ISO-style market code; currently locked to "ID".
 	Country Country `json:"country"`
 	// ApplicationEssentialInfo carries the minimal KYC fields for
-	// this step (today ocrResult.fullName).
+	// this step (today individualProfile.ocrResult.fullName).
 	ApplicationEssentialInfo *CreditInformationEssentialInfo `json:"applicationEssentialInfo"`
 	// ExtendInfo carries extension fields agreed per integration —
 	// today the only key is `language` for the KYC page (optional;
@@ -244,15 +244,10 @@ type CreditInformationParam struct {
 }
 
 // CreditInformationEssentialInfo is the applicationEssentialInfo bag
-// on /credit-information.
+// on /credit-information. Mirrors the credit-application nesting:
+// individualProfile → ocrResult → fullName.
 type CreditInformationEssentialInfo struct {
-	OCRResult *CreditInformationOCRResult `json:"ocrResult"`
-}
-
-// CreditInformationOCRResult is the OCR subset required at the
-// information-collection step.
-type CreditInformationOCRResult struct {
-	FullName string `json:"fullName"`
+	IndividualProfile *IndividualProfile `json:"individualProfile"`
 }
 
 // CreditInformationExtendInfo is the extendInfo bag on a

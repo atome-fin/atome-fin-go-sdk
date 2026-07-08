@@ -12,7 +12,7 @@
 //	ATOME_FIN_EXTERNAL_UID              partner user id (default: grab-pre-<unix>)
 //	ATOME_FIN_MOBILE_NUMBER             e.g. +628129801929
 //	ATOME_FIN_EMAIL                     user email
-//	ATOME_FIN_FULL_NAME                 applicationEssentialInfo.ocrResult.fullName
+//	ATOME_FIN_FULL_NAME                 applicationEssentialInfo.individualProfile.ocrResult.fullName
 //	ATOME_FIN_ENV                       pre|prod (default: pre)
 //	ATOME_FIN_BASE_URL                  explicit base URL — overrides ATOME_FIN_ENV
 //	ATOME_FIN_DRY_RUN                   "1" to stop after local crypto checks
@@ -64,7 +64,7 @@ func main() {
 	fmt.Printf("requestId            : %s\n", req.RequestID)
 	fmt.Printf("mobileNumber         : %s\n", req.MobileNumber)
 	fmt.Printf("email                : %s\n", req.Email)
-	fmt.Printf("fullName             : %s\n", req.ApplicationEssentialInfo.OCRResult.FullName)
+	fmt.Printf("fullName             : %s\n", req.ApplicationEssentialInfo.IndividualProfile.OCRResult.FullName)
 	fmt.Println()
 
 	baseURL, err := resolveBaseURL()
@@ -122,8 +122,10 @@ func buildRequest() *credit.CreditInformationParam {
 		Email:                envOr("ATOME_FIN_EMAIL", "grab-pre-test@example.com"),
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			OCRResult: &credit.CreditInformationOCRResult{
-				FullName: envOr("ATOME_FIN_FULL_NAME", "Grab Pre Test"),
+			IndividualProfile: &credit.IndividualProfile{
+				OCRResult: &credit.OCRResult{
+					FullName: envOr("ATOME_FIN_FULL_NAME", "Grab Pre Test"),
+				},
 			},
 		},
 		ExtendInfo: &credit.CreditInformationExtendInfo{

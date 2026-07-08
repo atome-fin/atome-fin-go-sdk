@@ -2706,17 +2706,23 @@ components:
                 type: object
                 description: Essential application fields collected at the credit information step.
                 required:
-                - ocrResult
+                - individualProfile
                 properties:
-                  ocrResult:
+                  individualProfile:
                     type: object
-                    description: OCR-extracted fields from the ID document.
+                    description: KYC profile of the end user.
                     required:
-                    - fullName
+                    - ocrResult
                     properties:
-                      fullName:
-                        type: string
-                        description: Full legal name as printed on the ID.
+                      ocrResult:
+                        type: object
+                        description: OCR-extracted fields from the ID document.
+                        required:
+                        - fullName
+                        properties:
+                          fullName:
+                            type: string
+                            description: Full legal name as printed on the ID.
               extendInfo:
                 type: object
                 description: Extended fields agreed per integration.
@@ -2745,8 +2751,9 @@ components:
                 email: xxx@xxx.com
                 country: ID
                 applicationEssentialInfo:
-                  ocrResult:
-                    fullName: Luna Zhang
+                  individualProfile:
+                    ocrResult:
+                      fullName: Luna Zhang
                 extendInfo:
                   language: id
     CreditApplicationChange:

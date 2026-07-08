@@ -95,7 +95,9 @@ func specSampleCreditInformationParam() *credit.CreditInformationParam {
 		Email:                "spec@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			OCRResult: &credit.CreditInformationOCRResult{FullName: "Spec User"},
+			IndividualProfile: &credit.IndividualProfile{
+				OCRResult: &credit.OCRResult{FullName: "Spec User"},
+			},
 		},
 	}
 }

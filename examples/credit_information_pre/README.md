@@ -48,7 +48,7 @@ Default target: `https://id-api-pre.apaylater.net/grabpaylater` (`ATOME_FIN_ENV=
 | `ATOME_FIN_EXTERNAL_UID` | `grab-pre-<unix>` | Partner user identifier |
 | `ATOME_FIN_MOBILE_NUMBER` | `+628129801929` | User mobile with country code |
 | `ATOME_FIN_EMAIL` | `grab-pre-test@example.com` | User email |
-| `ATOME_FIN_FULL_NAME` | `Grab Pre Test` | `applicationEssentialInfo.ocrResult.fullName` |
+| `ATOME_FIN_FULL_NAME` | `Grab Pre Test` | `applicationEssentialInfo.individualProfile.ocrResult.fullName` |
 | `ATOME_FIN_ENV` | `pre` | `pre` or `prod` |
 | `ATOME_FIN_BASE_URL` | unset | Override base URL |
 | `ATOME_FIN_DRY_RUN` | unset | `1` = skip live HTTP call |

@@ -55,9 +55,11 @@ func validateCreditInformation(req *CreditInformationParam) error {
 			Message: "required",
 		}
 	}
-	if req.ApplicationEssentialInfo.OCRResult == nil || req.ApplicationEssentialInfo.OCRResult.FullName == "" {
+	if req.ApplicationEssentialInfo.IndividualProfile == nil ||
+		req.ApplicationEssentialInfo.IndividualProfile.OCRResult == nil ||
+		req.ApplicationEssentialInfo.IndividualProfile.OCRResult.FullName == "" {
 		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.ocrResult.fullName",
+			Field:   "applicationEssentialInfo.individualProfile.ocrResult.fullName",
 			Message: "required",
 		}
 	}

@@ -1,1 +1,1 @@
-{"requestId":"VECTOR-1","externalReferenceUid":"vector-user","mobileNumber":"+6281298000000","email":"u@example.com","country":"ID","applicationEssentialInfo":{"ocrResult":{"fullName":"Test User"}}}
+{"requestId":"VECTOR-1","externalReferenceUid":"vector-user","mobileNumber":"+6281298000000","email":"u@example.com","country":"ID","applicationEssentialInfo":{"individualProfile":{"ocrResult":{"fullName":"Test User"}}}}

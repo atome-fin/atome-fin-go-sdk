@@ -30,6 +30,14 @@ func mustValidateError(t *testing.T, err error, wantField string) {
 	}
 }
 
+func internalInfoEssential(fullName string) *CreditInformationEssentialInfo {
+	return &CreditInformationEssentialInfo{
+		IndividualProfile: &IndividualProfile{
+			OCRResult: &OCRResult{FullName: fullName},
+		},
+	}
+}
+
 func internalValidInformationParam() *CreditInformationParam {
 	return &CreditInformationParam{
 		RequestID:            "r-1",
@@ -37,9 +45,7 @@ func internalValidInformationParam() *CreditInformationParam {
 		MobileNumber:         "+6281298000000",
 		Email:                "u@example.com",
 		Country:              CountryIndonesia,
-		ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-			OCRResult: &CreditInformationOCRResult{FullName: "Test User"},
-		},
+		ApplicationEssentialInfo: internalInfoEssential("Test User"),
 	}
 }
 
@@ -76,9 +82,7 @@ func TestValidateCreditInformation_Internal(t *testing.T) {
 			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
 			Country:              CountryIndonesia,
-			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
-			},
+			ApplicationEssentialInfo: internalInfoEssential("Test"),
 		}, "requestId"},
 		{"long-externalReferenceUid", &CreditInformationParam{
 			RequestID:            "r",
@@ -86,27 +90,21 @@ func TestValidateCreditInformation_Internal(t *testing.T) {
 			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
 			Country:              CountryIndonesia,
-			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
-			},
+			ApplicationEssentialInfo: internalInfoEssential("Test"),
 		}, "externalReferenceUid"},
 		{"missing-mobileNumber", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			Email:                "e@x",
 			Country:              CountryIndonesia,
-			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
-			},
+			ApplicationEssentialInfo: internalInfoEssential("Test"),
 		}, "mobileNumber"},
 		{"missing-email", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			MobileNumber:         "+6281298000000",
 			Country:              CountryIndonesia,
-			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
-			},
+			ApplicationEssentialInfo: internalInfoEssential("Test"),
 		}, "email"},
 		{"long-email", &CreditInformationParam{
 			RequestID:            "r",
@@ -114,18 +112,14 @@ func TestValidateCreditInformation_Internal(t *testing.T) {
 			MobileNumber:         "+6281298000000",
 			Email:                strings.Repeat("a", 65),
 			Country:              CountryIndonesia,
-			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
-			},
+			ApplicationEssentialInfo: internalInfoEssential("Test"),
 		}, "email"},
 		{"missing-country", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
-			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
-			},
+			ApplicationEssentialInfo: internalInfoEssential("Test"),
 		}, "country"},
 		{"unsupported-country", &CreditInformationParam{
 			RequestID:            "r",
@@ -133,9 +127,7 @@ func TestValidateCreditInformation_Internal(t *testing.T) {
 			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
 			Country:              Country("US"),
-			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
-			},
+			ApplicationEssentialInfo: internalInfoEssential("Test"),
 		}, "country"},
 		{"missing-applicationEssentialInfo", &CreditInformationParam{
 			RequestID:            "r",
@@ -151,18 +143,18 @@ func TestValidateCreditInformation_Internal(t *testing.T) {
 			Email:                "e@x",
 			Country:              CountryIndonesia,
 			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				OCRResult: &CreditInformationOCRResult{},
+				IndividualProfile: &IndividualProfile{
+					OCRResult: &OCRResult{},
+				},
 			},
-		}, "applicationEssentialInfo.ocrResult.fullName"},
+		}, "applicationEssentialInfo.individualProfile.ocrResult.fullName"},
 		{"extendInfo-bad-language", &CreditInformationParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			MobileNumber:         "+6281298000000",
 			Email:                "e@x",
 			Country:              CountryIndonesia,
-			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				OCRResult: &CreditInformationOCRResult{FullName: "Test"},
-			},
+			ApplicationEssentialInfo: internalInfoEssential("Test"),
 			ExtendInfo: &CreditInformationExtendInfo{Language: Language("zh")},
 		}, "extendInfo.language"},
 	}
