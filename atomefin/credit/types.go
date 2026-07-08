@@ -93,31 +93,6 @@ func (s CreditStatus) IsTerminal() bool {
 // String returns the wire literal verbatim.
 func (s CreditStatus) String() string { return string(s) }
 
-// EventType discriminates the scenario for a /credit-information
-// submission.
-type EventType string
-
-// Spec-defined event types.
-const (
-	// EventTypeNewApplication — first-time application.
-	EventTypeNewApplication EventType = "NEW_APPLICATION"
-	// EventTypeSwitchApplication — user switching from another
-	// lender.
-	EventTypeSwitchApplication EventType = "SWITCH_APPLICATION"
-)
-
-// IsValid reports whether e is a spec-defined event type.
-func (e EventType) IsValid() bool {
-	switch e {
-	case EventTypeNewApplication, EventTypeSwitchApplication:
-		return true
-	}
-	return false
-}
-
-// String returns the wire literal verbatim.
-func (e EventType) String() string { return string(e) }
-
 // Country is the ISO-style market code on credit-application
 // payloads. Currently only "ID" (Indonesia) is supported.
 type Country string

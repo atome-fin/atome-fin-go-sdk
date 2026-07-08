@@ -234,20 +234,6 @@ func TestCreditStatus_IsValid(t *testing.T) {
 	}
 }
 
-func TestEventType_IsValid(t *testing.T) {
-	for _, e := range []credit.EventType{
-		credit.EventTypeNewApplication,
-		credit.EventTypeSwitchApplication,
-	} {
-		if !e.IsValid() {
-			t.Errorf("EventType(%q).IsValid() = false; want true", e)
-		}
-	}
-	if credit.EventType("RENEWAL").IsValid() {
-		t.Error("EventType(RENEWAL) must be invalid (forward-compat)")
-	}
-}
-
 func TestBalanceHistoryType_IsValid(t *testing.T) {
 	for _, t1 := range []credit.BalanceHistoryType{
 		credit.BalanceHistoryTypeOverpaidChange,

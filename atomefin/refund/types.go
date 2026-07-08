@@ -49,6 +49,10 @@ type SubOrderRefundRequest struct {
 	// SubOrderID identifies the line — must match a SubOrderID that
 	// was on the original /capture.
 	SubOrderID string `json:"subOrderId"`
+	// Quantity is the number of units being refunded for this line.
+	// Optional per spec (only subOrderId + amount are required);
+	// omit when refunding by amount only.
+	Quantity int `json:"quantity,omitempty"`
 	// Amount is the per-line refund value in minor units.
 	Amount atomefin.Amount `json:"amount"`
 }

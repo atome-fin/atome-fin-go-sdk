@@ -115,17 +115,16 @@ func TestR10_AuthRequest_TotalAmount(t *testing.T) {
 	})
 }
 
-func TestR10_SubOrder_OriginalAmount(t *testing.T) {
+func TestR10_SubOrder_Amount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[payment.SubOrder](t, func(v int64) payment.SubOrder {
 		return payment.SubOrder{
-			SubOrderID:     "so-1",
-			SkuID:          "sku-1",
-			CategoryID:     "cat-1",
+			SubOrderID:      "so-1",
+			SkuID:           "sku-1",
+			CategoryID:      "cat-1",
 			CategoryOneName: "Food",
-			MerchantID:     "merchant-1",
-			Amount:         1,
-			Quantity:       1,
-			OriginalAmount: v,
+			MerchantID:      "merchant-1",
+			Amount:          v,
+			Quantity:        1,
 		}
 	})
 }
@@ -151,8 +150,8 @@ func TestR10_AccountChanges_Deltas(t *testing.T) {
 
 // ---------- R11 — fractional decode of an amount field fails loudly ----------
 
-func TestR11_RejectsFractionalOriginalAmount(t *testing.T) {
-	body := []byte(`{"subOrderId":"so-1","amount":1,"quantity":1,"originalAmount":1.5}`)
+func TestR11_RejectsFractionalAmount(t *testing.T) {
+	body := []byte(`{"subOrderId":"so-1","quantity":1,"amount":1.5}`)
 	marshal.AssertRejectsFractionalAmount[payment.SubOrder](t, body)
 }
 
@@ -180,13 +179,12 @@ func TestR12_AuthRequest_IntegerLiterals(t *testing.T) {
 				so := specSampleSubOrder(500000)
 				so.SubOrderID = "so-2"
 				so.Quantity = 2
-				so.OriginalAmount = 1100000
 				return so
 			}(),
 		},
 	}
 	marshal.AssertAmountKeysAreInteger[payment.AuthRequest](t, in,
-		"totalAmount", "amount", "originalAmount",
+		"totalAmount", "amount",
 	)
 }
 

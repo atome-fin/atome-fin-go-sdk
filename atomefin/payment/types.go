@@ -67,13 +67,6 @@ type SubOrder struct {
 	// CategoryCodes — additional category codes; emit as `[]` not `null`
 	// (R8: required-empty parity).
 	CategoryCodes []string `json:"categoryCodes,omitempty"`
-	// OriginalAmount is the pre-discount amount in minor units.
-	//
-	// IMPORTANT: swagger.yaml lines 994/995 type this as `number`, but
-	// per the user-confirmed money policy we
-	// hold it as int64. Any partner-side fractional payload fails
-	// decode loudly — caught by qa/marshal R11.
-	OriginalAmount atomefin.Amount `json:"originalAmount,omitempty"`
 	// MerchantID — merchant or driver identifier (required per spec).
 	MerchantID string `json:"merchantId"`
 	// MerchantName — merchant or driver display name.

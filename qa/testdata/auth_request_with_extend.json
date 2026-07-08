@@ -13,7 +13,6 @@
       "categoryId": "cat-electronics",
       "categoryOneName": "Electronics",
       "categoryCodes": ["ELEC", "GADGET"],
-      "originalAmount": 1100000,
       "merchantId": "merchant-foo"
     },
     {
