@@ -8,6 +8,7 @@ docs/internal/
 # `examples/webhook_server/` source directories stay tracked.
 /auth_capture
 /webhook_server
+/credit_information_pre
 
 # Standard Go build artefacts.
 *.exe
@@ -26,3 +27,4 @@ coverage.html
 *~
 .DS_Store
 /docs/grab
+examples/credit_information_pre/.local-keys/
