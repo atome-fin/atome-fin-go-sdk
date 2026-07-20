@@ -183,7 +183,8 @@ func TestServer_POST_RejectsMissingNestedRequired(t *testing.T) {
 		"externalReferenceUid":"u-1",
 		"totalAmount":1000,
 		"periodType":1,
-		"subOrders":[{"amount":1000,"quantity":1}]
+		"subOrders":[{"amount":1000,"quantity":1}],
+		"extendInfo":{"orderType":"GRAB_FOOD"}
 	}`)
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/auth", body)
 	if err != nil {
@@ -206,8 +207,11 @@ func TestServer_POST_RejectsMissingNestedRequired(t *testing.T) {
 	if len(failures) != 1 {
 		t.Fatalf("failures = %d, want 1", len(failures))
 	}
-	if !strings.Contains(failures[0].Field, "categoryId") {
-		t.Errorf("field = %q; want categoryId reference", failures[0].Field)
+	if !strings.Contains(failures[0].Field, "categoryId") &&
+		!strings.Contains(failures[0].Field, "subOrderId") &&
+		!strings.Contains(failures[0].Field, "skuId") &&
+		!strings.Contains(failures[0].Field, "merchantId") {
+		t.Errorf("field = %q; want a nested subOrders[] required-field reference", failures[0].Field)
 	}
 }
 

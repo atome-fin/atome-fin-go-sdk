@@ -189,6 +189,7 @@ func TestServer_AutoCallback_PanicIsolation(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
+		ExtendInfo:           sampleRequestExtendInfo(),
 		Sessionid:            "s",
 	})
 	if err != nil {

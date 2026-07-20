@@ -56,7 +56,8 @@ func freshAuthRequest() *payment.AuthRequest {
 				Amount: 1500000, Quantity: 1,
 			},
 		},
-		Sessionid: "session-mock",
+		ExtendInfo: &payment.RequestExtendInfo{OrderType: payment.OrderTypeGrabFood},
+		Sessionid:  "session-mock",
 	}
 }
 

@@ -97,6 +97,7 @@ func TestNewClient_DefaultScenario_AlwaysSuccess(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
+		ExtendInfo:           sampleRequestExtendInfo(),
 		Sessionid:            "s",
 	})
 	if err != nil {
@@ -118,6 +119,7 @@ func TestNewClient_AlwaysAPIError_400(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
+		ExtendInfo:           sampleRequestExtendInfo(),
 		Sessionid:            "s",
 	})
 	var ae *atomefin.APIError
@@ -154,6 +156,7 @@ func TestNewClient_PerEndpoint_RoutesByOp(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
+		ExtendInfo:           sampleRequestExtendInfo(),
 	})
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
@@ -256,6 +259,7 @@ func validAuth() *payment.AuthRequest {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
+		ExtendInfo:           sampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}
 }

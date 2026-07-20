@@ -92,7 +92,17 @@ func descend(node any, segs []string, i int, rendered string) string {
 	next := childOf(node, seg)
 	r := joinRendered(rendered, seg)
 	if next == nil {
-		return r
+		// Leaf missing → report. Intermediate missing → nested
+		// required under an absent (optional) object does not
+		// apply. Mirrors the array-property short-circuit above
+		// and OpenAPI "required applies only when the parent
+		// object is present" semantics. Top-level required
+		// parents are still enforced via their own required-path
+		// entries (e.g. "extendInfo" alongside "extendInfo.orderType").
+		if i == len(segs)-1 {
+			return r
+		}
+		return ""
 	}
 	if i == len(segs)-1 {
 		// Leaf — present.

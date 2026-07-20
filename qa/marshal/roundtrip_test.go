@@ -12,12 +12,18 @@ import (
 // stays compilable independently of the rest of the SDK.
 
 type sampleSubOrder struct {
-	SubOrderID string `json:"subOrderId"`
-	Amount     int64  `json:"amount"`
+	SubOrderID      string `json:"subOrderId"`
+	Amount          int64  `json:"amount"`
+	Quantity        int    `json:"quantity"`
+	SkuID           string `json:"skuId"`
+	CategoryID      string `json:"categoryId"`
+	CategoryOneName string `json:"categoryOneName"`
+	MerchantID      string `json:"merchantId"`
 }
 
 type sampleExtend struct {
-	Address string `json:"address,omitempty"`
+	OrderType string `json:"orderType,omitempty"`
+	Address   string `json:"address,omitempty"`
 }
 
 type sampleAuthRequest struct {

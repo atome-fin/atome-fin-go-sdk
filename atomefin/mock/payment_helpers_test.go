@@ -16,3 +16,7 @@ func samplePaymentSubOrder(amount atomefin.Amount) payment.SubOrder {
 		Quantity:        1,
 	}
 }
+
+func sampleRequestExtendInfo() *payment.RequestExtendInfo {
+	return &payment.RequestExtendInfo{OrderType: payment.OrderTypeGrabFood}
+}

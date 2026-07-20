@@ -213,6 +213,7 @@ func TestServer_AutoCallback_FiresAfterTypedSuccessScenario(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
+		ExtendInfo:           sampleRequestExtendInfo(),
 		Sessionid:            "s",
 	})
 	if err != nil {
@@ -248,6 +249,7 @@ func TestServer_AutoCallback_OffByDefault(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1500000)},
+		ExtendInfo:           sampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}); err != nil {
 		t.Fatalf("Auth: %v", err)
@@ -291,6 +293,7 @@ func TestServer_AutoCallback_DelayHonored(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{samplePaymentSubOrder(1)},
+		ExtendInfo:           sampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}); err != nil {
 		t.Fatalf("Auth: %v", err)
