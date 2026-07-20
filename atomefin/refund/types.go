@@ -97,7 +97,6 @@ type RefundResult struct {
 	Currency             atomefin.Currency                 `json:"currency"`
 	SubOrders            []SubOrderRefundInfo              `json:"subOrders,omitempty"`
 	AccountChanges       *repayment.CommerceAccountChanges `json:"accountChanges,omitempty"`
-	ExtendInfo           *RefundExtendInfo                 `json:"extendInfo,omitempty"`
 }
 
 // SubOrderRefundInfo is one line in RefundResult.SubOrderRefundInfos.
@@ -117,14 +116,3 @@ type SubOrderRefundInfo struct {
 
 // SubOrderRefundExtendInfo is reserved for per-sub-order refund metadata.
 type SubOrderRefundExtendInfo struct{}
-
-// RefundExtendInfo carries optional refund settlement bookkeeping.
-type RefundExtendInfo struct {
-	Settlement *RefundSettlement `json:"settlement,omitempty"`
-}
-
-// RefundSettlement is the settlement object on refund extendInfo.
-type RefundSettlement struct {
-	PayableSubsidyAmount atomefin.Amount `json:"payableSubsidyAmount"`
-	RefundSubsidyAmount  atomefin.Amount `json:"refundSubsidyAmount"`
-}

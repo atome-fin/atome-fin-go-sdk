@@ -32,8 +32,8 @@ func mustValidateError(t *testing.T, err error, wantField string) {
 
 func internalInfoEssential(fullName string) *CreditInformationEssentialInfo {
 	return &CreditInformationEssentialInfo{
-		IndividualProfile: &IndividualProfile{
-			OCRResult: &OCRResult{FullName: fullName},
+		IndividualProfile: &CreditInformationIndividualProfile{
+			OCRResult: &CreditInformationOCRResult{FullName: fullName},
 		},
 	}
 }
@@ -51,21 +51,57 @@ func internalValidInformationParam() *CreditInformationParam {
 
 func internalValidApplicationParam() *CreditApplicationParam {
 	return &CreditApplicationParam{
-		RequestID:            "r-1",
-		ExternalReferenceUID: "u-1",
-		MobileNumber:         "+6281298000000",
-		Email:                "u@example.com",
-		Country:              CountryIndonesia,
-		ApplicationEssentialInfo: &ApplicationEssentialInfo{
-			LivenessCheck: &LivenessCheck{
-				Result:        "PASS",
-				SnapshotPhoto: "base64-photo",
-			},
-			IndividualProfile:   &IndividualProfile{IDType: "KTP"},
-			PlatformInformation: &PlatformInformation{},
-		},
+		RequestID:                "r-1",
+		ExternalReferenceUID:     "u-1",
+		MobileNumber:             "+6281298000000",
+		Email:                    "u@example.com",
+		Country:                  CountryIndonesia,
+		ApplicationEssentialInfo: internalValidApplicationEssentialInfo(),
 		ExtendInfo: &CreditApplicationExtendInfo{
 			CreditInformationRequestID: "info-1",
+		},
+	}
+}
+
+func internalValidApplicationEssentialInfo() *ApplicationEssentialInfo {
+	return &ApplicationEssentialInfo{
+		LivenessCheck: &LivenessCheck{
+			Result:                "PASS",
+			SnapshotPhoto:         "base64-photo",
+			LivenessCheckResult01: "0.98",
+			LivenessCheckResult02: "0.97",
+			LivenessCheckResult03: "PASS",
+		},
+		IndividualProfile: &IndividualProfile{
+			IDType:       "KTP",
+			IDFrontPhoto: "base64-id-front-photo",
+			OCRResult: &OCRResult{
+				IDNumber:            "3173051234567890",
+				FullName:            "Test User",
+				BirthPlace:          "Jakarta",
+				OCRReligion:         "ISLAM",
+				OCRGender:           "MAN",
+				ManuallyBirthDate:   "1995-05-20",
+				OCRProvince:         "DKI Jakarta",
+				OCRCity:             "Jakarta Selatan",
+				OCRDistrict:         "Kebayoran Baru",
+				JobType:             "EMPLOYEE",
+				ManuallyExpiredDate: "2099-12-31",
+				ManuallyCitizenship: "WNI",
+				ManuallyRt:          "001",
+				ManuallyRw:          "002",
+			},
+		},
+		PlatformInformation: &PlatformInformation{
+			SceneType: SceneCheckoutPage,
+			DeviceInfo: &DeviceInfo{
+				Platform: "ANDROID",
+				GPS: &GPSSample{
+					Longitude: "106.827153",
+					Latitude:  "-6.175392",
+					Time:      "1620285931000",
+				},
+			},
 		},
 	}
 }
@@ -143,8 +179,8 @@ func TestValidateCreditInformation_Internal(t *testing.T) {
 			Email:                "e@x",
 			Country:              CountryIndonesia,
 			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				IndividualProfile: &IndividualProfile{
-					OCRResult: &OCRResult{},
+				IndividualProfile: &CreditInformationIndividualProfile{
+					OCRResult: &CreditInformationOCRResult{},
 				},
 			},
 		}, "applicationEssentialInfo.individualProfile.ocrResult.fullName"},

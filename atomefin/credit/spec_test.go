@@ -95,8 +95,8 @@ func specSampleCreditInformationParam() *credit.CreditInformationParam {
 		Email:                "spec@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.IndividualProfile{
-				OCRResult: &credit.OCRResult{FullName: "Spec User"},
+			IndividualProfile: &credit.CreditInformationIndividualProfile{
+				OCRResult: &credit.CreditInformationOCRResult{FullName: "Spec User"},
 			},
 		},
 	}
@@ -104,21 +104,57 @@ func specSampleCreditInformationParam() *credit.CreditInformationParam {
 
 func specSampleCreditApplicationParam() *credit.CreditApplicationParam {
 	return &credit.CreditApplicationParam{
-		RequestID:            "r-spec-app",
-		ExternalReferenceUID: "u-spec-1",
-		MobileNumber:         "+6281298000000",
-		Email:                "spec@example.com",
-		Country:              credit.CountryIndonesia,
-		ApplicationEssentialInfo: &credit.ApplicationEssentialInfo{
-			LivenessCheck: &credit.LivenessCheck{
-				Result:        "PASS",
-				SnapshotPhoto: "base64-photo",
-			},
-			IndividualProfile:   &credit.IndividualProfile{IDType: "KTP"},
-			PlatformInformation: &credit.PlatformInformation{},
-		},
+		RequestID:                "r-spec-app",
+		ExternalReferenceUID:     "u-spec-1",
+		MobileNumber:             "+6281298000000",
+		Email:                    "spec@example.com",
+		Country:                  credit.CountryIndonesia,
+		ApplicationEssentialInfo: specSampleCreditApplicationEssentialInfo(),
 		ExtendInfo: &credit.CreditApplicationExtendInfo{
 			CreditInformationRequestID: "r-spec-info",
+		},
+	}
+}
+
+func specSampleCreditApplicationEssentialInfo() *credit.ApplicationEssentialInfo {
+	return &credit.ApplicationEssentialInfo{
+		LivenessCheck: &credit.LivenessCheck{
+			Result:                "PASS",
+			SnapshotPhoto:         "base64-photo",
+			LivenessCheckResult01: "0.98",
+			LivenessCheckResult02: "0.97",
+			LivenessCheckResult03: "PASS",
+		},
+		IndividualProfile: &credit.IndividualProfile{
+			IDType:       "KTP",
+			IDFrontPhoto: "base64-id-front-photo",
+			OCRResult: &credit.OCRResult{
+				IDNumber:            "3173051234567890",
+				FullName:            "Spec User",
+				BirthPlace:          "Jakarta",
+				OCRReligion:         "ISLAM",
+				OCRGender:           "MAN",
+				ManuallyBirthDate:   "1995-05-20",
+				OCRProvince:         "DKI Jakarta",
+				OCRCity:             "Jakarta Selatan",
+				OCRDistrict:         "Kebayoran Baru",
+				JobType:             "EMPLOYEE",
+				ManuallyExpiredDate: "2099-12-31",
+				ManuallyCitizenship: "WNI",
+				ManuallyRt:          "001",
+				ManuallyRw:          "002",
+			},
+		},
+		PlatformInformation: &credit.PlatformInformation{
+			SceneType: credit.SceneCheckoutPage,
+			DeviceInfo: &credit.DeviceInfo{
+				Platform: "ANDROID",
+				GPS: &credit.GPSSample{
+					Longitude: "106.827153",
+					Latitude:  "-6.175392",
+					Time:      "1620285931000",
+				},
+			},
 		},
 	}
 }

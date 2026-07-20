@@ -98,6 +98,7 @@ func TestDemo_RealisticSandbox(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{demoSubOrder(1500000)},
+		ExtendInfo:           &payment.RequestExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		Sessionid:            "s",
 	})
 	if err != nil {
@@ -115,6 +116,7 @@ func TestDemo_RealisticSandbox(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{demoSubOrder(1500000)},
+		ExtendInfo:           &payment.RequestExtendInfo{OrderType: payment.OrderTypeGrabFood},
 	}); err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -136,6 +138,7 @@ func TestDemo_RealisticSandbox(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{demoSubOrder(1500000)},
+		ExtendInfo:           &payment.RequestExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		Sessionid:            "s",
 	})
 	if err != nil {

@@ -20,11 +20,6 @@
       "lateFeeAmountChange": 0,
       "interestAmountChange": 0,
       "version": 1746662410000
-    },
-    "extendInfo": {
-      "settlement": {
-        "payableSubsidyAmount": 0
-      }
     }
   }
 }

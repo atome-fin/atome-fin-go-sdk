@@ -22,8 +22,9 @@ type PaymentPlanRequest struct {
 	TotalAmount atomefin.Amount `json:"totalAmount"`
 	// SubOrders enumerates the cart contents to plan against.
 	SubOrders []PlanSubOrder `json:"subOrders"`
-	// ExtendInfo carries optional checkout extension fields.
-	ExtendInfo *CheckoutExtendInfo `json:"extendInfo,omitempty"`
+	// ExtendInfo carries checkout extension fields. Required by the
+	// spec because extendInfo.orderType drives risk routing.
+	ExtendInfo *CheckoutExtendInfo `json:"extendInfo"`
 
 	// Sessionid is the per-checkout session token. Required for
 	// /payment-plan, ≤ 64 chars. Travels in the HTTP header, not
@@ -34,8 +35,7 @@ type PaymentPlanRequest struct {
 // CheckoutExtendInfo is the extendInfo bag on /payment-plan (and
 // optionally other checkout endpoints).
 type CheckoutExtendInfo struct {
-	OrderType PaymentOrderType `json:"orderType,omitempty"`
-	RiskInfo  *PaymentRiskInfo `json:"riskInfo,omitempty"`
+	OrderType PaymentOrderType `json:"orderType"`
 }
 
 // PlanSubOrder is one cart line on a plan or pre-check request.
@@ -201,6 +201,12 @@ func validatePaymentPlanRequest(req *PaymentPlanRequest) error {
 			Field:   "totalAmount",
 			Message: "must equal sum of subOrders[].amount",
 		}
+	}
+	if req.ExtendInfo == nil {
+		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
+	}
+	if !req.ExtendInfo.OrderType.IsValid() {
+		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART | SPECIALIZED_DELIVERY"}
 	}
 	if req.Sessionid == "" {
 		return &atomefin.ValidationError{Field: "sessionid", Message: "required (HTTP header on /payment-plan)"}

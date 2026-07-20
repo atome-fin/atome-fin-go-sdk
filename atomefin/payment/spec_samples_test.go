@@ -28,3 +28,7 @@ func specSamplePlanSubOrder(amount atomefin.Amount) payment.PlanSubOrder {
 		Quantity:        1,
 	}
 }
+
+func specSampleRequestExtendInfo() *payment.RequestExtendInfo {
+	return &payment.RequestExtendInfo{OrderType: payment.OrderTypeGrabFood}
+}

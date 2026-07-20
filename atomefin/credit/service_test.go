@@ -72,8 +72,8 @@ func validInformationParam() *credit.CreditInformationParam {
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.IndividualProfile{
-				OCRResult: &credit.OCRResult{FullName: "Test User"},
+			IndividualProfile: &credit.CreditInformationIndividualProfile{
+				OCRResult: &credit.CreditInformationOCRResult{FullName: "Test User"},
 			},
 		},
 	}
@@ -81,19 +81,12 @@ func validInformationParam() *credit.CreditInformationParam {
 
 func validApplicationParam() *credit.CreditApplicationParam {
 	return &credit.CreditApplicationParam{
-		RequestID:            "app-1",
-		ExternalReferenceUID: "user-42",
-		MobileNumber:         "+628129801929",
-		Email:                "u@example.com",
-		Country:              credit.CountryIndonesia,
-		ApplicationEssentialInfo: &credit.ApplicationEssentialInfo{
-			LivenessCheck: &credit.LivenessCheck{
-				Result:        "PASS",
-				SnapshotPhoto: "base64-photo",
-			},
-			IndividualProfile:   &credit.IndividualProfile{IDType: "KTP"},
-			PlatformInformation: &credit.PlatformInformation{},
-		},
+		RequestID:                "app-1",
+		ExternalReferenceUID:     "user-42",
+		MobileNumber:             "+628129801929",
+		Email:                    "u@example.com",
+		Country:                  credit.CountryIndonesia,
+		ApplicationEssentialInfo: specSampleCreditApplicationEssentialInfo(),
 		ExtendInfo: &credit.CreditApplicationExtendInfo{
 			CreditInformationRequestID: "info-1",
 		},

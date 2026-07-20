@@ -4,7 +4,26 @@
   "totalAmount": 1500000,
   "periodType": 3,
   "subOrders": [
-    {"subOrderId": "so-1", "amount": 1000000},
-    {"subOrderId": "so-2", "amount": 500000}
-  ]
+    {
+      "subOrderId": "so-1",
+      "amount": 1000000,
+      "quantity": 1,
+      "skuId": "sku-1",
+      "categoryId": "cat-1",
+      "categoryOneName": "Food",
+      "merchantId": "merchant-1"
+    },
+    {
+      "subOrderId": "so-2",
+      "amount": 500000,
+      "quantity": 2,
+      "skuId": "sku-2",
+      "categoryId": "cat-1",
+      "categoryOneName": "Food",
+      "merchantId": "merchant-1"
+    }
+  ],
+  "extendInfo": {
+    "orderType": "GRAB_FOOD"
+  }
 }

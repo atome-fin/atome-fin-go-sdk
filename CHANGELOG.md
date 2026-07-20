@@ -7,10 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
-## [0.8.0] — 2026-07-07
+## [0.8.0] — 2026-07-20
 
 Syncs the SDK to the upstream **GrabPayLater** Partner API spec
-(white-label `G`, pinned `swagger-2026-07-07-9cc936e9.yaml`). This
+(white-label `G`, pinned `swagger-2026-07-20-792f74c1.yaml`). This
 release targets the Grab integration surface: `/grabpaylater` gateway
 prefix, commerce-domain `subOrders` on checkout endpoints, and the
 July 2026 credit / payment schema deltas.
@@ -31,7 +31,8 @@ require partner call-site updates.
   auth `extendInfo.creditProfile`.
 - **`payment.SubOrder` commerce fields** — `skuId`, `categoryId`,
   `categoryOneName`, `merchantId` (required); `merchantName`,
-  `categoryCodes`, `spuId`, `creatorId` (optional).
+  `categoryCodes`, `spuId` (optional). `creatorId` was removed from
+  the upstream sub-order schemas on 2026-07-20.
 - **`payment.PlanSubOrder`** — same commerce field set as `SubOrder`
   for `/payment-precheck` and `/payment-plan`.
 - **`payment.PaymentPreCheckDataExtendInfo.ReapplyTime`** — Unix-ms
@@ -51,7 +52,7 @@ require partner call-site updates.
 
 ### Changed
 
-- **Pinned spec** — `internal/spec/testdata/swagger-2026-07-07-9cc936e9.yaml`
+- **Pinned spec** — `internal/spec/testdata/swagger-2026-07-20-792f74c1.yaml`
   replaces `swagger-2026-05-06-7025b2d2.yaml`.
 - **`atomefin.Environment`** — `EnvPre` →
   `https://id-api-pre.apaylater.net/grabpaylater`;
@@ -114,6 +115,9 @@ _, err := payment.New(c).PaymentPreCheck(ctx, &payment.PaymentPreCheckRequest{
         MerchantID: "merchant-1",
         Amount: 1500000, Quantity: 1,
     }},
+    ExtendInfo: &payment.PreCheckExtendInfo{
+        OrderType: payment.OrderTypeGrabFood,
+    },
 })
 // Eligibility: resp.IsEligible()  (checks resp.Code == SUCCESS)
 
@@ -122,6 +126,9 @@ _, err = payment.New(c).PaymentPlan(ctx, &payment.PaymentPlanRequest{
     RequestID: "r-1", ExternalReferenceUID: "user-1",
     TotalAmount: 1500000, Sessionid: "checkout-session",
     SubOrders: []payment.PlanSubOrder{{ /* same commerce fields */ }},
+    ExtendInfo: &payment.CheckoutExtendInfo{
+        OrderType: payment.OrderTypeGrabFood,
+    },
 })
 
 // /auth + /capture — subOrders must include skuId/categoryId/…
@@ -133,6 +140,9 @@ authReq := &payment.AuthRequest{
         MerchantID: "merchant-1",
         Amount: 1500000, Quantity: 1,
     }},
+    ExtendInfo: &payment.RequestExtendInfo{
+        OrderType: payment.OrderTypeGrabFood,
+    },
     Sessionid: "checkout-session",
 }
 
@@ -142,7 +152,9 @@ info := &credit.CreditInformationParam{
     MobileNumber: "+6281298000000",
     Email: "u@example.com", Country: credit.CountryIndonesia,
     ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-        OCRResult: &credit.CreditInformationOCRResult{FullName: "Jane"},
+        IndividualProfile: &credit.CreditInformationIndividualProfile{
+            OCRResult: &credit.CreditInformationOCRResult{FullName: "Jane"},
+        },
     },
 }
 
@@ -152,10 +164,33 @@ app := &credit.CreditApplicationParam{
     ApplicationEssentialInfo: &credit.ApplicationEssentialInfo{
         LivenessCheck: &credit.LivenessCheck{
             Result: "PASS", SnapshotPhoto: "<base64>",
+            LivenessCheckResult01: "0.98",
+            LivenessCheckResult02: "0.97",
+            LivenessCheckResult03: "PASS",
         },
-        IndividualProfile:   &credit.IndividualProfile{IDType: "KTP"},
+        IndividualProfile: &credit.IndividualProfile{
+            IDType:       "KTP",
+            IDFrontPhoto: "<base64>",
+            OCRResult: &credit.OCRResult{
+                IDNumber: "3173051234567890", FullName: "Jane",
+                BirthPlace: "Jakarta", OCRReligion: "ISLAM",
+                OCRGender: "WOMAN", ManuallyBirthDate: "1995-05-20",
+                OCRProvince: "DKI Jakarta", OCRCity: "Jakarta Selatan",
+                OCRDistrict: "Kebayoran Baru", JobType: "EMPLOYEE",
+                ManuallyExpiredDate: "2099-12-31",
+                ManuallyCitizenship: "WNI",
+                ManuallyRt: "001", ManuallyRw: "002",
+            },
+        },
         PlatformInformation: &credit.PlatformInformation{
             SceneType: credit.SceneCheckoutPage,
+            DeviceInfo: &credit.DeviceInfo{
+                GPS: &credit.GPSSample{
+                    Longitude: "106.827153",
+                    Latitude: "-6.175392",
+                    Time: "1620285931000",
+                },
+            },
         },
     },
 }
@@ -163,7 +198,7 @@ app := &credit.CreditApplicationParam{
 
 ### Verification
 
-- Pinned spec SHA256 prefix `9cc936e9` matches the local upstream
+- Pinned spec SHA256 prefix `792f74c1` matches the local upstream
   source at `open-api-document/directories/white-label/G/swagger.yaml`.
 - `go test ./...` green.
 - `make test-spec-drift` — upstream URL check is best-effort; local

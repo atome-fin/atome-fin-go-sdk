@@ -77,6 +77,7 @@ func TestService_Auth_Success(t *testing.T) {
 		TotalAmount:          1000,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1000)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            "session-token-abc",
 	}
 	resp, err := svc.Auth(context.Background(), req)
@@ -119,6 +120,7 @@ func TestService_Auth_AutoMintsRequestID(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}
 	if _, err := payment.New(c).Auth(context.Background(), req); err != nil {
@@ -144,7 +146,8 @@ func TestService_Auth_ValidationRejectsZeroSum(t *testing.T) {
 			so := specSampleSubOrder(999)
 			return []payment.SubOrder{so}
 		}(),
-		Sessionid: "s",
+		ExtendInfo: specSampleRequestExtendInfo(),
+		Sessionid:  "s",
 	}
 	_, err := svc.Auth(context.Background(), req)
 	var ve *atomefin.ValidationError
@@ -170,6 +173,7 @@ func TestService_Auth_4xxBecomesAPIError(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
@@ -199,6 +203,7 @@ func TestService_Capture_Success(t *testing.T) {
 		TotalAmount:          1000,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1000)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 	})
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
@@ -267,6 +272,7 @@ func TestService_AuthPollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}
 	resp, err := svc.AuthPollUntilTerminal(context.Background(), req, payment.PollOptions{
@@ -338,6 +344,7 @@ func TestService_CapturePollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 	}, payment.PollOptions{
 		MaxWait:      2 * time.Second,
 		InitialDelay: 1 * time.Millisecond,

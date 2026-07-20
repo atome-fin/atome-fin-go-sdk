@@ -111,6 +111,7 @@ func TestR10_AuthRequest_TotalAmount(t *testing.T) {
 			SubOrders: []payment.SubOrder{
 				specSampleSubOrder(v),
 			},
+			ExtendInfo: specSampleRequestExtendInfo(),
 		}
 	})
 }
@@ -182,6 +183,7 @@ func TestR12_AuthRequest_IntegerLiterals(t *testing.T) {
 				return so
 			}(),
 		},
+		ExtendInfo: specSampleRequestExtendInfo(),
 	}
 	marshal.AssertAmountKeysAreInteger[payment.AuthRequest](t, in,
 		"totalAmount", "amount",
@@ -209,15 +211,12 @@ func TestR12_AccountChanges_IntegerLiterals(t *testing.T) {
 	)
 }
 
-// ---------- R3/R4 — omitempty / required-emit on AuthRequest ----------
-
-func TestR3_AuthRequest_OmitsExtendInfoAtZero(t *testing.T) {
-	marshal.AssertOmitemptyZero[payment.AuthRequest](t, "extendInfo")
-}
+// ---------- R4 — required-emit on AuthRequest ----------
 
 func TestR4_AuthRequest_RequiredEmitsAtZero(t *testing.T) {
 	marshal.AssertRequiredEmits[payment.AuthRequest](t,
 		"requestId", "externalReferenceUid", "totalAmount", "periodType",
+		"extendInfo",
 	)
 }
 

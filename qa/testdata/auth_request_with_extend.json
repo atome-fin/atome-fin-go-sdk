@@ -27,6 +27,7 @@
     }
   ],
   "extendInfo": {
+    "orderType": "GRAB_FOOD",
     "userCreditScore": 0.85,
     "deviceInfo": {
       "platform": "ANDROID",
@@ -65,7 +66,7 @@
     },
     "riskInfo": {
       "driverInfo": {"averageRating": 4.9, "isVerified": true},
-      "tripMetadata": {"estimatedDistance": "12.4km", "pickupLocation": "Mall Entrance"}
+      "tripMetadata": {"estimatedDistance": 12.4, "pickupLocation": "Mall Entrance"}
     }
   }
 }

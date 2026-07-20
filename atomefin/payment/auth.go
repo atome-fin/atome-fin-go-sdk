@@ -28,8 +28,9 @@ type AuthRequest struct {
 	PeriodType int `json:"periodType"`
 	// SubOrders is the list of line items. Required, non-empty.
 	SubOrders []SubOrder `json:"subOrders"`
-	// ExtendInfo is the typed extendInfo tree.
-	ExtendInfo *RequestExtendInfo `json:"extendInfo,omitempty"`
+	// ExtendInfo is the typed extendInfo tree. Required by the spec
+	// because extendInfo.orderType drives risk routing.
+	ExtendInfo *RequestExtendInfo `json:"extendInfo"`
 
 	// Sessionid is the per-/auth session token (DESIGN.md §1.3,
 	// Q6 lifecycle pending). Required for /auth, ≤ 64 chars.
@@ -185,6 +186,12 @@ func validateAuthRequest(req *AuthRequest) error {
 			Message: "must equal sum of subOrders[].amount",
 		}
 	}
+	if req.ExtendInfo == nil {
+		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
+	}
+	if !req.ExtendInfo.OrderType.IsValid() {
+		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART | SPECIALIZED_DELIVERY"}
+	}
 	if req.Sessionid == "" {
 		// /auth requires the `sessionid` header per DESIGN.md §1.3.
 		// Without it the server returns 400 SESSION_NOT_FOUND in
@@ -198,10 +205,10 @@ func validateAuthRequest(req *AuthRequest) error {
 	if len(req.Sessionid) > 64 {
 		return &atomefin.ValidationError{Field: "sessionid", Message: "exceeds spec maxlength 64"}
 	}
-	if req.ExtendInfo != nil && !IsValidScore(req.ExtendInfo.UserCreditScore) {
+	if !IsValidScore(req.ExtendInfo.UserCreditScore) {
 		return &atomefin.ValidationError{Field: "extendInfo.userCreditScore", Message: "must be in [0, 1] (per spec)"}
 	}
-	if req.ExtendInfo != nil && req.ExtendInfo.DeviceInfo != nil {
+	if req.ExtendInfo.DeviceInfo != nil {
 		p := req.ExtendInfo.DeviceInfo.Platform
 		if p != "" && !p.IsValid() {
 			// Forward-compat: do not block on unknown values, but

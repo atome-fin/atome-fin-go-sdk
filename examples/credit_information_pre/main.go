@@ -122,8 +122,8 @@ func buildRequest() *credit.CreditInformationParam {
 		Email:                envOr("ATOME_FIN_EMAIL", "grab-pre-test@example.com"),
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.IndividualProfile{
-				OCRResult: &credit.OCRResult{
+			IndividualProfile: &credit.CreditInformationIndividualProfile{
+				OCRResult: &credit.CreditInformationOCRResult{
 					FullName: envOr("ATOME_FIN_FULL_NAME", "Grab Pre Test"),
 				},
 			},

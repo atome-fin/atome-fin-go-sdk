@@ -7,18 +7,31 @@
   "applicationEssentialInfo": {
     "livenessCheck": {
       "result": "PASS",
-      "snapshotPhoto": "base64-photo"
+      "snapshotPhoto": "base64-photo",
+      "livenessCheckResult01": "0.98",
+      "livenessCheckResult02": "0.97",
+      "livenessCheckResult03": "PASS"
     },
     "individualProfile": {
       "idType": "KTP",
       "ocrResult": {
-        "idNumber": "233388883838383381",
+        "idNumber": "3173051234567890",
         "fullName": "Luna Zhang",
+        "birthPlace": "Jakarta",
+        "ocrReligion": "ISLAM",
         "ocrGender": "WOMAN",
         "manuallyBirthDate": "1990-01-15",
-        "ocrMaritalStatus": "SINGLE"
+        "ocrProvince": "DKI Jakarta",
+        "ocrCity": "Jakarta Selatan",
+        "ocrDistrict": "Kebayoran Baru",
+        "jobType": "EMPLOYEE",
+        "ocrMaritalStatus": "SINGLE",
+        "manuallyExpiredDate": "2099-12-31",
+        "manuallyCitizenship": "WNI",
+        "manuallyRt": "001",
+        "manuallyRw": "002"
       },
-      "manuallyEducation": "BACHELOR"
+      "idFrontPhoto": "base64-id-front-photo"
     },
     "platformInformation": {
       "sceneType": "CHECKOUT_PAGE",
@@ -26,8 +39,8 @@
       "deviceInfo": {
         "platform": "ANDROID",
         "gps": {
-          "longitude": "137.2738282",
-          "latitude": "24.2728888",
+          "longitude": "106.827153",
+          "latitude": "-6.175392",
           "time": "1620285931000"
         },
         "ipAddress": {

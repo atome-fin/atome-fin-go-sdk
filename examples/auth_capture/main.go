@@ -87,11 +87,18 @@ func main() {
 		PeriodType:           int(envInt64("ATOME_FIN_PERIOD_TYPE", 3)),
 		SubOrders: []payment.SubOrder{
 			{
-				SubOrderID: "so-1",
-				Amount:     envInt64("ATOME_FIN_TOTAL_AMOUNT", 1500000),
-				Quantity:   1,
-				SkuName:    "Demo widget",
+				SubOrderID:      "so-1",
+				Amount:          envInt64("ATOME_FIN_TOTAL_AMOUNT", 1500000),
+				Quantity:        1,
+				SkuID:           "sku-1",
+				SkuName:         "Demo widget",
+				CategoryID:      "cat-1",
+				CategoryOneName: "Food",
+				MerchantID:      "merchant-1",
 			},
+		},
+		ExtendInfo: &payment.RequestExtendInfo{
+			OrderType: payment.OrderTypeGrabFood,
 		},
 		Sessionid: mustEnv("ATOME_FIN_SESSION_ID"),
 	}
@@ -132,6 +139,7 @@ func main() {
 		TotalAmount:          authReq.TotalAmount,
 		PeriodType:           authReq.PeriodType,
 		SubOrders:            authReq.SubOrders,
+		ExtendInfo:           authReq.ExtendInfo,
 	}
 	captureResp, err := svc.Capture(ctx, captureReq)
 	if err != nil {

@@ -211,7 +211,6 @@ type TradeRepaymentInfoDetail struct {
 	Event                string                       `json:"event"`
 	CreateTime           int64                        `json:"createTime"`
 	RepaymentDetails     []TradeDetailRepaymentDetail `json:"repaymentDetails,omitempty"`
-	ExtendInfo           *RepaymentDetailExtendInfo   `json:"extendInfo,omitempty"`
 }
 
 type TradeDetailRepaymentDetail struct {
@@ -223,14 +222,6 @@ type TradeDetailRepaymentDetail struct {
 	RepaidPrincipalAmount atomefin.Amount `json:"repaidPrincipalAmount,omitempty"`
 	RepaidInterestAmount  atomefin.Amount `json:"repaidInterestAmount,omitempty"`
 	RepaidLateFeeAmount   atomefin.Amount `json:"repaidLateFeeAmount,omitempty"`
-}
-
-type RepaymentDetailExtendInfo struct {
-	Settlement *RepaymentSettlement `json:"settlement,omitempty"`
-}
-
-type RepaymentSettlement struct {
-	PayableSubsidyAmount atomefin.Amount `json:"payableSubsidyAmount"`
 }
 
 // IsSuccess reports whether the envelope's Code is SUCCESS. Nil-safe.

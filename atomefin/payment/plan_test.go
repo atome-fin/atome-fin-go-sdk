@@ -37,7 +37,8 @@ func TestService_PaymentPlan_Success(t *testing.T) {
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1500000),
 		},
-		Sessionid: "session-plan",
+		ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
+		Sessionid:  "session-plan",
 	})
 	if err != nil {
 		t.Fatalf("PaymentPlan: %v", err)
@@ -77,7 +78,8 @@ func TestService_PaymentPlan_AutoMintsRequestID(t *testing.T) {
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1),
 		},
-		Sessionid: "session-plan",
+		ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
+		Sessionid:  "session-plan",
 	}
 	if _, err := payment.New(c).PaymentPlan(context.Background(), req); err != nil {
 		t.Fatalf("PaymentPlan: %v", err)
@@ -102,7 +104,8 @@ func TestService_PaymentPlan_4xxBecomesAPIError(t *testing.T) {
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1),
 		},
-		Sessionid: "session-plan",
+		ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
+		Sessionid:  "session-plan",
 	})
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
@@ -131,6 +134,7 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 			RequestID:   "r",
 			TotalAmount: 1,
 			SubOrders:   []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo:  &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 			Sessionid:   "s",
 		}, "externalReferenceUid"},
 		{"zero-totalAmount", &payment.PaymentPlanRequest{
@@ -138,6 +142,7 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 			ExternalReferenceUID: "u",
 			TotalAmount:          0,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo:           &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 			Sessionid:            "s",
 		}, "totalAmount"},
 		{"empty-subOrders", &payment.PaymentPlanRequest{
@@ -145,6 +150,7 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 			ExternalReferenceUID: "u",
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{},
+			ExtendInfo:           &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 			Sessionid:            "s",
 		}, "subOrders"},
 		{"sum-mismatch", &payment.PaymentPlanRequest{
@@ -155,8 +161,24 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 				so := specSamplePlanSubOrder(999)
 				return []payment.PlanSubOrder{so}
 			}(),
-			Sessionid: "s",
+			ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
+			Sessionid:  "s",
 		}, "totalAmount"},
+		{"missing-extendInfo", &payment.PaymentPlanRequest{
+			RequestID:            "r",
+			ExternalReferenceUID: "u",
+			TotalAmount:          1,
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			Sessionid:            "s",
+		}, "extendInfo"},
+		{"missing-orderType", &payment.PaymentPlanRequest{
+			RequestID:            "r",
+			ExternalReferenceUID: "u",
+			TotalAmount:          1,
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo:           &payment.CheckoutExtendInfo{},
+			Sessionid:            "s",
+		}, "extendInfo.orderType"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -187,6 +209,7 @@ func TestR10_PaymentPlanRequest_TotalAmount(t *testing.T) {
 			ExternalReferenceUID: "u-1",
 			TotalAmount:          v,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(v)},
+			ExtendInfo:           &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}
 	})
 }

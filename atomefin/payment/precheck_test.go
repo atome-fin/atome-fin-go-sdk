@@ -35,6 +35,7 @@ func TestService_PaymentPreCheck_Eligible(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1000,
 		SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1000)},
+		ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 	})
 	if err != nil {
 		t.Fatalf("PaymentPreCheck: %v", err)
@@ -69,6 +70,7 @@ func TestService_PaymentPreCheck_Denied(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1000,
 		SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1000)},
+		ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 	})
 	if err != nil {
 		t.Fatalf("PaymentPreCheck: %v", err)
@@ -96,6 +98,7 @@ func TestService_PaymentPreCheck_AutoMintsRequestID(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
 		SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+		ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 	}
 	if _, err := payment.New(c).PaymentPreCheck(context.Background(), req); err != nil {
 		t.Fatalf("PaymentPreCheck: %v", err)
@@ -121,6 +124,7 @@ func TestService_PaymentPreCheck_4xxBecomesAPIError(t *testing.T) {
 		ExternalReferenceUID: "u-1",
 		TotalAmount:          1,
 		SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+		ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 	})
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
@@ -148,21 +152,25 @@ func TestPaymentPreCheck_Validate_TableDriven(t *testing.T) {
 		{"missing-externalReferenceUid", &payment.PaymentPreCheckRequest{
 			TotalAmount: 1,
 			SubOrders:   []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo:  &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}, "externalReferenceUid"},
 		{"zero-totalAmount", &payment.PaymentPreCheckRequest{
 			ExternalReferenceUID: "u",
 			TotalAmount:          0,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}, "totalAmount"},
 		{"empty-subOrders", &payment.PaymentPreCheckRequest{
 			ExternalReferenceUID: "u",
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{},
+			ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}, "subOrders"},
 		{"empty-subOrderId", &payment.PaymentPreCheckRequest{
 			ExternalReferenceUID: "u",
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{{Amount: 1, Quantity: 1, SkuID: "sku", CategoryID: "c", CategoryOneName: "n", MerchantID: "m"}},
+			ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}, "subOrderId"},
 		{"zero-quantity", &payment.PaymentPreCheckRequest{
 			ExternalReferenceUID: "u",
@@ -172,6 +180,7 @@ func TestPaymentPreCheck_Validate_TableDriven(t *testing.T) {
 				so.Quantity = 0
 				return []payment.PlanSubOrder{so}
 			}(),
+			ExtendInfo: &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}, "quantity"},
 		{"sum-mismatch", &payment.PaymentPreCheckRequest{
 			ExternalReferenceUID: "u",
@@ -180,7 +189,19 @@ func TestPaymentPreCheck_Validate_TableDriven(t *testing.T) {
 				so := specSamplePlanSubOrder(999)
 				return []payment.PlanSubOrder{so}
 			}(),
+			ExtendInfo: &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}, "totalAmount"},
+		{"missing-extendInfo", &payment.PaymentPreCheckRequest{
+			ExternalReferenceUID: "u",
+			TotalAmount:          1,
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+		}, "extendInfo"},
+		{"missing-orderType", &payment.PaymentPreCheckRequest{
+			ExternalReferenceUID: "u",
+			TotalAmount:          1,
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo:           &payment.PreCheckExtendInfo{},
+		}, "extendInfo.orderType"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -210,6 +231,7 @@ func TestR10_PaymentPreCheckRequest_TotalAmount(t *testing.T) {
 			ExternalReferenceUID: "u-1",
 			TotalAmount:          v,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(v)},
+			ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}
 	})
 }
@@ -232,6 +254,7 @@ func TestR12_PaymentPreCheckRequest_IntegerLiterals(t *testing.T) {
 				return so
 			}(),
 		},
+		ExtendInfo: &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 	}
 	marshal.AssertAmountKeysAreInteger[payment.PaymentPreCheckRequest](t, in,
 		"totalAmount", "amount",

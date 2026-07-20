@@ -26,14 +26,14 @@ proposal only — no implementation has been started.
 
 ### 1.2 Environments
 
-| Env | Base URL (placeholder per spec) |
-|---|---|
-| Test | `https://id-api.apaylater.net/white-label/G` |
-| Pre-production | `https://id-api-pre.apaylater.net/white-label/G` |
-| Production | `https://api.atome.id/white-label/G` |
+| Env | Const | Base URL (GrabPayLater / white-label G, v0.8.0) |
+|---|---|---|
+| Pre-production (联调) | `EnvPre` | `https://id-api-pre.apaylater.net/grabpaylater` |
+| Production | `EnvProd` | `https://api.atome.id/grabpaylater` |
 
-The spec annotates all three URLs as **placeholders to align with gateway
-routing before go-live** — see Open Questions §10.
+`EnvTest` was removed in **v0.8.0** — only pre and prod remain. Partners
+that need a custom gateway continue to use `WithBaseURL`. See
+CHANGELOG `[0.8.0]` and Open Questions §13/Q1.
 
 ### 1.3 Auth / signing scheme
 
@@ -204,7 +204,7 @@ type Option func(*config) error
 
 func WithHTTPClient(h *http.Client) Option           // default: cloned http.DefaultClient with 30s timeout
 func WithBaseURL(u string) Option                    // default: production
-func WithEnvironment(env Environment) Option         // EnvTest / EnvPre / EnvProd
+func WithEnvironment(env Environment) Option         // EnvPre / EnvProd (EnvTest removed in v0.8.0)
 func WithTimeout(d time.Duration) Option             // per-request timeout
 func WithLogger(l Logger) Option                     // structured, PII-redacting
 func WithSigner(s sign.Signer) Option                // REQUIRED unless WithPrivateKeyPEM is set
@@ -600,9 +600,10 @@ list APIs land.
 4. **Property tests** (Go fuzz) for canonical-query construction and JSON
    amount encoding (no float coercion, no scientific notation).
 5. **Integration test harness**: a `make sandbox-smoke` target running the
-   `examples/auth_capture/` flow against the test environment, gated behind
-   env vars `ATOME_FIN_PRIV_KEY_PEM`, `ATOME_FIN_ATOME_CERT_PEM`,
-   `ATOME_FIN_PARTNER_ID`.
+   `examples/auth_capture/` flow against the pre-production environment
+   (`EnvPre`), gated behind env vars `ATOME_FIN_PRIV_KEY_PEM`,
+   `ATOME_FIN_ATOME_CERT_PEM`, `ATOME_FIN_PARTNER_ID`
+   (`ATOME_FIN_RUN_SMOKE=1`).
 6. **Webhook tests**: a synthetic Atome callback signer in `callback/internal`
    that produces signed bodies, exercised against `AuthHandler` /
    `CaptureHandler` using `httptest.NewRecorder`.
@@ -627,11 +628,13 @@ list APIs land.
 
 ## 13. Open questions for the partner / Atome
 
-1. **Final base URLs.** The spec marks all three server URLs as placeholders
-   "to align with gateway routing before go-live". Production host
-   `api.atome.id` differs from doc host `apaylater.net`; confirm the
-   resolution and whether routing is per-country (e.g. `id-api.*` for
-   Indonesia only).
+1. **Final base URLs.** **PARTIALLY RESOLVED 2026-07 (v0.8.0).** SDK consts
+   are now GrabPayLater paths: `EnvPre` →
+   `https://id-api-pre.apaylater.net/grabpaylater`, `EnvProd` →
+   `https://api.atome.id/grabpaylater`. The old Test / `white-label/G`
+   placeholders and `EnvTest` were dropped. Remaining open: whether
+   routing is per-country beyond the `id-api.*` Indonesia host, and
+   whether prod host naming stays on `api.atome.id` long-term.
 2. **`Authorization` header format.** Is it the raw base64 RSA signature, or a
    prefixed scheme (e.g. `Algorithm=RSA2,KeyVersion=1,Sign=…`)? The spec just
    says "RSA2 signature over the POST JSON body".

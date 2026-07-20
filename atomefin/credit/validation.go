@@ -129,15 +129,90 @@ func validateCreditApplication(req *CreditApplicationParam) error {
 			Message: "required",
 		}
 	}
+	if req.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult01 == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.livenessCheck.livenessCheckResult01",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult02 == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.livenessCheck.livenessCheckResult02",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult03 == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.livenessCheck.livenessCheckResult03",
+			Message: "required",
+		}
+	}
 	if req.ApplicationEssentialInfo.IndividualProfile == nil {
 		return &atomefin.ValidationError{
 			Field:   "applicationEssentialInfo.individualProfile",
 			Message: "required",
 		}
 	}
+	if req.ApplicationEssentialInfo.IndividualProfile.IDType == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.individualProfile.idType",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.IndividualProfile.OCRResult == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.individualProfile.ocrResult",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.IndividualProfile.IDFrontPhoto == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.individualProfile.idFrontPhoto",
+			Message: "required",
+		}
+	}
+	if err := validateOCRResult(req.ApplicationEssentialInfo.IndividualProfile.OCRResult); err != nil {
+		return err
+	}
 	if req.ApplicationEssentialInfo.PlatformInformation == nil {
 		return &atomefin.ValidationError{
 			Field:   "applicationEssentialInfo.platformInformation",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.PlatformInformation.SceneType == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.sceneType",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.GPS == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.gps",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.GPS.Longitude == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.gps.longitude",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.GPS.Latitude == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.gps.latitude",
+			Message: "required",
+		}
+	}
+	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.GPS.Time == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.gps.time",
 			Message: "required",
 		}
 	}
@@ -157,6 +232,37 @@ func validateCreditApplication(req *CreditApplicationParam) error {
 		return &atomefin.ValidationError{
 			Field:   "extendInfo.creditInformationRequestId",
 			Message: "exceeds spec maxlength 64",
+		}
+	}
+	return nil
+}
+
+func validateOCRResult(ocr *OCRResult) error {
+	required := []struct {
+		field string
+		value string
+	}{
+		{"idNumber", ocr.IDNumber},
+		{"fullName", ocr.FullName},
+		{"birthPlace", ocr.BirthPlace},
+		{"manuallyBirthDate", ocr.ManuallyBirthDate},
+		{"jobType", ocr.JobType},
+		{"ocrProvince", ocr.OCRProvince},
+		{"ocrCity", ocr.OCRCity},
+		{"ocrDistrict", ocr.OCRDistrict},
+		{"ocrGender", ocr.OCRGender},
+		{"ocrReligion", ocr.OCRReligion},
+		{"manuallyRt", ocr.ManuallyRt},
+		{"manuallyRw", ocr.ManuallyRw},
+		{"manuallyExpiredDate", ocr.ManuallyExpiredDate},
+		{"manuallyCitizenship", ocr.ManuallyCitizenship},
+	}
+	for _, r := range required {
+		if r.value == "" {
+			return &atomefin.ValidationError{
+				Field:   "applicationEssentialInfo.individualProfile.ocrResult." + r.field,
+				Message: "required",
+			}
 		}
 	}
 	return nil

@@ -30,7 +30,7 @@ import "github.com/atome-fin/atome-fin-go-sdk/atomefin"
 priv, _ := os.ReadFile("/etc/atome/partner.pem")
 c, err := atomefin.New(
     atomefin.WithPrivateKeyPEM(priv),
-    atomefin.WithEnvironment(atomefin.EnvTest),
+    atomefin.WithEnvironment(atomefin.EnvPre),
 )
 if err != nil { log.Fatal(err) }
 defer c.Close()
@@ -49,7 +49,14 @@ res, err := payment.New(c).Auth(ctx, &payment.AuthRequest{
     TotalAmount:          1500000, // minor units (rupiah)
     PeriodType:           3,
     SubOrders: []payment.SubOrder{
-        {SubOrderID: "so-1", Amount: 1500000, Quantity: 1},
+        {
+            SubOrderID: "so-1", Amount: 1500000, Quantity: 1,
+            SkuID: "sku-1", CategoryID: "cat-1",
+            CategoryOneName: "Food", MerchantID: "merchant-1",
+        },
+    },
+    ExtendInfo: &payment.RequestExtendInfo{
+        OrderType: payment.OrderTypeGrabFood,
     },
     Sessionid: "session-token-from-checkout", // travels via HTTP `sessionid` header
 })
@@ -70,7 +77,7 @@ and call as normal — the SDK handles the envelope:
 c, _ := atomefin.New(
     atomefin.WithPrivateKeyPEM(signPriv),
     atomefin.WithEncryptAtomePublicCertPEM(atomeEncryptPub), // ← required for /credit-* POSTs
-    atomefin.WithEnvironment(atomefin.EnvTest),
+    atomefin.WithEnvironment(atomefin.EnvPre),
 )
 _, err := credit.New(c).SubmitInformation(ctx, req) // hybrid-encrypted internally
 ```
@@ -269,7 +276,7 @@ ships sensible defaults but exposes one-line knobs to override:
 
 | Default | Override |
 |---|---|
-| `EnvTest`/`EnvPre`/`EnvProd` placeholder URLs | `atomefin.WithBaseURL("https://your-gateway.example.com")` |
+| `EnvPre`/`EnvProd` GrabPayLater base URLs | `atomefin.WithBaseURL("https://your-gateway.example.com")` |
 | `Authorization: <raw base64 sig>` | `atomefin.WithAuthorizationScheme(atomefin.SchemeAtomeKeyed)` |
 | `atomefin.SchemeRawBase64` (default) | any custom `func(sig, keyID string) string` |
 | Default no-op logger | `atomefin.WithLogger(transport.NewSlogLogger(slog.Default()))` |
@@ -335,7 +342,7 @@ ships sensible defaults but exposes one-line knobs to override:
 ## Implemented endpoints
 
 Implementation pinned to the upstream spec snapshot dated
-**2026-05-06**. `DESIGN.md` is the canonical per-endpoint
+**2026-07-20**. `DESIGN.md` is the canonical per-endpoint
 reference for fields, optionality, and constraints; this table
 is the surface inventory you diff against when the spec moves.
 
@@ -450,7 +457,7 @@ defaults the SDK can change without an API break:
 
 | Q | Assumption | Switch when partner confirms |
 |---|---|---|
-| Q1 | `EnvTest`/`EnvPre`/`EnvProd` use the spec's placeholder URLs | Pin via `atomefin.WithBaseURL`; update consts in a minor release |
+| Q1 | `EnvPre`/`EnvProd` use GrabPayLater `/grabpaylater` hosts (`EnvTest` removed in v0.8.0) | Pin via `atomefin.WithBaseURL` if ops issues a different gateway |
 | Q2 | `Authorization` is the raw base64 signature | `atomefin.WithAuthorizationScheme(...)` |
 | Q3 | No `keyId` / `keyVersion` header — cert rotation is out-of-band | Multi-cert verifier slot (`callback.NewVerifier([]sign.Verifier{...})`) |
 | ~~Q4~~ | **REMOVED 2026-05-07 (v0.7.0)** — Atome engineering confirmed gateway supports only PKCS#1 v1.5. The "Encrypt the signature with salt if necessary" spec phrasing was reframed in v0.3 as referring to the encrypt-cert pair, not PSS. `WithSaltedPSS` / `WithVerifierSaltedPSS` removed; default scheme is the only scheme. | n/a |

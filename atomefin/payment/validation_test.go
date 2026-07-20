@@ -34,6 +34,7 @@ func TestAuth_Validate_RejectsLongRequestID(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
@@ -47,6 +48,7 @@ func TestAuth_Validate_RejectsEmptyExternalReferenceUID(t *testing.T) {
 		TotalAmount: 1,
 		PeriodType:  1,
 		SubOrders:   []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:  specSampleRequestExtendInfo(),
 		Sessionid:   "s",
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
@@ -61,6 +63,7 @@ func TestAuth_Validate_RejectsEmptySubOrders(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
@@ -75,6 +78,7 @@ func TestAuth_Validate_RejectsEmptySubOrderID(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{{SubOrderID: "", Amount: 1, Quantity: 1, SkuID: "sku", CategoryID: "c", CategoryOneName: "n", MerchantID: "m"}},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
@@ -93,7 +97,8 @@ func TestAuth_Validate_RejectsZeroSubOrderAmount(t *testing.T) {
 			so.Amount = 0
 			return []payment.SubOrder{so}
 		}(),
-		Sessionid: "s",
+		ExtendInfo: specSampleRequestExtendInfo(),
+		Sessionid:  "s",
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
 	mustValidationError(t, err, "amount")
@@ -107,6 +112,7 @@ func TestAuth_Validate_RejectsLongSessionid(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            strings.Repeat("a", 65),
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
@@ -123,7 +129,10 @@ func TestAuth_Validate_RejectsBadCreditScore(t *testing.T) {
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
 		Sessionid:            "s",
-		ExtendInfo:           &payment.RequestExtendInfo{UserCreditScore: &bad},
+		ExtendInfo: &payment.RequestExtendInfo{
+			OrderType:       payment.OrderTypeGrabFood,
+			UserCreditScore: &bad,
+		},
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)
 	mustValidationError(t, err, "userCreditScore")
@@ -152,6 +161,7 @@ func TestCapture_Validate_RejectsEmptyExternalReferenceUID(t *testing.T) {
 		TotalAmount: 1,
 		PeriodType:  1,
 		SubOrders:   []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:  specSampleRequestExtendInfo(),
 	}
 	_, err := payment.New(c).Capture(context.Background(), req)
 	mustValidationError(t, err, "externalReferenceUid")
@@ -165,6 +175,7 @@ func TestCapture_Validate_MissingAuthOrderID(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 	}
 	_, err := payment.New(c).Capture(context.Background(), req)
 	mustValidationError(t, err, "authOrderId")
@@ -182,6 +193,7 @@ func TestCapture_Validate_SumMismatch(t *testing.T) {
 			so := specSampleSubOrder(999)
 			return []payment.SubOrder{so}
 		}(),
+		ExtendInfo: specSampleRequestExtendInfo(),
 	}
 	_, err := payment.New(c).Capture(context.Background(), req)
 	mustValidationError(t, err, "totalAmount")

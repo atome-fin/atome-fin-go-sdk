@@ -118,12 +118,6 @@ func TestR10_CommerceAccountChanges_InterestAmountChange(t *testing.T) {
 	})
 }
 
-func TestR10_RepaymentSettlement_PayableSubsidyAmount(t *testing.T) {
-	marshal.AssertAmountRoundtrip[repayment.RepaymentSettlement](t, func(v int64) repayment.RepaymentSettlement {
-		return repayment.RepaymentSettlement{PayableSubsidyAmount: v}
-	})
-}
-
 // ---------- R11 — fractional decode of an amount field fails loudly ----------
 
 func TestR11_RejectsFractionalRepaymentAmount(t *testing.T) {
@@ -134,11 +128,6 @@ func TestR11_RejectsFractionalRepaymentAmount(t *testing.T) {
 func TestR11_RejectsFractionalCommerceAccountChange(t *testing.T) {
 	body := []byte(`{"externalReferenceUid":"u","totalCreditChange":1.5,"version":1746662400000}`)
 	marshal.AssertRejectsFractionalAmount[repayment.CommerceAccountChanges](t, body)
-}
-
-func TestR11_RejectsFractionalSettlement(t *testing.T) {
-	body := []byte(`{"payableSubsidyAmount":1.5}`)
-	marshal.AssertRejectsFractionalAmount[repayment.RepaymentSettlement](t, body)
 }
 
 // ---------- R12 — encoded amounts are integer literals only ----------
@@ -172,18 +161,12 @@ func TestR12_RepaymentResult_IntegerLiterals(t *testing.T) {
 			InterestAmountChange:  0,
 			Version:               1746662400000,
 		},
-		ExtendInfo: &repayment.RepaymentExtendInfo{
-			Settlement: &repayment.RepaymentSettlement{
-				PayableSubsidyAmount: 0,
-			},
-		},
 	}
 	marshal.AssertAmountKeysAreInteger[repayment.RepaymentResult](t, in,
 		"repaymentAmount",
 		"totalCreditChange", "usedCreditChange",
 		"availableCreditChange", "overpaidAmountChange",
 		"lateFeeAmountChange", "interestAmountChange",
-		"payableSubsidyAmount",
 	)
 }
 
@@ -210,6 +193,6 @@ func TestR4_RepaymentResult_RequiredEmitsAtZero(t *testing.T) {
 func TestR3_RepaymentResult_OmitsOptionalsWhenZero(t *testing.T) {
 	marshal.AssertOmitemptyZero[repayment.RepaymentResult](t,
 		"repaymentAmount", "repaymentTime", "event",
-		"accountChanges", "extendInfo",
+		"accountChanges",
 	)
 }

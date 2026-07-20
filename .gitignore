@@ -28,3 +28,4 @@ coverage.html
 .DS_Store
 /docs/grab
 examples/credit_information_pre/.local-keys/
+/.gocache

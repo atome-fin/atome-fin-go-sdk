@@ -128,7 +128,17 @@ tags:
 
     | 2026-07-06 | Credit | `POST /credit-application` `applicationEssentialInfo.platformInformation.sceneType` enum: `PRODUCT_LANDING_PAGE`, `PROMO_BANNER_PAGE`, `MARKETING_PUSH_ENTRY`, `CHECKOUT_PAGE`, `WALLET_DASHBOARD_ENTRY`. |
 
-    | 2026-07-07 | Credit & Payment | `creditProfile` JSON structure aligned across `POST /credit-application`, `POST /auth`, and `POST /capture`; partner and Atome agree the risk-control field set during integration — sample payload is illustrative only. |'
+    | 2026-07-07 | Credit & Payment | `creditProfile` JSON structure aligned across `POST /credit-application`, `POST /auth`, and `POST /capture`; partner and Atome agree the risk-control field set during integration — sample payload is illustrative only. |
+
+    | 2026-07-14 | Payment | `extendInfo.riskInfo.tripMetadata.estimatedDistance` type is `number`; payment `riskInfo` sample structure is **for reference only** — partner and Atome agree the risk-control field set during integration. |
+
+    | 2026-07-14 | Repayment & Refund | Repayment and refund result schemas remove `extendInfo.settlement`. |
+
+    | 2026-07-15 | Credit | `POST /credit-information` and `POST /credit-application`: added validation rules (pattern, minLength, maxLength) for `mobileNumber`, `email`, `fullName`, `idNumber`, `birthPlace`, `manuallyBirthDate`, `manuallyRt`, `manuallyRw`, `manuallyExpiredDate`, `ocrProvince`, `ocrCity`, `ocrDistrict`, `ocrGender`, `ocrReligion`, `gps.longitude`, `gps.latitude`, `gps.time`. `livenessCheckResult01`/`02`/`03`, `gps.longitude`/`latitude`/`time`, `sceneType`, `individualProfile.idType`, `idFrontPhoto`, and required `ocrResult` KYC fields are now required. |
+
+    | 2026-07-15 | Payment | `POST /payment-plan`, `POST /auth`, and `POST /capture`: `extendInfo.orderType` is required; allowed values are `TRANSPORT`, `GRAB_FOOD`, `GRAB_MART`, `SPECIALIZED_DELIVERY`. |
+
+    | 2026-07-20 | Payment | Payment sub-order schemas remove `creatorId`. |'
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -548,6 +558,15 @@ paths:
       - Credit
       - Callback
       summary: Submit credit application result callback
+      parameters:
+      - in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+        description: |
+          RSA2 signature over the POST JSON body; same rules as **signature** for inbound
+          partner calls.
       requestBody:
         $ref: '#/components/requestBodies/CreditResult'
       responses:
@@ -1693,11 +1712,13 @@ paths:
       summary: refund result callback
       parameters:
       - in: header
-        name: authorization
+        name: Authorization
         required: true
         schema:
           type: string
-        description: Request parameter signature.
+        description: |
+          RSA2 signature over the POST JSON body; same rules as **signature** for inbound
+          partner calls.
       requestBody:
         $ref: '#/components/requestBodies/RefundResult'
       responses:
@@ -2199,6 +2220,15 @@ paths:
       - Repayment
       - Callback
       summary: repayment result callback
+      parameters:
+      - in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+        description: |
+          RSA2 signature over the POST JSON body; same rules as **signature** for inbound
+          partner calls.
       requestBody:
         required: true
         content:
@@ -2226,6 +2256,15 @@ paths:
       tags:
       - Callback
       summary: account change callback
+      parameters:
+      - in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+        description: |
+          RSA2 signature over the POST JSON body; same rules as **signature** for inbound
+          partner calls.
       requestBody:
         required: true
         content:
@@ -2277,7 +2316,7 @@ components:
                   $ref: '#/components/schemas/SubOrder'
               extendInfo:
                 type: object
-                description: Optional extended fields for risk and fulfillment. `orderType`, `creditProfile` (sample structure is **for reference only** — align with Atome during integration), `userCreditScore`, `deviceInfo`, `address`, and `riskInfo` are optional unless agreed per integration.
+                description: Extended fields for risk and fulfillment. `orderType` is required for risk routing; `creditProfile` and `riskInfo` sample structures are **for reference only** — partner and Atome agree the risk-control field set during integration. `userCreditScore`, `deviceInfo`, and `address` are optional unless agreed per integration.
                 properties:
                   orderType:
                     $ref: '#/components/schemas/PaymentOrderType'
@@ -2313,12 +2352,15 @@ components:
                         description: Consignee mobile number. For **Transport** orders (`orderType` = `TRANSPORT`), pass the passenger mobile number for the trip.
                   riskInfo:
                     $ref: '#/components/schemas/paymentRiskInfo'
+                required:
+                - orderType
             required:
             - requestId
             - externalReferenceUid
             - totalAmount
             - periodType
             - subOrders
+            - extendInfo
     CaptureRequest:
       required: true
       content:
@@ -2350,7 +2392,7 @@ components:
                   $ref: '#/components/schemas/SubOrder'
               extendInfo:
                 type: object
-                description: Optional extended fields for risk and fulfillment. `orderType`, `creditProfile` (sample structure is **for reference only** — align with Atome during integration), `userCreditScore`, `deviceInfo`, `address`, and `riskInfo` are optional unless agreed per integration.
+                description: Extended fields for risk and fulfillment. `orderType` is required for risk routing; `creditProfile` and `riskInfo` sample structures are **for reference only** — partner and Atome agree the risk-control field set during integration. `userCreditScore`, `deviceInfo`, and `address` are optional unless agreed per integration.
                 properties:
                   orderType:
                     $ref: '#/components/schemas/PaymentOrderType'
@@ -2386,6 +2428,8 @@ components:
                         description: Consignee mobile number. For **Transport** orders (`orderType` = `TRANSPORT`), pass the passenger mobile number for the trip.
                   riskInfo:
                     $ref: '#/components/schemas/paymentRiskInfo'
+                required:
+                - orderType
             required:
             - requestId
             - externalReferenceUid
@@ -2393,6 +2437,7 @@ components:
             - totalAmount
             - periodType
             - subOrders
+            - extendInfo
     VoidRequest:
       required: true
       content:
@@ -2444,11 +2489,22 @@ components:
                 maxLength: 64
               mobileNumber:
                 type: string
-                description: Mobile phone number with the dialling code prefix, e.g. `+62XXXXXXXXXXX`.
+                description: |-
+                  Mobile phone number with the dialling code prefix, e.g. `+62XXXXXXXXXXX`.
+                  Validation: `pattern`: `^\+628\d{8,12}$`, 12-16 characters including `+`.
+                minLength: 12
+                maxLength: 16
+                pattern: '^\+628\d{8,12}$'
               email:
                 type: string
+                minLength: 5
                 maxLength: 64
-                description: User's email address.
+                description: |-
+                  User's email address. Auto-trimmed and lowercased before validation.
+                  Validation: `pattern`: `^[A-Za-z0-9]([A-Za-z0-9._%+\-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z]{2,})+$`.
+                  Length: 5-64 characters.
+                  Temporary / disposable email addresses are rejected.
+                pattern: '^[A-Za-z0-9]([A-Za-z0-9._%+\-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z]{2,})+$'
               country:
                 type: string
                 description: 'User''s country (ISO-style market code).<br/>
@@ -2506,17 +2562,16 @@ components:
                   individualProfile:
                     idType: KTP
                     ocrResult:
-                      idNumber: '233388883838383381'
+                      idNumber: '3173051234567890'
                       fullName: Luna Zhang
-                      birthPlace: Tenggarong Seberang Sub-district, Kutai Kartanegara Regency, East Kalimantan Province,Republic
-                        of Indonesia.
+                      birthPlace: Jakarta
                       ocrBloodType: A
-                      ocrReligion: XX
+                      ocrReligion: ISLAM
                       ocrGender: MAN
-                      manuallyBirthDate: XX
-                      ocrProvince: XX
-                      ocrCity: XX
-                      ocrDistrict: XX
+                      manuallyBirthDate: '1995-05-20'
+                      ocrProvince: DKI Jakarta
+                      ocrCity: Jakarta Selatan
+                      ocrDistrict: Kebayoran Baru
                       manuallyRt: '001'
                       manuallyRw: '002'
                       jobType: XX
@@ -2524,15 +2579,14 @@ components:
                       manuallyExpiredDate: '2099-12-31'
                       manuallyCitizenship: WNI
                     idFrontPhoto: /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgM........
-                    manuallyEducation: PHD-DOCTOR
                   platformInformation:
                     sceneType: CHECKOUT_PAGE
-                    creditProfile: '{"creditAmount":{"currency":"IDR","lower":90000000,"upper":140000000},"extendedFeatures":[{"crowd_id":["encoded_id_1","encoded_id_2","encoded_id_3"],"crowd_date":"20240311","isLive":""}],"modelScores":[{"scoreType":"application_model","scoreValue":"31","version":"v1.0"}]}'
+                    creditProfile: '{"extendedFeatures":[{"crowd_id":["encoded_id_1","encoded_id_2","encoded_id_3"],"crowd_date":"20240311","isLive":""}],"modelScores":[{"scoreType":"application_model","scoreValue":"31","version":"v1.0"}]}'
                     deviceInfo:
                       platform: ANDROID
                       gps:
-                        longitude: '137.2738282'
-                        latitude: '24.2728888'
+                        longitude: '106.827153'
+                        latitude: '-6.175392'
                         time: '1620285931000'
                       device:
                         deviceId: shgdasjass
@@ -2576,14 +2630,6 @@ components:
                     - WIDOWED
                     - SEPARATED
                     - OTHERS
-                    manuallyEducation:
-                    - PRIMARY
-                    - JUNIOR HIGH SCHOOL
-                    - SENIOR HIGH SCHOOL
-                    - DIPLOMA
-                    - BACHELOR
-                    - MASTER
-                    - PHD-DOCTOR
                 emergencyContact:
                   relation:
                   - SPOUSE
@@ -2688,11 +2734,22 @@ components:
                 maxLength: 64
               mobileNumber:
                 type: string
-                description: Mobile phone number with the dialling code prefix, e.g. `+62XXXXXXXXXXX`.
+                description: |-
+                  Mobile phone number with the dialling code prefix, e.g. `+62XXXXXXXXXXX`.
+                  Validation: `pattern`: `^\+628\d{8,12}$`, 12-16 characters including `+`.
+                minLength: 12
+                maxLength: 16
+                pattern: '^\+628\d{8,12}$'
               email:
                 type: string
+                minLength: 5
                 maxLength: 64
-                description: User's email address.
+                description: |-
+                  User's email address. Auto-trimmed and lowercased before validation.
+                  Validation: `pattern`: `^[A-Za-z0-9]([A-Za-z0-9._%+\-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z]{2,})+$`.
+                  Length: 5-64 characters.
+                  Temporary / disposable email addresses are rejected.
+                pattern: '^[A-Za-z0-9]([A-Za-z0-9._%+\-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z]{2,})+$'
               country:
                 type: string
                 description: 'User''s country (ISO-style market code).<br/>
@@ -2722,7 +2779,15 @@ components:
                         properties:
                           fullName:
                             type: string
-                            description: Full legal name as printed on the ID.
+                            description: |-
+                              Full legal name as printed on the ID.
+                              Validation: 2–60 characters; allows letters, spaces, dots, apostrophes.
+                              Consecutive spaces are compressed. Single-name users are allowed.
+                              Must not match any emergency-contact name (after stripping special characters
+                              and comparing only letters, case-insensitive).
+                            minLength: 2
+                            maxLength: 60
+                            pattern: "^[A-Za-z\\u00C0-\\u024F.']{1}[A-Za-z\\u00C0-\\u024F.' ]{0,58}[A-Za-z\\u00C0-\\u024F.']?$"
               extendInfo:
                 type: object
                 description: Extended fields agreed per integration.
@@ -2835,16 +2900,17 @@ components:
                   $ref: '#/components/schemas/PlanSubOrder'
               extendInfo:
                 type: object
-                description: Optional extension fields per integration agreement.
+                description: Required extension fields for payment risk routing.
                 properties:
                   orderType:
                     $ref: '#/components/schemas/PaymentOrderType'
-                  riskInfo:
-                    $ref: '#/components/schemas/paymentPlanRiskInfo'
+                required:
+                - orderType
             required:
             - externalReferenceUid
             - totalAmount
             - subOrders
+            - extendInfo
     RefundParam:
       required: true
       content:
@@ -3290,9 +3356,6 @@ components:
           type: string
           description: Product SKU identifier.
           maxLength: 64
-        creatorId:
-          type: string
-          description: Creator or influencer identifier, when applicable.
         skuName:
           type: string
           description: Human-readable SKU name.
@@ -3490,7 +3553,7 @@ components:
       - currency
     paymentRiskInfo:
       type: object
-      description: Risk payload for `/auth` and `/capture`. `driverInfo` and `tripMetadata` apply only when `extendInfo.orderType` is `TRANSPORT`.
+      description: Risk payload for `/auth` and `/capture`. Sample fields are **for reference only** — partner and Atome agree the risk-control field set during integration. `driverInfo` and `tripMetadata` apply only when `extendInfo.orderType` is `TRANSPORT`.
       properties:
         driverInfo:
           type: object
@@ -3508,7 +3571,8 @@ components:
           description: Trip metadata. Transport orders only.
           properties:
             estimatedDistance:
-              type: string
+              type: number
+              format: double
               description: Estimated trip distance.
             pickupLocation:
               type: string
@@ -3516,28 +3580,52 @@ components:
     PlatformDeviceInfo:
       type: object
       description: User device information at submission time. Same structure as `applicationEssentialInfo.platformInformation.deviceInfo` in `POST /credit-application`.
+      required:
+      - gps
       properties:
         platform:
           type: string
+          description: Client platform. Enum is informational only — risk-side enum check has been removed; pass through as-is.
           enum:
           - ANDROID
           - IOS
         gps:
           type: object
+          required:
+          - longitude
+          - latitude
+          - time
           properties:
             longitude:
               type: string
+              description: |-
+                GPS longitude. Up to 6 decimal places.
+              minLength: 1
+              maxLength: 11
+              pattern: '^-?(180(\.0{1,6})?|(1[0-7]\d|[0-9]?\d)(\.\d{1,6})?)$'
             latitude:
               type: string
+              description: |-
+                GPS latitude. Up to 6 decimal places.
+              minLength: 1
+              maxLength: 10
+              pattern: '^-?(90(\.0{1,6})?|([0-8]?\d)(\.\d{1,6})?)$'
             time:
               type: string
-              description: GPS sample time (Unix milliseconds, as string).
+              description: |-
+                GPS sample time. 13-digit Unix millisecond timestamp.
+              minLength: 13
+              maxLength: 13
+              pattern: '^\d{13}$'
         device:
           type: object
+          required:
+          - deviceId
+          - utdid
           properties:
             deviceId:
               type: string
-              description: Partner-side device identifier.
+              description: Partner-side device identifier. Required — must be present.
             googleAdvertisingId:
               type: string
               description: Google Advertising ID (GAID); Android clients.
@@ -3549,8 +3637,10 @@ components:
               description: Identifier for Vendor (IDFV); iOS clients.
             utdid:
               type: string
+              description: Partner-computed unique device ID. Required — must be present.
             isRoot:
               type: boolean
+              description: Whether the device is rooted / jailbroken. Risk-side boolean check has been removed; pass through as-is.
             androidId:
               type: string
             build:
@@ -3581,6 +3671,7 @@ components:
                 type: string
         ipAddress:
           type: object
+          description: IP address information. Risk-side IPv4/IPv6 format check has been removed; pass through as-is.
           properties:
             ethIp:
               type: string
@@ -3607,7 +3698,7 @@ components:
       type: string
       description: '**Important — example for reference only.** Partner and Atome must align on the risk-control JSON field set and semantics during integration. **Do not treat the sample payload below as the final contract**; it illustrates one possible shape only.<br/><br/>
 
-        Example (illustrative): `{"creditAmount":{"currency":"IDR","lower":90000000,"upper":140000000},"extendedFeatures":[{"crowd_id":["encoded_id_1","encoded_id_2","encoded_id_3"],"crowd_date":"20240311","isLive":""}],"modelScores":[{"scoreType":"application_model","scoreValue":"31","version":"v1.0"}]}`
+        Example (illustrative): `{"extendedFeatures":[{"crowd_id":["encoded_id_1","encoded_id_2","encoded_id_3"],"crowd_date":"20240311","isLive":""}],"modelScores":[{"scoreType":"application_model","scoreValue":"31","version":"v1.0"}]}`
 
         '
     AuthorizationErrorResponse:
@@ -3767,17 +3858,6 @@ components:
           - NORMAL
         accountChanges:
           $ref: '#/components/schemas/CommerceAccountChanges'
-        extendInfo:
-          type: object
-          properties:
-            settlement:
-              type: object
-              properties:
-                payableSubsidyAmount:
-                  type: integer
-                  description: coupon consumed amount due to repayment. The minimum denomination in Indonesia is Rupiah (IDR).
-              required:
-              - payableSubsidyAmount
       required:
       - requestId
       - repaymentId
@@ -4306,22 +4386,6 @@ components:
             $ref: '#/components/schemas/SubOrderRefundInfo'
         accountChanges:
           $ref: '#/components/schemas/CommerceAccountChanges'
-        extendInfo:
-          type: object
-          properties:
-            settlement:
-              type: object
-              properties:
-                payableSubsidyAmount:
-                  type: integer
-                  description: coupon consumed amount due to refund. The minimum denomination in Indonesia is Rupiah (IDR).
-                refundSubsidyAmount:
-                  type: integer
-                  description: consumed coupon cancel amount due to refund. The minimum denomination in Indonesia is Rupiah
-                    (IDR).
-              required:
-              - refundSubsidyAmount
-              - payableSubsidyAmount
       required:
       - requestId
       - captureRequestId
@@ -4597,9 +4661,6 @@ components:
           type: string
           description: product sku id
           maxLength: 128
-        creatorId:
-          type: string
-          description: creator id
         skuName:
           type: string
           description: sku name
@@ -4912,6 +4973,9 @@ components:
           required:
           - result
           - snapshotPhoto
+          - livenessCheckResult01
+          - livenessCheckResult02
+          - livenessCheckResult03
           properties:
             result:
               type: string
@@ -4924,16 +4988,20 @@ components:
               description: Base64-encoded liveness snapshot photo.
             livenessCheckResult01:
               type: string
-              description: Liveness score.
+              description: Liveness score. Required — must be present.
             livenessCheckResult02:
               type: string
-              description: Face quality score (`face_quality.score`).
+              description: Face quality score (`face_quality.score`). Required — must be present.
             livenessCheckResult03:
               type: string
-              description: Action results from the liveness check (`action_results`).
+              description: Action results from the liveness check (`action_results`). Required — must be present.
         individualProfile:
           type: object
           description: KYC profile of the end user.
+          required:
+          - idType
+          - ocrResult
+          - idFrontPhoto
           properties:
             idType:
               type: string
@@ -4941,39 +5009,93 @@ components:
             ocrResult:
               type: object
               description: OCR-extracted fields from the ID document photo.
+              required:
+              - idNumber
+              - fullName
+              - birthPlace
+              - manuallyBirthDate
+              - jobType
+              - ocrProvince
+              - ocrCity
+              - ocrDistrict
+              - ocrGender
+              - ocrReligion
+              - manuallyRt
+              - manuallyRw
+              - manuallyExpiredDate
+              - manuallyCitizenship
               properties:
                 idNumber:
                   type: string
-                  description: ID document number.
+                  description: |-
+                    Indonesian NIK — 16 digits, no spaces or symbols.
+                    Rejects all-zero and all-same-digit sequences.
+                  pattern: '^(?!0{16}$)(?!([0-9])\1{15}$)\d{16}$'
+                  minLength: 16
+                  maxLength: 16
                 fullName:
                   type: string
-                  description: Full legal name as printed on the ID.
+                  description: |-
+                    Full legal name as printed on the ID.
+                    Validation: 2–60 characters; allows letters, spaces, dots, apostrophes.
+                    Consecutive spaces are compressed. Single-name users are allowed.
+                  minLength: 2
+                  maxLength: 60
+                  pattern: "^[A-Za-z\\u00C0-\\u024F.']{1}[A-Za-z\\u00C0-\\u024F.' ]{0,58}[A-Za-z\\u00C0-\\u024F.']?$"
                 birthPlace:
                   type: string
-                  description: Place of birth (free text).
+                  description: |-
+                    Place of birth. 2–60 characters; trimmed.
+                    Allows letters, digits, spaces, commas, dots, hyphens, slashes, parentheses.
+                  minLength: 2
+                  maxLength: 60
+                  pattern: '^[\u00C0-\u024Fa-zA-Z0-9\s,.\-\/()]{2,60}$'
                 ocrBloodType:
                   type: string
                 ocrReligion:
                   type: string
+                  description: Religion on the ID.
+                  minLength: 2
+                  maxLength: 30
+                  pattern: '^[A-Za-z ]{2,30}$'
                 ocrGender:
                   type: string
+                  description: Gender on the ID.
+                  minLength: 3
+                  maxLength: 5
+                  pattern: '^(MAN|WOMAN)$'
                   enum:
                   - MAN
                   - WOMAN
                 manuallyBirthDate:
                   type: string
-                  description: Birth date (`yyyy-MM-dd`).
+                  description: |-
+                    Birth date (`yyyy-MM-dd`). Must not be later than today.
+                    Age must be 18–70 years.
+                  minLength: 10
+                  maxLength: 10
+                  pattern: '^(19|20)\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$'
                 ocrProvince:
                   type: string
                   description: Province on the ID as extracted by OCR.
+                  minLength: 2
+                  maxLength: 60
+                  pattern: '^[\u00C0-\u024Fa-zA-Z0-9\s,.\-\/()]{2,60}$'
                 ocrCity:
                   type: string
                   description: City / regency on the ID as extracted by OCR.
+                  minLength: 2
+                  maxLength: 60
+                  pattern: '^[\u00C0-\u024Fa-zA-Z0-9\s,.\-\/()]{2,60}$'
                 ocrDistrict:
                   type: string
                   description: District on the ID as extracted by OCR.
+                  minLength: 2
+                  maxLength: 60
+                  pattern: '^[\u00C0-\u024Fa-zA-Z0-9\s,.\-\/()]{2,60}$'
                 jobType:
                   type: string
+                  description: Job type as extracted by OCR.
                 ocrMaritalStatus:
                   type: string
                   enum:
@@ -4985,16 +5107,33 @@ components:
                   - OTHERS
                 manuallyExpiredDate:
                   type: string
-                  description: Expiry date of the ID document.
+                  description: |-
+                    Expiry date of the ID document. Use `SEUMUR HIDUP` for lifetime validity.
+                    Must not be earlier than today when a date is provided.
+                  minLength: 10
+                  maxLength: 12
+                  pattern: '^(SEUMUR HIDUP|(19|20)\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]))$'
                 manuallyCitizenship:
                   type: string
                   description: Citizenship or nationality as printed on the ID (OCR-extracted text).
+                  minLength: 1
+                  maxLength: 30
                 manuallyRt:
                   type: string
-                  description: RT (neighborhood unit) on the ID as extracted by OCR.
+                  description: |-
+                    RT (neighborhood unit) on the ID as extracted by OCR.
+                    Fixed 3-digit format.
+                  pattern: '^\d{3}$'
+                  minLength: 3
+                  maxLength: 3
                 manuallyRw:
                   type: string
-                  description: RW (community unit) on the ID as extracted by OCR.
+                  description: |-
+                    RW (community unit) on the ID as extracted by OCR.
+                    Fixed 3-digit format.
+                  pattern: '^\d{3}$'
+                  minLength: 3
+                  maxLength: 3
             idFrontPhoto:
               type: string
               description: |-
@@ -5005,19 +5144,12 @@ components:
                 - Below 2 MB file size
                 - Minimum resolution of 256 x 256
                 - Maximum resolution of 4096 x 4096
-            manuallyEducation:
-              type: string
-              enum:
-              - PRIMARY
-              - JUNIOR HIGH SCHOOL
-              - SENIOR HIGH SCHOOL
-              - DIPLOMA
-              - BACHELOR
-              - MASTER
-              - PHD-DOCTOR
         platformInformation:
           type: object
           description: User information on the partner platform.
+          required:
+          - sceneType
+          - deviceInfo
           properties:
             creditProfile:
               $ref: '#/components/schemas/CreditProfile'
@@ -5758,17 +5890,6 @@ components:
           description: Repayment write off monthly bills
           items:
             $ref: '#/components/schemas/tradeDetailRepaymentDetail'
-        extendInfo:
-          type: object
-          properties:
-            settlement:
-              type: object
-              properties:
-                payableSubsidyAmount:
-                  type: integer
-                  description: coupon consumed amount due to repayment. The minimum denomination in Indonesia is Rupiah (IDR).
-              required:
-              - payableSubsidyAmount
       required:
       - repaymentRequestId
       - repaymentAmount
@@ -5856,9 +5977,6 @@ components:
         extendInfo:
           type: object
           description: extend information for the sub order
-    paymentPlanRiskInfo:
-      type: object
-      description: risk param
     billUnpaid:
       description: user unpaid billed & total amount
       type: object

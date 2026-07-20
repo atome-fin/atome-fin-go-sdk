@@ -18,8 +18,9 @@ type PaymentPreCheckRequest struct {
 	TotalAmount atomefin.Amount `json:"totalAmount"`
 	// SubOrders enumerates the cart contents to evaluate (PlanSubOrder shape).
 	SubOrders []PlanSubOrder `json:"subOrders"`
-	// ExtendInfo carries optional checkout extension fields.
-	ExtendInfo *PreCheckExtendInfo `json:"extendInfo,omitempty"`
+	// ExtendInfo carries checkout extension fields. Required by the
+	// spec because extendInfo.orderType drives risk routing.
+	ExtendInfo *PreCheckExtendInfo `json:"extendInfo"`
 
 	// RequestID is client-side only for idempotency logging; not in the
 	// spec body. Populated by the SDK when empty before the network call.
@@ -28,7 +29,7 @@ type PaymentPreCheckRequest struct {
 
 // PreCheckExtendInfo is the extendInfo bag on /payment-precheck.
 type PreCheckExtendInfo struct {
-	OrderType PaymentOrderType `json:"orderType,omitempty"`
+	OrderType PaymentOrderType `json:"orderType"`
 }
 
 // PaymentPreCheckSubOrder is a backward-compatible alias for PlanSubOrder.
@@ -120,6 +121,12 @@ func validatePaymentPreCheckRequest(req *PaymentPreCheckRequest) error {
 			Field:   "totalAmount",
 			Message: "must equal sum of subOrders[].amount",
 		}
+	}
+	if req.ExtendInfo == nil {
+		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
+	}
+	if !req.ExtendInfo.OrderType.IsValid() {
+		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART | SPECIALIZED_DELIVERY"}
 	}
 	return nil
 }

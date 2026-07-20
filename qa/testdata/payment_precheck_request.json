@@ -21,5 +21,8 @@
       "amount": 500000,
       "quantity": 2
     }
-  ]
+  ],
+  "extendInfo": {
+    "orderType": "GRAB_FOOD"
+  }
 }

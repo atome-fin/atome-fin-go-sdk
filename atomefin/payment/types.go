@@ -32,6 +32,15 @@ const (
 	OrderTypeSpecializedDelivery PaymentOrderType = "SPECIALIZED_DELIVERY"
 )
 
+// IsValid reports whether t is one of the spec-defined order types.
+func (t PaymentOrderType) IsValid() bool {
+	switch t {
+	case OrderTypeTransport, OrderTypeGrabFood, OrderTypeGrabMart, OrderTypeSpecializedDelivery:
+		return true
+	}
+	return false
+}
+
 // CreditProfile is an integration-agreed JSON risk-control payload
 // (opaque string on the wire).
 type CreditProfile string
@@ -54,8 +63,6 @@ type SubOrder struct {
 	PeriodType *int `json:"periodType,omitempty"`
 	// SkuID — product SKU identifier (required per spec).
 	SkuID string `json:"skuId"`
-	// CreatorID — merchant staff / channel that created this line.
-	CreatorID string `json:"creatorId,omitempty"`
 	// SkuName — display label.
 	SkuName string `json:"skuName,omitempty"`
 	// SpuID — catalog parent identifier.
@@ -122,7 +129,8 @@ type RequestExtendInfo struct {
 	UserCreditScore *float64 `json:"userCreditScore,omitempty"`
 
 	// OrderType is the Grab order business line (TRANSPORT, GRAB_FOOD, …).
-	OrderType PaymentOrderType `json:"orderType,omitempty"`
+	// Required by the spec on /auth and /capture.
+	OrderType PaymentOrderType `json:"orderType"`
 
 	// CreditProfile is an integration-agreed JSON risk-control payload.
 	CreditProfile CreditProfile `json:"creditProfile,omitempty"`
@@ -152,7 +160,7 @@ func IsValidScore(s *float64) bool {
 // DeviceInfo describes the originating device.
 type DeviceInfo struct {
 	Platform  Platform       `json:"platform,omitempty"`
-	GPS       *GeoPoint      `json:"gps,omitempty"`
+	GPS       *GeoPoint      `json:"gps"`
 	Device    *DeviceProfile `json:"device,omitempty"`
 	WifiList  []WifiAP       `json:"wifiList,omitempty"`
 	IPAddress *IPAddress     `json:"ipAddress,omitempty"`
@@ -161,19 +169,19 @@ type DeviceInfo struct {
 // GeoPoint is a (longitude, latitude, time) triple. The spec models
 // all three values as strings in PlatformDeviceInfo.
 type GeoPoint struct {
-	Longitude string `json:"longitude,omitempty"`
-	Latitude  string `json:"latitude,omitempty"`
-	Time      string `json:"time,omitempty"` // Unix-ms as a string
+	Longitude string `json:"longitude"`
+	Latitude  string `json:"latitude"`
+	Time      string `json:"time"` // Unix-ms as a string
 }
 
 // DeviceProfile holds device fingerprint fields.
 // Most fields are PII — DESIGN.md §10 redaction list.
 type DeviceProfile struct {
-	DeviceID            string     `json:"deviceId,omitempty"`
+	DeviceID            string     `json:"deviceId"`
 	GoogleAdvertisingID string     `json:"googleAdvertisingId,omitempty"`
 	IDFA                string     `json:"idfa,omitempty"`
 	IDFV                string     `json:"idfv,omitempty"`
-	UTDID               string     `json:"utdid,omitempty"`     // PII
+	UTDID               string     `json:"utdid"`               // PII
 	IsRoot              *bool      `json:"isRoot,omitempty"`    // pointer: distinguish false from absent
 	AndroidID           string     `json:"androidId,omitempty"` // PII
 	Build               *BuildInfo `json:"build,omitempty"`
@@ -234,8 +242,8 @@ type DriverInfo struct {
 
 // TripMetadata carries transport trip context.
 type TripMetadata struct {
-	EstimatedDistance string `json:"estimatedDistance,omitempty"`
-	PickupLocation    string `json:"pickupLocation,omitempty"`
+	EstimatedDistance float64 `json:"estimatedDistance,omitempty"`
+	PickupLocation    string  `json:"pickupLocation,omitempty"`
 }
 
 // ---------- AccountChanges ----------

@@ -244,10 +244,24 @@ type CreditInformationParam struct {
 }
 
 // CreditInformationEssentialInfo is the applicationEssentialInfo bag
-// on /credit-information. Mirrors the credit-application nesting:
-// individualProfile → ocrResult → fullName.
+// on /credit-information. It intentionally uses credit-information
+// specific nested types so this lightweight step cannot accidentally
+// send the broader /credit-application KYC payload.
 type CreditInformationEssentialInfo struct {
-	IndividualProfile *IndividualProfile `json:"individualProfile"`
+	IndividualProfile *CreditInformationIndividualProfile `json:"individualProfile"`
+}
+
+// CreditInformationIndividualProfile is the individualProfile bag on
+// /credit-information. Swagger currently allows only ocrResult.fullName
+// at this step.
+type CreditInformationIndividualProfile struct {
+	OCRResult *CreditInformationOCRResult `json:"ocrResult"`
+}
+
+// CreditInformationOCRResult is the OCR subset allowed on
+// /credit-information.
+type CreditInformationOCRResult struct {
+	FullName string `json:"fullName"`
 }
 
 // CreditInformationExtendInfo is the extendInfo bag on a
@@ -334,8 +348,7 @@ type ApplicationEssentialInfo struct {
 	// LivenessCheck carries the liveness snapshot result. Required.
 	LivenessCheck *LivenessCheck `json:"livenessCheck"`
 	// IndividualProfile carries the user's KYC profile (idType,
-	// ocrResult, idFrontPhoto, manuallyEducation). Required per
-	// spec.
+	// ocrResult, idFrontPhoto). Required per spec.
 	IndividualProfile *IndividualProfile `json:"individualProfile"`
 	// PlatformInformation carries partner-side risk signals
 	// (creditProfile, sceneType, deviceInfo). Required per spec.
@@ -346,45 +359,40 @@ type ApplicationEssentialInfo struct {
 type LivenessCheck struct {
 	Result                string `json:"result"`
 	SnapshotPhoto         string `json:"snapshotPhoto"`
-	LivenessCheckResult01 string `json:"livenessCheckResult01,omitempty"`
-	LivenessCheckResult02 string `json:"livenessCheckResult02,omitempty"`
-	LivenessCheckResult03 string `json:"livenessCheckResult03,omitempty"`
+	LivenessCheckResult01 string `json:"livenessCheckResult01"`
+	LivenessCheckResult02 string `json:"livenessCheckResult02"`
+	LivenessCheckResult03 string `json:"livenessCheckResult03"`
 }
 
 // IndividualProfile is the user's KYC profile.
 type IndividualProfile struct {
 	// IDType is the government-issued ID type (e.g. "KTP").
-	IDType string `json:"idType,omitempty"`
+	IDType string `json:"idType"`
 	// OCRResult is OCR-extracted fields from the ID document photo.
-	OCRResult *OCRResult `json:"ocrResult,omitempty"`
+	OCRResult *OCRResult `json:"ocrResult"`
 	// IDFrontPhoto is the base64-encoded front-side photo of the ID
-	// document. Optional but typically required by integration
-	// contract.
-	IDFrontPhoto string `json:"idFrontPhoto,omitempty"`
-	// ManuallyEducation is the partner-collected education level
-	// (one of {PRIMARY, JUNIOR HIGH SCHOOL, SENIOR HIGH SCHOOL,
-	// DIPLOMA, BACHELOR, MASTER, PHD-DOCTOR}).
-	ManuallyEducation string `json:"manuallyEducation,omitempty"`
+	// document. Required by the spec.
+	IDFrontPhoto string `json:"idFrontPhoto"`
 }
 
 // OCRResult is the OCR-extracted fields from the ID document photo.
 type OCRResult struct {
-	IDNumber            string `json:"idNumber,omitempty"`
-	FullName            string `json:"fullName,omitempty"`
-	BirthPlace          string `json:"birthPlace,omitempty"`
+	IDNumber            string `json:"idNumber"`
+	FullName            string `json:"fullName"`
+	BirthPlace          string `json:"birthPlace"`
 	OCRBloodType        string `json:"ocrBloodType,omitempty"`
-	OCRReligion         string `json:"ocrReligion,omitempty"`
-	OCRGender           string `json:"ocrGender,omitempty"` // enum: MAN | WOMAN
-	ManuallyBirthDate   string `json:"manuallyBirthDate,omitempty"`
-	OCRProvince         string `json:"ocrProvince,omitempty"`
-	OCRCity             string `json:"ocrCity,omitempty"`
-	OCRDistrict         string `json:"ocrDistrict,omitempty"`
-	JobType             string `json:"jobType,omitempty"`
+	OCRReligion         string `json:"ocrReligion"`
+	OCRGender           string `json:"ocrGender"` // enum: MAN | WOMAN
+	ManuallyBirthDate   string `json:"manuallyBirthDate"`
+	OCRProvince         string `json:"ocrProvince"`
+	OCRCity             string `json:"ocrCity"`
+	OCRDistrict         string `json:"ocrDistrict"`
+	JobType             string `json:"jobType"`
 	OCRMaritalStatus    string `json:"ocrMaritalStatus,omitempty"` // SINGLE | MARRIED | DIVORCED | WIDOWED | SEPARATED | OTHERS
-	ManuallyExpiredDate string `json:"manuallyExpiredDate,omitempty"`
-	ManuallyCitizenship string `json:"manuallyCitizenship,omitempty"`
-	ManuallyRt          string `json:"manuallyRt,omitempty"`
-	ManuallyRw          string `json:"manuallyRw,omitempty"`
+	ManuallyExpiredDate string `json:"manuallyExpiredDate"`
+	ManuallyCitizenship string `json:"manuallyCitizenship"`
+	ManuallyRt          string `json:"manuallyRt"`
+	ManuallyRw          string `json:"manuallyRw"`
 }
 
 // CreditSceneType is the entry scene on the partner UI.
@@ -404,9 +412,9 @@ type PlatformInformation struct {
 	// scores and engineered features.
 	CreditProfile string `json:"creditProfile,omitempty"`
 	// SceneType is the UI entry point where the user started credit.
-	SceneType CreditSceneType `json:"sceneType,omitempty"`
+	SceneType CreditSceneType `json:"sceneType"`
 	// DeviceInfo is the user's device snapshot at submission time.
-	DeviceInfo *DeviceInfo `json:"deviceInfo,omitempty"`
+	DeviceInfo *DeviceInfo `json:"deviceInfo"`
 }
 
 // DeviceInfo is the user's device snapshot.
@@ -414,7 +422,7 @@ type DeviceInfo struct {
 	// Platform is the device platform (ANDROID | IOS).
 	Platform string `json:"platform,omitempty"`
 	// GPS is the GPS sample (longitude/latitude/time strings).
-	GPS *GPSSample `json:"gps,omitempty"`
+	GPS *GPSSample `json:"gps"`
 	// Device is the device-build snapshot.
 	Device *Device `json:"device,omitempty"`
 	// WifiList is the visible Wi-Fi networks at submission time.
@@ -428,18 +436,18 @@ type DeviceInfo struct {
 // pattern; time stays a string here because the credit spec types
 // it as string, distinct from /auth's int-Unix-ms).
 type GPSSample struct {
-	Longitude string `json:"longitude,omitempty"`
-	Latitude  string `json:"latitude,omitempty"`
-	Time      string `json:"time,omitempty"` // string per credit spec
+	Longitude string `json:"longitude"`
+	Latitude  string `json:"latitude"`
+	Time      string `json:"time"` // string per credit spec
 }
 
 // Device is the device-build snapshot.
 type Device struct {
-	DeviceID            string       `json:"deviceId,omitempty"`
+	DeviceID            string       `json:"deviceId"`
 	GoogleAdvertisingID string       `json:"googleAdvertisingId,omitempty"`
 	IDFA                string       `json:"idfa,omitempty"`
 	IDFV                string       `json:"idfv,omitempty"`
-	UTDID               string       `json:"utdid,omitempty"`
+	UTDID               string       `json:"utdid"`
 	IsRoot              bool         `json:"isRoot,omitempty"`
 	AndroidID           string       `json:"androidId,omitempty"`
 	Build               *DeviceBuild `json:"build,omitempty"`

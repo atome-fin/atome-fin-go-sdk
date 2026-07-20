@@ -86,23 +86,6 @@ type RepaymentResult struct {
 	RepaymentTime   int64                   `json:"repaymentTime,omitempty"` // Unix-ms
 	Event           RepaymentEvent          `json:"event,omitempty"`
 	AccountChanges  *CommerceAccountChanges `json:"accountChanges,omitempty"`
-	ExtendInfo      *RepaymentExtendInfo    `json:"extendInfo,omitempty"`
-}
-
-// RepaymentExtendInfo is the optional `extendInfo` block on
-// RepaymentResult. Currently the spec only enumerates a `settlement`
-// sub-object; keep the parent typed so future fields land cleanly.
-type RepaymentExtendInfo struct {
-	Settlement *RepaymentSettlement `json:"settlement,omitempty"`
-}
-
-// RepaymentSettlement carries coupon / subsidy bookkeeping consumed
-// by the repayment.
-type RepaymentSettlement struct {
-	// PayableSubsidyAmount is the coupon amount consumed during this
-	// repayment, in minor units. Required by spec when settlement is
-	// present.
-	PayableSubsidyAmount atomefin.Amount `json:"payableSubsidyAmount"`
 }
 
 // CommerceAccountChanges is the canonical credit-change vector for

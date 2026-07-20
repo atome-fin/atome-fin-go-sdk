@@ -91,7 +91,8 @@ func specSampleAuthRequest() *payment.AuthRequest {
 		SubOrders: []payment.SubOrder{
 			specSampleSubOrder(1500000),
 		},
-		Sessionid: "session-spec",
+		ExtendInfo: specSampleRequestExtendInfo(),
+		Sessionid:  "session-spec",
 	}
 }
 
@@ -105,6 +106,7 @@ func specSampleCaptureRequest() *payment.CaptureRequest {
 		SubOrders: []payment.SubOrder{
 			specSampleSubOrder(1500000),
 		},
+		ExtendInfo: specSampleRequestExtendInfo(),
 	}
 }
 
@@ -123,6 +125,7 @@ func specSamplePreCheckRequest() *payment.PaymentPreCheckRequest {
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1500000),
 		},
+		ExtendInfo: &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 	}
 }
 
@@ -134,6 +137,7 @@ func specSamplePaymentPlanRequest() *payment.PaymentPlanRequest {
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1500000),
 		},
-		Sessionid: "session-spec",
+		ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
+		Sessionid:  "session-spec",
 	}
 }

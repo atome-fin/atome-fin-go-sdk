@@ -67,8 +67,8 @@ func TestServer_Idempotency_EncryptedPOST_DecryptsAndExtractsRequestID(t *testin
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.IndividualProfile{
-				OCRResult: &credit.OCRResult{FullName: "Test User"},
+			IndividualProfile: &credit.CreditInformationIndividualProfile{
+				OCRResult: &credit.CreditInformationOCRResult{FullName: "Test User"},
 			},
 		},
 		ExtendInfo: &credit.CreditInformationExtendInfo{Language: credit.LanguageEnglish},
@@ -123,8 +123,8 @@ func TestServer_Idempotency_EncryptedPOST_BypassesWithoutDecryptKey(t *testing.T
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.IndividualProfile{
-				OCRResult: &credit.OCRResult{FullName: "Test User"},
+			IndividualProfile: &credit.CreditInformationIndividualProfile{
+				OCRResult: &credit.CreditInformationOCRResult{FullName: "Test User"},
 			},
 		},
 		ExtendInfo: &credit.CreditInformationExtendInfo{Language: credit.LanguageEnglish},

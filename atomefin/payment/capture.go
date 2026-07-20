@@ -31,8 +31,9 @@ type CaptureRequest struct {
 	PeriodType int `json:"periodType"`
 	// SubOrders must be byte-equal to the prior /auth SubOrders.
 	SubOrders []SubOrder `json:"subOrders"`
-	// ExtendInfo carries the optional request-side extendInfo tree.
-	ExtendInfo *RequestExtendInfo `json:"extendInfo,omitempty"`
+	// ExtendInfo carries the request-side extendInfo tree. Required by
+	// the spec because extendInfo.orderType drives risk routing.
+	ExtendInfo *RequestExtendInfo `json:"extendInfo"`
 }
 
 // CaptureResponse is the POST /capture envelope. Same shape as
@@ -163,7 +164,13 @@ func validateCaptureRequest(req *CaptureRequest) error {
 	if sum != req.TotalAmount {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must equal sum of subOrders[].amount"}
 	}
-	if req.ExtendInfo != nil && !IsValidScore(req.ExtendInfo.UserCreditScore) {
+	if req.ExtendInfo == nil {
+		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
+	}
+	if !req.ExtendInfo.OrderType.IsValid() {
+		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART | SPECIALIZED_DELIVERY"}
+	}
+	if !IsValidScore(req.ExtendInfo.UserCreditScore) {
 		return &atomefin.ValidationError{Field: "extendInfo.userCreditScore", Message: "must be in [0, 1]"}
 	}
 	return nil
