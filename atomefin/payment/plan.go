@@ -26,32 +26,35 @@ type PaymentPlanRequest struct {
 	// spec because extendInfo.orderType drives risk routing.
 	ExtendInfo *CheckoutExtendInfo `json:"extendInfo"`
 
-	// Sessionid is the per-checkout session token. Required for
-	// /payment-plan, ≤ 64 chars. Travels in the HTTP header, not
-	// the JSON body (json:"-").
+	// Sessionid is deprecated per the 2026-08-11 spec: Atome now
+	// returns data.extendInfo.sessionId on the /payment-plan response;
+	// pass that value on POST /auth via the `sessionid` header.
+	// When set, the SDK still forwards it as a request header for
+	// backward compatibility. Not part of the JSON body (json:"-").
 	Sessionid string `json:"-"` // max 64
 }
 
-// CheckoutExtendInfo is the extendInfo bag on /payment-plan (and
-// optionally other checkout endpoints).
+// CheckoutExtendInfo is the extendInfo bag on /payment-plan.
+// Per the spec's PaymentPlanExtendInfo, GRAB_MART requires
+// mainOrderExtendInfos (each entry: merchantId + skuInfos);
+// GRAB_FOOD may send partial entries; TRANSPORT omits the array.
 type CheckoutExtendInfo struct {
-	OrderType PaymentOrderType `json:"orderType"`
+	OrderType            PaymentOrderType      `json:"orderType"`
+	MainOrderExtendInfos []MainOrderExtendInfo `json:"mainOrderExtendInfos,omitempty"`
 }
 
-// PlanSubOrder is one cart line on a plan or pre-check request.
-// Field set aligns with the spec's PlanSubOrder schema (one SKU = one
-// sub-order) and mirrors the commerce-domain required fields on /auth.
+// PlanSubOrder is one merchant-dimension entry on a plan or pre-check
+// request (spec's PlanMerchantSubOrder). Only MerchantID and Amount
+// are required for GRAB_MART; every field is optional on
+// /payment-precheck (PrecheckMerchantSubOrder).
 type PlanSubOrder struct {
-	SubOrderID      string              `json:"subOrderId"`
-	SkuID           string              `json:"skuId"`
-	SkuName         string              `json:"skuName,omitempty"`
-	CategoryID      string              `json:"categoryId"`
-	CategoryOneName string              `json:"categoryOneName"`
-	CategoryCodes   []string            `json:"categoryCodes,omitempty"`
-	Quantity        int                 `json:"quantity"`
-	Amount          atomefin.Amount     `json:"amount"`
-	MerchantID      string              `json:"merchantId"`
-	ExtendInfo      *SubOrderExtendInfo `json:"extendInfo,omitempty"`
+	SubOrderID         string          `json:"subOrderId,omitempty"`
+	MerchantID         string          `json:"merchantId,omitempty"`
+	MerchantName       string          `json:"merchantName,omitempty"`
+	MerchantCategory   string          `json:"merchantCategory,omitempty"`
+	MerchantJoinedDate string          `json:"merchantJoinedDate,omitempty"`
+	Amount             atomefin.Amount `json:"amount"`
+	PeriodType         *int            `json:"periodType,omitempty"`
 }
 
 // PaymentPlanResponse is the POST /payment-plan envelope.
@@ -70,14 +73,29 @@ type PaymentPlanData struct {
 
 // CommerceSubOrderInstallmentPlans groups plan options for one sub-order.
 type CommerceSubOrderInstallmentPlans struct {
-	SubOrderID       string                    `json:"subOrderId"`
+	SubOrderID       string                    `json:"subOrderId,omitempty"`
+	MerchantID       string                    `json:"merchantId,omitempty"`
 	OrderAmount      atomefin.Amount           `json:"orderAmount"`
 	InstallmentPlans []CommerceInstallmentPlan `json:"installmentPlans"`
 }
 
 // PaymentPlanDataExtendInfo carries aggregate order-level installment plans.
 type PaymentPlanDataExtendInfo struct {
+	// SessionID is the Atome-generated checkout session token. Pass it
+	// back on POST /auth via the `sessionid` header (max 64 chars,
+	// valid 2 hours).
+	SessionID string `json:"sessionId,omitempty"`
+	// RiplayInfoList carries per-tenor disclosure URLs (RI play
+	// requirement, added 2026-08-07).
+	RiplayInfoList           []RiplayInfo              `json:"riplayInfoList,omitempty"`
 	SumOrderInstallmentPlans *SumOrderInstallmentPlans `json:"sumOrderInstallmentPlans,omitempty"`
+}
+
+// RiplayInfo is one (tenor, URL) disclosure row on the
+// /payment-plan response.
+type RiplayInfo struct {
+	TotalTenor int    `json:"totalTenor"`
+	URL        string `json:"url"`
 }
 
 // SumOrderInstallmentPlans groups aggregate order-level plan options.
@@ -120,7 +138,7 @@ type CommerceInstallmentPlan struct {
 
 // CommerceInstallmentDetail is one row of a sub-order installment plan.
 type CommerceInstallmentDetail struct {
-	SubOrderID      string          `json:"subOrderId"`
+	SubOrderID      string          `json:"subOrderId,omitempty"`
 	TotalTenor      int             `json:"totalTenor"`
 	CurrentTenor    int             `json:"currentTenor"`
 	RepayAmount     atomefin.Amount `json:"repayAmount"`
@@ -186,33 +204,29 @@ func validatePaymentPlanRequest(req *PaymentPlanRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
-	if len(req.SubOrders) == 0 {
-		return &atomefin.ValidationError{Field: "subOrders", Message: "must be non-empty"}
+	if req.ExtendInfo == nil {
+		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
 	}
-	var sum atomefin.Amount
-	for _, so := range req.SubOrders {
-		if err := validatePlanSubOrder(so); err != nil {
-			return err
-		}
-		sum += so.Amount
+	if !req.ExtendInfo.OrderType.IsValid() {
+		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: validOrderTypesMsg}
 	}
-	if sum != req.TotalAmount {
+	if err := validatePlanSubOrders(req.ExtendInfo.OrderType, req.SubOrders); err != nil {
+		return err
+	}
+	if sumPlanSubOrderAmount(req.SubOrders) != req.TotalAmount {
 		return &atomefin.ValidationError{
 			Field:   "totalAmount",
 			Message: "must equal sum of subOrders[].amount",
 		}
 	}
-	if req.ExtendInfo == nil {
-		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
-	}
-	if !req.ExtendInfo.OrderType.IsValid() {
-		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART | SPECIALIZED_DELIVERY"}
-	}
-	if req.Sessionid == "" {
-		return &atomefin.ValidationError{Field: "sessionid", Message: "required (HTTP header on /payment-plan)"}
+	if err := validatePlanMainOrderExtendInfos(req.ExtendInfo.OrderType, req.ExtendInfo.MainOrderExtendInfos); err != nil {
+		return err
 	}
 	if len(req.Sessionid) > 64 {
 		return &atomefin.ValidationError{Field: "sessionid", Message: "exceeds spec maxlength 64"}
 	}
+	// Per 2026-08-11 spec: /payment-plan no longer requires the
+	// `sessionid` request header — the session is returned on the
+	// response (data.extendInfo.sessionId) and consumed by /auth.
 	return nil
 }

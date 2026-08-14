@@ -359,9 +359,9 @@ type ApplicationEssentialInfo struct {
 type LivenessCheck struct {
 	Result                string `json:"result"`
 	SnapshotPhoto         string `json:"snapshotPhoto"`
-	LivenessCheckResult01 string `json:"livenessCheckResult01"`
-	LivenessCheckResult02 string `json:"livenessCheckResult02"`
-	LivenessCheckResult03 string `json:"livenessCheckResult03"`
+	LivenessCheckResult01 string `json:"livenessCheckResult01,omitempty"`
+	LivenessCheckResult02 string `json:"livenessCheckResult02,omitempty"`
+	LivenessCheckResult03 string `json:"livenessCheckResult03,omitempty"`
 }
 
 // IndividualProfile is the user's KYC profile.
@@ -422,7 +422,7 @@ type DeviceInfo struct {
 	// Platform is the device platform (ANDROID | IOS).
 	Platform string `json:"platform,omitempty"`
 	// GPS is the GPS sample (longitude/latitude/time strings).
-	GPS *GPSSample `json:"gps"`
+	GPS *GPSSample `json:"gps,omitempty"`
 	// Device is the device-build snapshot.
 	Device *Device `json:"device,omitempty"`
 	// WifiList is the visible Wi-Fi networks at submission time.

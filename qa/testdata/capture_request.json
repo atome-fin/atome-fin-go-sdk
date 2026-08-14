@@ -7,24 +7,48 @@
   "subOrders": [
     {
       "subOrderId": "so-1",
-      "amount": 1000000,
-      "quantity": 1,
-      "skuId": "sku-1",
-      "categoryId": "cat-1",
-      "categoryOneName": "Food",
-      "merchantId": "merchant-1"
-    },
-    {
-      "subOrderId": "so-2",
-      "amount": 500000,
-      "quantity": 2,
-      "skuId": "sku-2",
-      "categoryId": "cat-1",
-      "categoryOneName": "Food",
-      "merchantId": "merchant-1"
+      "merchantId": "merchant-1",
+      "merchantName": "KFC Sudirman",
+      "merchantCategory": "FAST_FOOD",
+      "amount": 1500000
     }
   ],
   "extendInfo": {
-    "orderType": "GRAB_FOOD"
+    "orderType": "GRAB_FOOD",
+    "creditProfile": "{\"score\":720}",
+    "deviceInfo": {
+      "platform": "ANDROID",
+      "device": {
+        "deviceId": "device-abc",
+        "googleAdvertisingId": "38400000-8cf0-11bd-b23d-10cb46e3a0aa",
+        "isRoot": false,
+        "build": {
+          "board": "msm8998",
+          "brand": "Pixel",
+          "device": "walleye",
+          "manufacturer": "Google",
+          "model": "Pixel 2",
+          "product": "walleye"
+        }
+      },
+      "wifiList": [{"ssid": "PartnerCorp"}],
+      "ipAddress": {"ethIp": "10.0.0.1", "trueIp": "203.0.113.7"}
+    },
+    "address": {
+      "shippingAddress": {
+        "city": "Jakarta Selatan",
+        "address1": "Jl. Sudirman No. 1"
+      },
+      "shippingName": "Foo Customer",
+      "shippingPhoneNo": "+628123456789"
+    },
+    "mainOrderExtendInfos": [
+      {
+        "merchantId": "merchant-1",
+        "skuInfos": [
+          {"skuId": "sku-1", "amount": 1500000}
+        ]
+      }
+    ]
   }
 }

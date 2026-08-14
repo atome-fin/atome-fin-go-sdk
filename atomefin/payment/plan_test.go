@@ -179,6 +179,31 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 			ExtendInfo:           &payment.CheckoutExtendInfo{},
 			Sessionid:            "s",
 		}, "extendInfo.orderType"},
+		{"mart-missing-skuInfos", &payment.PaymentPlanRequest{
+			RequestID:            "r",
+			ExternalReferenceUID: "u",
+			TotalAmount:          1,
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo: &payment.CheckoutExtendInfo{
+				OrderType: payment.OrderTypeGrabMart,
+				MainOrderExtendInfos: []payment.MainOrderExtendInfo{{
+					MerchantID: "merchant-1",
+				}},
+			},
+		}, "skuInfos"},
+		{"mart-missing-skuId", &payment.PaymentPlanRequest{
+			RequestID:            "r",
+			ExternalReferenceUID: "u",
+			TotalAmount:          1,
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo: &payment.CheckoutExtendInfo{
+				OrderType: payment.OrderTypeGrabMart,
+				MainOrderExtendInfos: []payment.MainOrderExtendInfo{{
+					MerchantID: "merchant-1",
+					SkuInfos:   []payment.SkuInfo{{Amount: 1}},
+				}},
+			},
+		}, "skuId"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

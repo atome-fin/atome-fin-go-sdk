@@ -151,24 +151,20 @@ func validateCaptureRequest(req *CaptureRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
-	if len(req.SubOrders) == 0 {
-		return &atomefin.ValidationError{Field: "subOrders", Message: "must be non-empty"}
-	}
-	var sum atomefin.Amount
-	for _, so := range req.SubOrders {
-		if err := validateCommerceSubOrder(so); err != nil {
-			return err
-		}
-		sum += so.Amount
-	}
-	if sum != req.TotalAmount {
-		return &atomefin.ValidationError{Field: "totalAmount", Message: "must equal sum of subOrders[].amount"}
-	}
 	if req.ExtendInfo == nil {
 		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
 	}
 	if !req.ExtendInfo.OrderType.IsValid() {
-		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART | SPECIALIZED_DELIVERY"}
+		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: validOrderTypesMsg}
+	}
+	if err := validateAuthCaptureSubOrders(req.ExtendInfo.OrderType, req.SubOrders); err != nil {
+		return err
+	}
+	if sumSubOrderAmount(req.SubOrders) != req.TotalAmount {
+		return &atomefin.ValidationError{Field: "totalAmount", Message: "must equal sum of subOrders[].amount"}
+	}
+	if err := validateAuthCaptureMainOrderExtendInfos(req.ExtendInfo.OrderType, req.ExtendInfo.MainOrderExtendInfos); err != nil {
+		return err
 	}
 	if !IsValidScore(req.ExtendInfo.UserCreditScore) {
 		return &atomefin.ValidationError{Field: "extendInfo.userCreditScore", Message: "must be in [0, 1]"}

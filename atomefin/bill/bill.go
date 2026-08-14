@@ -5,8 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
+)
+
+const (
+	DefaultStart = 1
+	DefaultCount = 10
+	MaxCount     = 50
 )
 
 // Service is the outbound bill-query client. Construct via
@@ -81,7 +88,7 @@ func (s *Service) Bills(ctx context.Context, params *BillsParams) (*BillsRespons
 }
 
 // BillDetail retrieves the full detail for a single bill, keyed by
-// billID (yyyyMM, e.g. "202605") + externalReferenceUID.
+// billID (format yyyyMM, e.g. "202607") + externalReferenceUID.
 //
 // Spec endpoint: GET /billDetail?billId=<id>&externalReferenceUid=<uid>
 //
@@ -90,25 +97,25 @@ func (s *Service) Bills(ctx context.Context, params *BillsParams) (*BillsRespons
 // both query params are required. v0.2.0 — v0.2.2 callers must add
 // the externalReferenceUID argument.
 func (s *Service) BillDetail(ctx context.Context, billID, externalReferenceUID string) (*BillDetailResponse, error) {
+	return s.BillDetailWithParams(ctx, &BillDetailParams{
+		BillID:               billID,
+		ExternalReferenceUID: externalReferenceUID,
+	})
+}
+
+// BillDetailWithParams retrieves the full detail for a single bill and
+// exposes the optional start/count query params from the swagger.
+func (s *Service) BillDetailWithParams(ctx context.Context, params *BillDetailParams) (*BillDetailResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
-	if billID == "" {
-		return nil, &atomefin.ValidationError{
-			Field:   "billId",
-			Message: "required (yyyyMM, e.g. \"202605\")",
-		}
+	if params == nil {
+		return nil, &atomefin.ValidationError{Field: "request", Message: "nil BillDetailParams"}
 	}
-	if externalReferenceUID == "" {
-		return nil, &atomefin.ValidationError{
-			Field:   "externalReferenceUid",
-			Message: "required (the partner-side user identifier)",
-		}
+	if err := validateBillDetailParams(params); err != nil {
+		return nil, err
 	}
-	q := url.Values{
-		"billId":               []string{billID},
-		"externalReferenceUid": []string{externalReferenceUID},
-	}
+	q := buildBillDetailQuery(params)
 	resp, err := s.c.DoSignedGET(ctx, "/billDetail", q)
 	if err != nil {
 		return nil, err
@@ -122,6 +129,31 @@ func (s *Service) BillDetail(ctx context.Context, billID, externalReferenceUID s
 		}
 	}
 	return &out, nil
+}
+
+func validateBillDetailParams(p *BillDetailParams) error {
+	if p.BillID == "" {
+		return &atomefin.ValidationError{
+			Field:   "billId",
+			Message: "required (format yyyyMM, e.g. \"202607\")",
+		}
+	}
+	if p.ExternalReferenceUID == "" {
+		return &atomefin.ValidationError{
+			Field:   "externalReferenceUid",
+			Message: "required (the partner-side user identifier)",
+		}
+	}
+	if p.Start < 0 {
+		return &atomefin.ValidationError{Field: "start", Message: "must be >= 0 (0 omits the param and uses server default 1)"}
+	}
+	if p.Count < 0 {
+		return &atomefin.ValidationError{Field: "count", Message: "must be >= 0 (0 omits the param and uses server default 10)"}
+	}
+	if p.Count > MaxCount {
+		return &atomefin.ValidationError{Field: "count", Message: "must be <= 50"}
+	}
+	return nil
 }
 
 // BillsUnpaid retrieves the partner's unpaid bill summary.
@@ -211,6 +243,20 @@ func buildBillsQuery(p *BillsParams) url.Values {
 	}
 	for _, v := range p.RefundStatus {
 		q.Add("refundStatus", string(v))
+	}
+	return q
+}
+
+func buildBillDetailQuery(p *BillDetailParams) url.Values {
+	q := url.Values{
+		"billId":               []string{p.BillID},
+		"externalReferenceUid": []string{p.ExternalReferenceUID},
+	}
+	if p.Start > 0 {
+		q.Set("start", strconv.Itoa(p.Start))
+	}
+	if p.Count > 0 {
+		q.Set("count", strconv.Itoa(p.Count))
 	}
 	return q
 }

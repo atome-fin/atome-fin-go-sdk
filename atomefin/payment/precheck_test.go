@@ -160,28 +160,6 @@ func TestPaymentPreCheck_Validate_TableDriven(t *testing.T) {
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 			ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}, "totalAmount"},
-		{"empty-subOrders", &payment.PaymentPreCheckRequest{
-			ExternalReferenceUID: "u",
-			TotalAmount:          1,
-			SubOrders:            []payment.PlanSubOrder{},
-			ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
-		}, "subOrders"},
-		{"empty-subOrderId", &payment.PaymentPreCheckRequest{
-			ExternalReferenceUID: "u",
-			TotalAmount:          1,
-			SubOrders:            []payment.PlanSubOrder{{Amount: 1, Quantity: 1, SkuID: "sku", CategoryID: "c", CategoryOneName: "n", MerchantID: "m"}},
-			ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
-		}, "subOrderId"},
-		{"zero-quantity", &payment.PaymentPreCheckRequest{
-			ExternalReferenceUID: "u",
-			TotalAmount:          1,
-			SubOrders: func() []payment.PlanSubOrder {
-				so := specSamplePlanSubOrder(1)
-				so.Quantity = 0
-				return []payment.PlanSubOrder{so}
-			}(),
-			ExtendInfo: &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
-		}, "quantity"},
 		{"sum-mismatch", &payment.PaymentPreCheckRequest{
 			ExternalReferenceUID: "u",
 			TotalAmount:          1000,
@@ -196,11 +174,11 @@ func TestPaymentPreCheck_Validate_TableDriven(t *testing.T) {
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 		}, "extendInfo"},
-		{"missing-orderType", &payment.PaymentPreCheckRequest{
+		{"bad-orderType", &payment.PaymentPreCheckRequest{
 			ExternalReferenceUID: "u",
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
-			ExtendInfo:           &payment.PreCheckExtendInfo{},
+			ExtendInfo:           &payment.PreCheckExtendInfo{OrderType: "BAD"},
 		}, "extendInfo.orderType"},
 	}
 	for _, tc := range cases {
@@ -223,6 +201,10 @@ func TestPaymentPreCheckResponse_Roundtrip_Eligible(t *testing.T) {
 
 func TestPaymentPreCheckResponse_Roundtrip_Denied(t *testing.T) {
 	marshal.GoldenRoundTrip[payment.PaymentPreCheckResponse](t, fixtureRoot+"payment_precheck_response_denied.json")
+}
+
+func TestR3_PaymentPreCheckRequest_OmitsOptionalSubOrders(t *testing.T) {
+	marshal.AssertOmitemptyZero[payment.PaymentPreCheckRequest](t, "subOrders")
 }
 
 func TestR10_PaymentPreCheckRequest_TotalAmount(t *testing.T) {
@@ -250,7 +232,6 @@ func TestR12_PaymentPreCheckRequest_IntegerLiterals(t *testing.T) {
 			func() payment.PlanSubOrder {
 				so := specSamplePlanSubOrder(500000)
 				so.SubOrderID = "so-2"
-				so.Quantity = 2
 				return so
 			}(),
 		},

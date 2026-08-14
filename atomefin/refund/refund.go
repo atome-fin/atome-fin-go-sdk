@@ -211,9 +211,6 @@ func validateRefund(req *RefundParam) error {
 	}
 	var sum atomefin.Amount
 	for _, so := range req.SubOrders {
-		if so.SubOrderID == "" {
-			return &atomefin.ValidationError{Field: "subOrders[].subOrderId", Message: "required"}
-		}
 		if so.Amount <= 0 {
 			return &atomefin.ValidationError{Field: "subOrders[].amount", Message: "must be > 0 (minor units)"}
 		}
@@ -223,6 +220,29 @@ func validateRefund(req *RefundParam) error {
 		return &atomefin.ValidationError{
 			Field:   "refundAmount",
 			Message: "must equal sum of subOrders[].amount (Q25 conservative — partner-pending)",
+		}
+	}
+	if req.ExtendInfo == nil || req.ExtendInfo.OrderType == "" {
+		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: "required"}
+	}
+	switch req.ExtendInfo.OrderType {
+	case "TRANSPORT", "GRAB_FOOD":
+		if len(req.SubOrders) != 1 {
+			return &atomefin.ValidationError{
+				Field:   "subOrders",
+				Message: "must contain exactly one entry for " + req.ExtendInfo.OrderType,
+			}
+		}
+	case "GRAB_MART":
+		for _, so := range req.SubOrders {
+			if so.MerchantID == "" {
+				return &atomefin.ValidationError{Field: "subOrders[].merchantId", Message: "required for GRAB_MART"}
+			}
+		}
+	default:
+		return &atomefin.ValidationError{
+			Field:   "extendInfo.orderType",
+			Message: "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART",
 		}
 	}
 	return nil

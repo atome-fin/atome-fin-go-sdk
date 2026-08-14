@@ -42,5 +42,6 @@ func specSampleRefundParam() *refund.RefundParam {
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 500000},
 		},
+		ExtendInfo: &refund.RefundExtendInfo{OrderType: "GRAB_FOOD"},
 	}
 }

@@ -1,6 +1,9 @@
 package transaction
 
-import "github.com/atome-fin/atome-fin-go-sdk/atomefin"
+import (
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/bill"
+)
 
 // TransactionType enumerates the kinds of originating transaction
 // the /transactions and /transactionDetail endpoints address. Per
@@ -166,16 +169,21 @@ type TradeSubOrderDetail struct {
 }
 
 type TradeBillDetail struct {
-	BillID            string          `json:"billId"`
-	BillDate          string          `json:"billDate"`
-	DueDate           string          `json:"dueDate"`
-	BillStartDate     string          `json:"billStartDate,omitempty"`
-	BillEndDate       string          `json:"billEndDate,omitempty"`
-	TotalAmount       atomefin.Amount `json:"totalAmount"`
-	OutstandingAmount atomefin.Amount `json:"outstandingAmount,omitempty"`
-	RepaidAmount      atomefin.Amount `json:"repaidAmount"`
-	PrincipalAmount   atomefin.Amount `json:"principalAmount"`
-	InterestAmount    atomefin.Amount `json:"interestAmount"`
+	BillID            string              `json:"billId"`
+	BillDate          string              `json:"billDate"`
+	DueDate           string              `json:"dueDate"`
+	BillStartDate     string              `json:"billStartDate,omitempty"`
+	BillEndDate       string              `json:"billEndDate,omitempty"`
+	TotalAmount       atomefin.Amount     `json:"totalAmount"`
+	OutstandingAmount atomefin.Amount     `json:"outstandingAmount,omitempty"`
+	RepaidAmount      atomefin.Amount     `json:"repaidAmount"`
+	PrincipalAmount   atomefin.Amount     `json:"principalAmount"`
+	InterestAmount    atomefin.Amount     `json:"interestAmount"`
+	GracePeriod       int                 `json:"gracePeriod,omitempty"`
+	Status            bill.BillStatus     `json:"status,omitempty"`
+	RepaymentStatus   string              `json:"repaymentStatus,omitempty"`
+	OverdueStatus     bill.OverdueStatus  `json:"overdueStatus,omitempty"`
+	Discounts         *bill.BillDiscounts `json:"discounts,omitempty"`
 }
 
 type TradeRefundInfoDetail struct {

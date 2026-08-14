@@ -4,7 +4,9 @@
   "captureRequestId": "CAP-2026-0501-0001",
   "refundAmount": 1500000,
   "subOrders": [
-    {"subOrderId": "so-1", "amount": 1000000},
-    {"subOrderId": "so-2", "amount": 500000}
-  ]
+    {"subOrderId": "so-1", "amount": 1500000}
+  ],
+  "extendInfo": {
+    "orderType": "GRAB_FOOD"
+  }
 }

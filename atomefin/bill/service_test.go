@@ -213,6 +213,35 @@ func TestService_BillDetail_Success(t *testing.T) {
 	}
 }
 
+func TestService_BillDetailWithParams_Pagination(t *testing.T) {
+	var gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","bill":{"billId":"202605","billMonth":"202605","billTotalAmount":800000,"outstandingAmount":800000,"repaidAmount":0,"principalAmount":780000,"interestAmount":20000,"dueDate":"20260615","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE"}}}`))
+	}))
+	defer srv.Close()
+
+	c := mustClient(t, srv)
+	_, err := bill.New(c).BillDetailWithParams(context.Background(), &bill.BillDetailParams{
+		BillID:               "202605",
+		ExternalReferenceUID: "u-1",
+		Start:                11,
+		Count:                20,
+	})
+	if err != nil {
+		t.Fatalf("BillDetailWithParams: %v", err)
+	}
+	if gotPath != "/billDetail" {
+		t.Errorf("path = %q", gotPath)
+	}
+	wantQuery := "billId=202605&count=20&externalReferenceUid=u-1&start=11"
+	if gotQuery != wantQuery {
+		t.Errorf("RawQuery = %q, want %q", gotQuery, wantQuery)
+	}
+}
+
 func TestService_BillDetail_RejectsEmptyBillID(t *testing.T) {
 	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("server must NOT be reached on empty billID")
@@ -227,6 +256,18 @@ func TestService_BillDetail_RejectsEmptyExternalReferenceUID(t *testing.T) {
 	})))
 	_, err := bill.New(c).BillDetail(context.Background(), "202605", "")
 	mustValidationError(t, err, "externalReferenceUid")
+}
+
+func TestService_BillDetailWithParams_RejectsCountOverMax(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server must NOT be reached on invalid count")
+	})))
+	_, err := bill.New(c).BillDetailWithParams(context.Background(), &bill.BillDetailParams{
+		BillID:               "202605",
+		ExternalReferenceUID: "u-1",
+		Count:                51,
+	})
+	mustValidationError(t, err, "count")
 }
 
 // ---------- BillsUnpaid ----------

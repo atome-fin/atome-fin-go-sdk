@@ -77,7 +77,7 @@ func TestAuth_Validate_RejectsEmptySubOrderID(t *testing.T) {
 		ExternalReferenceUID: "u",
 		TotalAmount:          1,
 		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{{SubOrderID: "", Amount: 1, Quantity: 1, SkuID: "sku", CategoryID: "c", CategoryOneName: "n", MerchantID: "m"}},
+		SubOrders:            []payment.SubOrder{{SubOrderID: "", Amount: 1, MerchantID: "m"}},
 		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}
@@ -119,6 +119,52 @@ func TestAuth_Validate_RejectsLongSessionid(t *testing.T) {
 	mustValidationError(t, err, "sessionid")
 }
 
+func TestAuth_Validate_RejectsMissingSKUFields(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server must NOT be reached on validation failure")
+	})))
+	base := func(infos []payment.MainOrderExtendInfo) *payment.AuthRequest {
+		ext := specSampleRequestExtendInfo()
+		ext.MainOrderExtendInfos = infos
+		return &payment.AuthRequest{
+			RequestID:            "r",
+			ExternalReferenceUID: "u",
+			TotalAmount:          1,
+			PeriodType:           1,
+			SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+			ExtendInfo:           ext,
+			Sessionid:            "s",
+		}
+	}
+	cases := []struct {
+		name      string
+		infos     []payment.MainOrderExtendInfo
+		wantField string
+	}{
+		{"empty-array", nil, "mainOrderExtendInfos"},
+		{"missing-merchantId", []payment.MainOrderExtendInfo{{
+			SkuInfos: []payment.SkuInfo{{SkuID: "sku-1", Amount: 1}},
+		}}, "merchantId"},
+		{"empty-skuInfos", []payment.MainOrderExtendInfo{{
+			MerchantID: "merchant-1",
+		}}, "skuInfos"},
+		{"missing-skuId", []payment.MainOrderExtendInfo{{
+			MerchantID: "merchant-1",
+			SkuInfos:   []payment.SkuInfo{{Amount: 1}},
+		}}, "skuId"},
+		{"zero-sku-amount", []payment.MainOrderExtendInfo{{
+			MerchantID: "merchant-1",
+			SkuInfos:   []payment.SkuInfo{{SkuID: "sku-1", Amount: 0}},
+		}}, "amount"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := payment.New(c).Auth(context.Background(), base(tc.infos))
+			mustValidationError(t, err, tc.wantField)
+		})
+	}
+}
+
 func TestAuth_Validate_RejectsBadCreditScore(t *testing.T) {
 	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
 	bad := 1.5
@@ -132,6 +178,10 @@ func TestAuth_Validate_RejectsBadCreditScore(t *testing.T) {
 		ExtendInfo: &payment.RequestExtendInfo{
 			OrderType:       payment.OrderTypeGrabFood,
 			UserCreditScore: &bad,
+			MainOrderExtendInfos: []payment.MainOrderExtendInfo{{
+				MerchantID: "m",
+				SkuInfos:   []payment.SkuInfo{{SkuID: "sku-1", Amount: 1}},
+			}},
 		},
 	}
 	_, err := payment.New(c).Auth(context.Background(), req)

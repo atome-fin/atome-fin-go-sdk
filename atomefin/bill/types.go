@@ -146,6 +146,15 @@ type BillsUnpaidParams struct {
 	ExternalReferenceUID string
 }
 
+// BillDetailParams are the query params for GET /billDetail.
+type BillDetailParams struct {
+	// BillID identifies the bill month. Format: yyyyMM. Example: 202607.
+	BillID               string
+	ExternalReferenceUID string
+	Start                int
+	Count                int
+}
+
 // ---------- Response envelopes ----------
 
 // BillsResponse is the GET /bills outer envelope.
@@ -175,17 +184,17 @@ type BillUnpaid struct {
 	BilledPrincipalAmountToBeRepaid atomefin.Amount `json:"billedPrincipalAmountToBeRepaid"`
 	BilledInterestAmountToBeRepaid  atomefin.Amount `json:"billedInterestAmountToBeRepaid"`
 	BilledLateFeeAmountToBeRepaid   atomefin.Amount `json:"billedLateFeeAmountToBeRepaid"`
-	BilledCurrentBillID             string          `json:"billedCurrentBillId,omitempty"`
-	OverdueStatus                   OverdueStatus   `json:"overdueStatus,omitempty"`
-	DaysPastDue                     int             `json:"daysPastDue,omitempty"`
-	BilledCurrentDueDate            string          `json:"billedCurrentDueDate,omitempty"`
-	BilledCurrentBillDate           string          `json:"billedCurrentBillDate,omitempty"`
-	BilledCurrentStartDate          string          `json:"billedCurrentStartDate,omitempty"`
-	BilledCurrentEndDate            string          `json:"billedCurrentEndDate,omitempty"`
-	TotalAmountToBeRepaid           atomefin.Amount `json:"totalAmountToBeRepaid,omitempty"`
-	TotalPrincipalAmountToBeRepaid  atomefin.Amount `json:"totalPrincipalAmountToBeRepaid,omitempty"`
-	TotalInterestAmountToBeRepaid   atomefin.Amount `json:"totalInterestAmountToBeRepaid,omitempty"`
-	TotalLateFeeAmountToBeRepaid    atomefin.Amount `json:"totalLateFeeAmountToBeRepaid,omitempty"`
+	BilledCurrentBillID             string          `json:"billedCurrentBillId"`
+	OverdueStatus                   OverdueStatus   `json:"overdueStatus"`
+	DaysPastDue                     int             `json:"daysPastDue"`
+	BilledCurrentDueDate            string          `json:"billedCurrentDueDate"`
+	BilledCurrentBillDate           string          `json:"billedCurrentBillDate"`
+	BilledCurrentStartDate          string          `json:"billedCurrentStartDate"`
+	BilledCurrentEndDate            string          `json:"billedCurrentEndDate"`
+	TotalAmountToBeRepaid           atomefin.Amount `json:"totalAmountToBeRepaid"`
+	TotalPrincipalAmountToBeRepaid  atomefin.Amount `json:"totalPrincipalAmountToBeRepaid"`
+	TotalInterestAmountToBeRepaid   atomefin.Amount `json:"totalInterestAmountToBeRepaid"`
+	TotalLateFeeAmountToBeRepaid    atomefin.Amount `json:"totalLateFeeAmountToBeRepaid"`
 }
 
 // IsSuccess reports whether the envelope's Code is SUCCESS. Nil-safe.

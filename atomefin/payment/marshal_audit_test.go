@@ -119,13 +119,19 @@ func TestR10_AuthRequest_TotalAmount(t *testing.T) {
 func TestR10_SubOrder_Amount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[payment.SubOrder](t, func(v int64) payment.SubOrder {
 		return payment.SubOrder{
-			SubOrderID:      "so-1",
-			SkuID:           "sku-1",
-			CategoryID:      "cat-1",
-			CategoryOneName: "Food",
-			MerchantID:      "merchant-1",
-			Amount:          v,
-			Quantity:        1,
+			SubOrderID: "so-1",
+			MerchantID: "merchant-1",
+			Amount:     v,
+		}
+	})
+}
+
+func TestR10_SkuInfo_Amount(t *testing.T) {
+	marshal.AssertAmountRoundtrip[payment.SkuInfo](t, func(v int64) payment.SkuInfo {
+		return payment.SkuInfo{
+			SkuID:    "sku-1",
+			Quantity: 1,
+			Amount:   v,
 		}
 	})
 }
@@ -152,7 +158,7 @@ func TestR10_AccountChanges_Deltas(t *testing.T) {
 // ---------- R11 — fractional decode of an amount field fails loudly ----------
 
 func TestR11_RejectsFractionalAmount(t *testing.T) {
-	body := []byte(`{"subOrderId":"so-1","quantity":1,"amount":1.5}`)
+	body := []byte(`{"subOrderId":"so-1","merchantId":"m-1","amount":1.5}`)
 	marshal.AssertRejectsFractionalAmount[payment.SubOrder](t, body)
 }
 
@@ -179,7 +185,6 @@ func TestR12_AuthRequest_IntegerLiterals(t *testing.T) {
 			func() payment.SubOrder {
 				so := specSampleSubOrder(500000)
 				so.SubOrderID = "so-2"
-				so.Quantity = 2
 				return so
 			}(),
 		},
@@ -218,6 +223,28 @@ func TestR4_AuthRequest_RequiredEmitsAtZero(t *testing.T) {
 		"requestId", "externalReferenceUid", "totalAmount", "periodType",
 		"extendInfo",
 	)
+}
+
+func TestMainOrderExtendInfo_Roundtrip(t *testing.T) {
+	marshal.DeepEqualRoundTrip[payment.RequestExtendInfo](t, payment.RequestExtendInfo{
+		OrderType: payment.OrderTypeGrabMart,
+		MainOrderExtendInfos: []payment.MainOrderExtendInfo{
+			{
+				MerchantID: "merchant-1",
+				SkuInfos: []payment.SkuInfo{
+					{
+						SkuID:           "sku-1",
+						SkuName:         "Indomie",
+						CategoryID:      "cat-1",
+						CategoryOneName: "Food",
+						CategoryCodes:   []string{"GROCERY"},
+						Quantity:        2,
+						Amount:          1000000,
+					},
+				},
+			},
+		},
+	})
 }
 
 // ---------- Position-scoped enum ----------

@@ -273,6 +273,13 @@ func TestValidateCreditApplication_Internal(t *testing.T) {
 	if err := validateCreditApplication(base()); err != nil {
 		t.Errorf("valid base request: validateCreditApplication = %v; want nil", err)
 	}
+	optionalLiveness := base()
+	optionalLiveness.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult01 = ""
+	optionalLiveness.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult02 = ""
+	optionalLiveness.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult03 = ""
+	if err := validateCreditApplication(optionalLiveness); err != nil {
+		t.Errorf("livenessCheckResult01/02/03 optional: validateCreditApplication = %v; want nil", err)
+	}
 	if err := validateCreditInformation(internalValidInformationParam()); err != nil {
 		t.Errorf("valid base request: validateCreditInformation = %v; want nil", err)
 	}

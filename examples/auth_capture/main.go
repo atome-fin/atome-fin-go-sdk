@@ -87,20 +87,15 @@ func main() {
 		PeriodType:           int(envInt64("ATOME_FIN_PERIOD_TYPE", 3)),
 		SubOrders: []payment.SubOrder{
 			{
-				SubOrderID:      "so-1",
-				Amount:          envInt64("ATOME_FIN_TOTAL_AMOUNT", 1500000),
-				Quantity:        1,
-				SkuID:           "sku-1",
-				SkuName:         "Demo widget",
-				CategoryID:      "cat-1",
-				CategoryOneName: "Food",
-				MerchantID:      "merchant-1",
+				SubOrderID:       "so-1",
+				Amount:           envInt64("ATOME_FIN_TOTAL_AMOUNT", 1500000),
+				MerchantID:       "merchant-1",
+				MerchantName:     "Demo merchant",
+				MerchantCategory: "RETAIL",
 			},
 		},
-		ExtendInfo: &payment.RequestExtendInfo{
-			OrderType: payment.OrderTypeGrabFood,
-		},
-		Sessionid: mustEnv("ATOME_FIN_SESSION_ID"),
+		ExtendInfo: buildExtendInfo(envInt64("ATOME_FIN_TOTAL_AMOUNT", 1500000)),
+		Sessionid:  mustEnv("ATOME_FIN_SESSION_ID"),
 	}
 
 	authResp, err := svc.Auth(ctx, authReq)
@@ -180,4 +175,35 @@ func envInt64(key string, fallback int64) int64 {
 		log.Fatalf("env %s: %v", key, err)
 	}
 	return n
+}
+
+// buildExtendInfo builds the minimal spec-valid RequestExtendInfo for
+// the pinned white-label G swagger (2026-08-14).
+func buildExtendInfo(amount int64) *payment.RequestExtendInfo {
+	return &payment.RequestExtendInfo{
+		OrderType:     payment.OrderTypeGrabFood,
+		CreditProfile: payment.CreditProfile(envOr("ATOME_FIN_CREDIT_PROFILE", `{"score":720}`)),
+		DeviceInfo: &payment.DeviceInfo{
+			Platform: payment.PlatformAndroid,
+			Device: &payment.DeviceProfile{
+				DeviceID:            "dev-demo",
+				GoogleAdvertisingID: "gaid-demo",
+				UTDID:               "utdid-demo",
+				Build: &payment.BuildInfo{
+					Board: "sdm845", Brand: "xiaomi", Device: "dipper",
+					Manufacturer: "Xiaomi", Model: "MI 8", Product: "dipper",
+				},
+			},
+			WifiList:  []payment.WifiAP{{SSID: "ssid-demo"}},
+			IPAddress: &payment.IPAddress{EthIP: "10.0.0.2", TrueIP: "203.0.113.7"},
+		},
+		Address: &payment.Address{
+			ShippingAddress: &payment.ShippingAddress{City: "Jakarta", Address1: "Jl. Sudirman No. 1"},
+			ShippingName:    "Budi Santoso",
+			ShippingPhoneNo: "+6281234567890",
+		},
+		MainOrderExtendInfos: []payment.MainOrderExtendInfo{
+			{MerchantID: "merchant-1", SkuInfos: []payment.SkuInfo{{SkuID: "sku-1", Amount: atomefin.Amount(amount)}}},
+		},
+	}
 }

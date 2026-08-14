@@ -12,18 +12,29 @@ import (
 // stays compilable independently of the rest of the SDK.
 
 type sampleSubOrder struct {
-	SubOrderID      string `json:"subOrderId"`
-	Amount          int64  `json:"amount"`
-	Quantity        int    `json:"quantity"`
-	SkuID           string `json:"skuId"`
-	CategoryID      string `json:"categoryId"`
-	CategoryOneName string `json:"categoryOneName"`
-	MerchantID      string `json:"merchantId"`
+	SubOrderID       string `json:"subOrderId"`
+	MerchantID       string `json:"merchantId,omitempty"`
+	MerchantName     string `json:"merchantName,omitempty"`
+	MerchantCategory string `json:"merchantCategory,omitempty"`
+	Amount           int64  `json:"amount"`
+}
+
+type sampleSkuInfo struct {
+	SkuID  string `json:"skuId,omitempty"`
+	Amount int64  `json:"amount"`
+}
+
+type sampleMainOrder struct {
+	MerchantID string          `json:"merchantId,omitempty"`
+	SkuInfos   []sampleSkuInfo `json:"skuInfos,omitempty"`
 }
 
 type sampleExtend struct {
-	OrderType string `json:"orderType,omitempty"`
-	Address   string `json:"address,omitempty"`
+	OrderType            string            `json:"orderType,omitempty"`
+	CreditProfile        string            `json:"creditProfile,omitempty"`
+	DeviceInfo           map[string]any    `json:"deviceInfo,omitempty"`
+	Address              map[string]any    `json:"address,omitempty"`
+	MainOrderExtendInfos []sampleMainOrder `json:"mainOrderExtendInfos,omitempty"`
 }
 
 type sampleAuthRequest struct {
@@ -120,7 +131,7 @@ func TestDeepEqualRoundTrip_Programmatic(t *testing.T) {
 		SubOrders: []sampleSubOrder{
 			{SubOrderID: "so-1", Amount: 1_500_000},
 		},
-		ExtendInfo: &sampleExtend{Address: "南京路 123 号"}, // Unicode (R9)
+		ExtendInfo: &sampleExtend{CreditProfile: "南京路 123 号"}, // Unicode (R9)
 	}
 	DeepEqualRoundTrip[sampleAuthRequest](t, in)
 }

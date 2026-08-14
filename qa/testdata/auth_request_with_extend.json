@@ -6,29 +6,16 @@
   "subOrders": [
     {
       "subOrderId": "so-1",
-      "amount": 1000000,
-      "quantity": 1,
-      "skuId": "sku-001",
-      "skuName": "Widget Pro",
-      "categoryId": "cat-electronics",
-      "categoryOneName": "Electronics",
-      "categoryCodes": ["ELEC", "GADGET"],
-      "merchantId": "merchant-foo"
-    },
-    {
-      "subOrderId": "so-2",
-      "amount": 500000,
-      "quantity": 2,
-      "skuId": "sku-002",
-      "skuName": "Widget Mini",
-      "categoryId": "cat-electronics",
-      "categoryOneName": "Electronics",
-      "merchantId": "merchant-foo"
+      "merchantId": "merchant-foo",
+      "merchantName": "Widget Store",
+      "merchantCategory": "ELECTRONICS",
+      "amount": 1500000
     }
   ],
   "extendInfo": {
     "orderType": "GRAB_FOOD",
     "userCreditScore": 0.85,
+    "creditProfile": "{\"score\":720}",
     "deviceInfo": {
       "platform": "ANDROID",
       "gps": {"longitude": "106.8456", "latitude": "-6.2088", "time": "1746489600000"},
@@ -67,6 +54,22 @@
     "riskInfo": {
       "driverInfo": {"averageRating": 4.9, "isVerified": true},
       "tripMetadata": {"estimatedDistance": 12.4, "pickupLocation": "Mall Entrance"}
-    }
+    },
+    "mainOrderExtendInfos": [
+      {
+        "merchantId": "merchant-foo",
+        "skuInfos": [
+          {
+            "skuId": "sku-001",
+            "skuName": "Widget Pro",
+            "categoryId": "cat-electronics",
+            "categoryOneName": "Electronics",
+            "categoryCodes": ["ELEC", "GADGET"],
+            "quantity": 1,
+            "amount": 1500000
+          }
+        ]
+      }
+    ]
   }
 }

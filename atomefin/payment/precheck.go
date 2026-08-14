@@ -17,9 +17,9 @@ type PaymentPreCheckRequest struct {
 	// TotalAmount in minor units; Σ(SubOrders[].Amount) must equal.
 	TotalAmount atomefin.Amount `json:"totalAmount"`
 	// SubOrders enumerates the cart contents to evaluate (PlanSubOrder shape).
-	SubOrders []PlanSubOrder `json:"subOrders"`
-	// ExtendInfo carries checkout extension fields. Required by the
-	// spec because extendInfo.orderType drives risk routing.
+	SubOrders []PlanSubOrder `json:"subOrders,omitempty"`
+	// ExtendInfo carries orderType. Required by the spec
+	// (BasePaymentPrecheckRequest).
 	ExtendInfo *PreCheckExtendInfo `json:"extendInfo"`
 
 	// RequestID is client-side only for idempotency logging; not in the
@@ -28,6 +28,8 @@ type PaymentPreCheckRequest struct {
 }
 
 // PreCheckExtendInfo is the extendInfo bag on /payment-precheck.
+// Per the spec's PaymentPrecheckExtendInfo it carries orderType only.
+// Sub-order fields are all optional for every scenario.
 type PreCheckExtendInfo struct {
 	OrderType PaymentOrderType `json:"orderType"`
 }
@@ -106,27 +108,28 @@ func validatePaymentPreCheckRequest(req *PaymentPreCheckRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
-	if len(req.SubOrders) == 0 {
-		return &atomefin.ValidationError{Field: "subOrders", Message: "must be non-empty"}
-	}
-	var sum atomefin.Amount
-	for _, so := range req.SubOrders {
-		if err := validatePlanSubOrder(so); err != nil {
-			return err
-		}
-		sum += so.Amount
-	}
-	if sum != req.TotalAmount {
-		return &atomefin.ValidationError{
-			Field:   "totalAmount",
-			Message: "must equal sum of subOrders[].amount",
-		}
-	}
 	if req.ExtendInfo == nil {
 		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
 	}
 	if !req.ExtendInfo.OrderType.IsValid() {
-		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART | SPECIALIZED_DELIVERY"}
+		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: validOrderTypesMsg}
+	}
+	// Per spec: ALL subOrders fields are optional on /payment-precheck
+	// for every scenario; subOrders itself may be omitted entirely.
+	switch req.ExtendInfo.OrderType {
+	case OrderTypeGrabFood, OrderTypeTransport:
+		if len(req.SubOrders) > 1 {
+			return &atomefin.ValidationError{
+				Field:   "subOrders",
+				Message: "must contain at most one entry for " + string(req.ExtendInfo.OrderType),
+			}
+		}
+	}
+	if len(req.SubOrders) > 0 && sumPlanSubOrderAmount(req.SubOrders) != req.TotalAmount {
+		return &atomefin.ValidationError{
+			Field:   "totalAmount",
+			Message: "must equal sum of subOrders[].amount",
+		}
 	}
 	return nil
 }

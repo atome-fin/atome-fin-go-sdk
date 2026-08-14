@@ -53,7 +53,7 @@ func TestDemo_MockSurface(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{demoSubOrder(1500000)},
-		ExtendInfo:           &payment.RequestExtendInfo{OrderType: payment.OrderTypeGrabFood},
+		ExtendInfo:           demoExtendInfo(1500000),
 		Sessionid:            "demo-session",
 	})
 	if err != nil {
@@ -71,7 +71,7 @@ func TestDemo_MockSurface(t *testing.T) {
 		TotalAmount:          1500000,
 		PeriodType:           3,
 		SubOrders:            []payment.SubOrder{demoSubOrder(1500000)},
-		ExtendInfo:           &payment.RequestExtendInfo{OrderType: payment.OrderTypeGrabFood},
+		ExtendInfo:           demoExtendInfo(1500000),
 	})
 	if err != nil {
 		t.Fatalf("Capture: %v", err)

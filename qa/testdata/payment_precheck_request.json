@@ -3,23 +3,7 @@
   "totalAmount": 1500000,
   "subOrders": [
     {
-      "subOrderId": "so-1",
-      "skuId": "sku-1",
-      "categoryId": "cat-1",
-      "categoryOneName": "Food",
-      "merchantId": "merchant-1",
-      "amount": 1000000,
-      "quantity": 1,
-      "skuName": "Widget Pro"
-    },
-    {
-      "subOrderId": "so-2",
-      "skuId": "sku-2",
-      "categoryId": "cat-1",
-      "categoryOneName": "Food",
-      "merchantId": "merchant-1",
-      "amount": 500000,
-      "quantity": 2
+      "amount": 1500000
     }
   ],
   "extendInfo": {

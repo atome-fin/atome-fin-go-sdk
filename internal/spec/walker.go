@@ -152,6 +152,35 @@ func collectRequired(node *yaml.Node, prefix string, out *[]string, seen map[str
 		node = resolved
 	}
 
+	// oneOf / anyOf: keep the intersection of required paths so
+	// scenario overlays (GRAB_MART / GRAB_FOOD / TRANSPORT) only
+	// contribute fields required in every variant.
+	if combo := firstMappingChild(node, "oneOf", "anyOf"); combo != nil && combo.Kind == yaml.SequenceNode && len(combo.Content) > 0 {
+		var inter []string
+		for i, child := range combo.Content {
+			var branch []string
+			collectRequired(child, prefix, &branch, map[string]bool{}, s, depth+1)
+			if i == 0 {
+				inter = branch
+				continue
+			}
+			inter = intersectPaths(inter, branch)
+		}
+		for _, path := range inter {
+			if !seen[path] {
+				seen[path] = true
+				*out = append(*out, path)
+			}
+		}
+	}
+
+	// allOf: union — every branch applies.
+	if allOf := mappingChild(node, "allOf"); allOf != nil && allOf.Kind == yaml.SequenceNode {
+		for _, child := range allOf.Content {
+			collectRequired(child, prefix, out, seen, s, depth+1)
+		}
+	}
+
 	// Required array at this level.
 	if req := mappingChild(node, "required"); req != nil && req.Kind == yaml.SequenceNode {
 		for _, n := range req.Content {
@@ -198,6 +227,29 @@ func (s *Spec) resolveRef(ref string) *yaml.Node {
 		}
 	}
 	return nil
+}
+
+func firstMappingChild(node *yaml.Node, keys ...string) *yaml.Node {
+	for _, key := range keys {
+		if child := mappingChild(node, key); child != nil {
+			return child
+		}
+	}
+	return nil
+}
+
+func intersectPaths(a, b []string) []string {
+	set := make(map[string]bool, len(b))
+	for _, p := range b {
+		set[p] = true
+	}
+	out := make([]string, 0, len(a))
+	for _, p := range a {
+		if set[p] {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func joinPath(prefix, name string) string {

@@ -93,9 +93,14 @@ func TestLoadDefault_BodyRequired_NestedSubOrders(t *testing.T) {
 		"externalReferenceUid",
 		"requestId",
 		"totalAmount",
-		"subOrders[].subOrderId",
+		"periodType",
+		"subOrders",
+		"extendInfo",
 		"subOrders[].amount",
-		"subOrders[].quantity",
+		"extendInfo.orderType",
+		"extendInfo.creditProfile",
+		"extendInfo.deviceInfo",
+		"extendInfo.address",
 	} {
 		if !contains(auth.RequiredBody, want) {
 			t.Errorf("POST /auth body missing required path %q (got %v)", want, auth.RequiredBody)
@@ -176,15 +181,26 @@ func TestServer_POST_RejectsMissingNestedRequired(t *testing.T) {
 	srv := specserver.New(t)
 
 	// /auth body present at top level but a subOrders[] element
-	// missing subOrderId. The walker's nested validation should
-	// flag this as missing "subOrders[0].subOrderId".
+	// missing amount (required in every scenario). The walker's
+	// nested validation should flag this as missing
+	// "subOrders[0].amount".
 	body := strings.NewReader(`{
 		"requestId":"r-1",
 		"externalReferenceUid":"u-1",
 		"totalAmount":1000,
 		"periodType":1,
-		"subOrders":[{"amount":1000,"quantity":1}],
-		"extendInfo":{"orderType":"GRAB_FOOD"}
+		"subOrders":[{"subOrderId":"so-1","merchantId":"m"}],
+		"extendInfo":{
+			"orderType":"GRAB_FOOD",
+			"creditProfile":"{}",
+			"deviceInfo":{
+				"platform":"ANDROID",
+				"device":{"deviceId":"d","googleAdvertisingId":"g","isRoot":false,"build":{"board":"b","brand":"b","device":"d","manufacturer":"m","model":"m","product":"p"}},
+				"wifiList":[{"ssid":"s"}],
+				"ipAddress":{"ethIp":"10.0.0.1","trueIp":"1.1.1.1"}
+			},
+			"address":{"shippingName":"n","shippingPhoneNo":"p","shippingAddress":{"city":"Jakarta","address1":"a"}}
+		}
 	}`)
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/auth", body)
 	if err != nil {
@@ -207,11 +223,8 @@ func TestServer_POST_RejectsMissingNestedRequired(t *testing.T) {
 	if len(failures) != 1 {
 		t.Fatalf("failures = %d, want 1", len(failures))
 	}
-	if !strings.Contains(failures[0].Field, "categoryId") &&
-		!strings.Contains(failures[0].Field, "subOrderId") &&
-		!strings.Contains(failures[0].Field, "skuId") &&
-		!strings.Contains(failures[0].Field, "merchantId") {
-		t.Errorf("field = %q; want a nested subOrders[] required-field reference", failures[0].Field)
+	if !strings.Contains(failures[0].Field, "amount") {
+		t.Errorf("field = %q; want a nested subOrders[] amount reference", failures[0].Field)
 	}
 }
 

@@ -38,6 +38,17 @@ type RefundParam struct {
 	// much of each. Required, non-empty. Renamed v0.2.3 from
 	// `SubOrderRefunds` to match the 2026-05-06 spec snapshot.
 	SubOrders []SubOrderRefundRequest `json:"subOrders"`
+	// ExtendInfo carries refund scenario information. Required per
+	// spec (RefundExtendInfo); orderType drives the scenario rules
+	// on subOrders (entry count, merchantId requiredness).
+	ExtendInfo *RefundExtendInfo `json:"extendInfo"`
+}
+
+// RefundExtendInfo is the refund scenario block (spec's
+// RefundExtendInfo). OrderType is required.
+type RefundExtendInfo struct {
+	// OrderType is the Grab order business line. Required per spec.
+	OrderType string `json:"orderType"`
 }
 
 // SubOrderRefundRequest is one line in RefundParam.SubOrders.
@@ -47,11 +58,12 @@ type RefundParam struct {
 // SubOrderRefundRequest component.
 type SubOrderRefundRequest struct {
 	// SubOrderID identifies the line — must match a SubOrderID that
-	// was on the original /capture.
-	SubOrderID string `json:"subOrderId"`
+	// was on the original /capture. Optional per spec.
+	SubOrderID string `json:"subOrderId,omitempty"`
+	// MerchantID is required for GRAB_MART; optional for GRAB_FOOD
+	// and TRANSPORT per spec (SubOrderRefundRequest).
+	MerchantID string `json:"merchantId,omitempty"`
 	// Quantity is the number of units being refunded for this line.
-	// Optional per spec (only subOrderId + amount are required);
-	// omit when refunding by amount only.
 	Quantity int `json:"quantity,omitempty"`
 	// Amount is the per-line refund value in minor units.
 	Amount atomefin.Amount `json:"amount"`
@@ -99,13 +111,14 @@ type RefundResult struct {
 	AccountChanges       *repayment.CommerceAccountChanges `json:"accountChanges,omitempty"`
 }
 
-// SubOrderRefundInfo is one line in RefundResult.SubOrderRefundInfos.
-// Mirrors SubOrderRefundRequest in shape; the response carries the
-// same fields the request did, optionally annotated by the server
-// with terminal-state metadata.
+// SubOrderRefundInfo is one line in RefundResult.SubOrders —
+// the merchant-dimension refund result. Mirrors the request's
+// SubOrderRefundRequest; merchantId is echoed when sent (required
+// for GRAB_MART per MartSubOrderRefundInfo).
 type SubOrderRefundInfo struct {
-	SubOrderID           string                    `json:"subOrderId"`
-	Quantity             int                       `json:"quantity"`
+	SubOrderID           string                    `json:"subOrderId,omitempty"`
+	MerchantID           string                    `json:"merchantId,omitempty"`
+	Quantity             int                       `json:"quantity,omitempty"`
 	TotalAmount          atomefin.Amount           `json:"totalAmount,omitempty"`
 	PrincipalAmount      atomefin.Amount           `json:"principalAmount,omitempty"`
 	InterestAmount       atomefin.Amount           `json:"interestAmount,omitempty"`

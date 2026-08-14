@@ -91,6 +91,7 @@ func TestService_Refund_Success(t *testing.T) {
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1000},
 		},
+		ExtendInfo: &refund.RefundExtendInfo{OrderType: "GRAB_FOOD"},
 	})
 	if err != nil {
 		t.Fatalf("Refund: %v", err)
@@ -124,6 +125,7 @@ func TestService_Refund_AutoMintsRequestID(t *testing.T) {
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1},
 		},
+		ExtendInfo: &refund.RefundExtendInfo{OrderType: "GRAB_FOOD"},
 	}
 	if _, err := refund.New(c).Refund(context.Background(), req); err != nil {
 		t.Fatalf("Refund: %v", err)
@@ -153,6 +155,7 @@ func TestService_Refund_4xxBecomesAPIError(t *testing.T) {
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1},
 		},
+		ExtendInfo: &refund.RefundExtendInfo{OrderType: "GRAB_FOOD"},
 	})
 	var ae *atomefin.APIError
 	if !errors.As(err, &ae) {
@@ -238,6 +241,7 @@ func TestService_RefundPollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1},
 		},
+		ExtendInfo: &refund.RefundExtendInfo{OrderType: "GRAB_FOOD"},
 	}, payment.PollOptions{
 		MaxWait:      2 * time.Second,
 		InitialDelay: 1 * time.Millisecond,
@@ -335,13 +339,13 @@ func TestRefund_Validate_TableDriven(t *testing.T) {
 			RefundAmount:         1,
 			SubOrders:            []refund.SubOrderRefundRequest{},
 		}, "subOrders"},
-		{"empty-subOrderId", &refund.RefundParam{
+		{"missing-extendInfo", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			CaptureRequestID:     "C",
 			RefundAmount:         1,
-			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "", Amount: 1}},
-		}, "subOrderId"},
+			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
+		}, "extendInfo.orderType"},
 		{"zero-sub-amount", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",

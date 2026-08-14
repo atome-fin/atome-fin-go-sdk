@@ -94,14 +94,26 @@ func TestR12_RefundParam_IntegerLiterals(t *testing.T) {
 // ---------- R3/R4 — omitempty / required-emit on RefundParam ----------
 
 func TestR3_RefundParam_OmitsNothingExtra(t *testing.T) {
-	// RefundParam currently has no optional fields, so this is a
-	// boundary check — ensure the zero value doesn't inadvertently
-	// emit a stray key from a future addition.
-	marshal.AssertOmitemptyZero[refund.RefundParam](t)
+	// extendInfo is required on the wire (no omitempty). Quantity on
+	// the request sub-order is optional.
+	marshal.AssertOmitemptyZero[refund.SubOrderRefundRequest](t, "quantity")
 }
 
 func TestR4_RefundParam_RequiredEmitsAtZero(t *testing.T) {
 	marshal.AssertRequiredEmits[refund.RefundParam](t,
-		"requestId", "externalReferenceUid", "captureRequestId", "refundAmount", "subOrders",
+		"requestId", "externalReferenceUid", "captureRequestId", "refundAmount", "subOrders", "extendInfo",
 	)
+}
+
+func TestRefundParam_ExtendInfo_Roundtrip(t *testing.T) {
+	marshal.DeepEqualRoundTrip[refund.RefundParam](t, refund.RefundParam{
+		RequestID:            "r",
+		ExternalReferenceUID: "u",
+		CaptureRequestID:     "C",
+		RefundAmount:         1000000,
+		SubOrders: []refund.SubOrderRefundRequest{
+			{SubOrderID: "so-1", Amount: 1000000},
+		},
+		ExtendInfo: &refund.RefundExtendInfo{OrderType: "GRAB_MART"},
+	})
 }

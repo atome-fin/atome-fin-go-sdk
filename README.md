@@ -50,13 +50,18 @@ res, err := payment.New(c).Auth(ctx, &payment.AuthRequest{
     PeriodType:           3,
     SubOrders: []payment.SubOrder{
         {
-            SubOrderID: "so-1", Amount: 1500000, Quantity: 1,
-            SkuID: "sku-1", CategoryID: "cat-1",
-            CategoryOneName: "Food", MerchantID: "merchant-1",
+            SubOrderID: "so-1", MerchantID: "merchant-1",
+            Amount: 1500000,
         },
     },
     ExtendInfo: &payment.RequestExtendInfo{
-        OrderType: payment.OrderTypeGrabFood,
+        OrderType:     payment.OrderTypeGrabFood,
+        CreditProfile: `{"score":720}`,
+        MainOrderExtendInfos: []payment.MainOrderExtendInfo{{
+            MerchantID: "merchant-1",
+            SkuInfos:   []payment.SkuInfo{{SkuID: "sku-1", Amount: 1500000}},
+        }},
+        // deviceInfo + address required on /auth and /capture
     },
     Sessionid: "session-token-from-checkout", // travels via HTTP `sessionid` header
 })

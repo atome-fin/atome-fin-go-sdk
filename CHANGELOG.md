@@ -7,6 +7,119 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.9.0] — 2026-08-14
+
+Syncs the SDK to the upstream **GrabPayLater** Partner API spec
+(white-label `G`, pinned `swagger-2026-08-14-d8b60434.yaml`). Checkout
+moves from SKU-on-subOrder to **merchant-dimension** `subOrders` plus
+`extendInfo.mainOrderExtendInfos[].skuInfos[]`.
+
+Minor bump (honest semver): request / response shapes and client-side
+validation rules change in ways that require partner call-site updates.
+
+### Added
+
+- **`payment.SkuInfo`** / **`payment.MainOrderExtendInfo`** — SKU
+  detail now lives under `extendInfo.mainOrderExtendInfos[]` on
+  `/payment-plan`, `/auth`, and `/capture`.
+- **`payment.PaymentPlanDataExtendInfo.SessionID`** — Atome-issued
+  checkout session (`data.extendInfo.sessionId`, max 64, valid 2h);
+  pass it as the `sessionid` header on `POST /auth`.
+- **`payment.RiplayInfo`** / **`riplayInfoList`** — per-tenor
+  disclosure URLs on the `/payment-plan` response.
+- **`refund.RefundParam.ExtendInfo`** — required `orderType` on
+  `POST /refund`.
+- **`bill.BillDetailParams`** / **`BillDetailWithParams`** — optional
+  `/billDetail` query pagination (`start`, `count`, max 50).
+- **`transaction.TradeBillDetail`** — optional `gracePeriod`,
+  `status`, `repaymentStatus`, `overdueStatus`, `discounts` on
+  `/transactionDetail` bill rows.
+
+### Changed
+
+- **Pinned spec** — `internal/spec/testdata/swagger-2026-08-14-d8b60434.yaml`
+  replaces `swagger-2026-07-20-792f74c1.yaml`.
+- **`payment.SubOrder`** / **`payment.PlanSubOrder`** — merchant
+  rollup only (`subOrderId`, `merchantId`, `merchantName`,
+  `merchantCategory`, `merchantJoinedDate`, `amount`, `periodType`).
+  `skuId` / `quantity` / `categoryId` / `categoryOneName` /
+  `categoryCodes` / `spuId` / `discounts` are no longer on
+  `subOrders[]`.
+- **`payment.PaymentOrderType`** — `SPECIALIZED_DELIVERY` removed;
+  closed set is `TRANSPORT` / `GRAB_FOOD` / `GRAB_MART`.
+- **`POST /payment-plan`** — `sessionid` request header is no longer
+  required (still forwarded when set). Session is returned on the
+  response.
+- **`POST /payment-precheck`** — `subOrders` optional (all fields
+  optional when sent); `extendInfo.orderType` required.
+- **Scenario validation** — GRAB_FOOD / TRANSPORT require exactly one
+  sub-order; GRAB_MART `/payment-plan` requires `merchantId` +
+  `mainOrderExtendInfos`; GRAB_FOOD / GRAB_MART `/auth` `/capture`
+  require `mainOrderExtendInfos`.
+- **`device.utdid`** and credit **`deviceInfo.gps`** are optional.
+- **`credit.LivenessCheck`** — `livenessCheckResult01/02/03` are
+  optional (spec required set is `result` + `snapshotPhoto`).
+- **`bill.BillUnpaid`** — all spec-required fields emit at zero
+  (no `omitempty`).
+- **Spec walker** — resolves `oneOf` / `anyOf` / `allOf` so mock
+  `WithSpecValidation` follows the August scenario overlays.
+
+### Migration
+
+```go
+// /payment-plan — no sessionid header; SKUs under extendInfo
+plan, _ := payment.New(c).PaymentPlan(ctx, &payment.PaymentPlanRequest{
+    ExternalReferenceUID: "user-1",
+    TotalAmount:          1500000,
+    SubOrders: []payment.PlanSubOrder{{
+        MerchantID: "merchant-1", Amount: 1500000, // MART; FOOD/TRANSPORT: amount only
+    }},
+    ExtendInfo: &payment.CheckoutExtendInfo{
+        OrderType: payment.OrderTypeGrabMart,
+        MainOrderExtendInfos: []payment.MainOrderExtendInfo{{
+            MerchantID: "merchant-1",
+            SkuInfos:   []payment.SkuInfo{{SkuID: "sku-1", Amount: 1500000}},
+        }},
+    },
+})
+session := plan.Data.ExtendInfo.SessionID
+
+// /auth — sessionid header from plan; SKUs under extendInfo
+_, _ = payment.New(c).Auth(ctx, &payment.AuthRequest{
+    ExternalReferenceUID: "user-1",
+    TotalAmount:          1500000,
+    PeriodType:           3,
+    SubOrders: []payment.SubOrder{{
+        SubOrderID: "so-1", MerchantID: "merchant-1", Amount: 1500000,
+    }},
+    ExtendInfo: &payment.RequestExtendInfo{
+        OrderType:     payment.OrderTypeGrabMart,
+        CreditProfile: `{"score":720}`,
+        MainOrderExtendInfos: []payment.MainOrderExtendInfo{{
+            MerchantID: "merchant-1",
+            SkuInfos:   []payment.SkuInfo{{SkuID: "sku-1", Amount: 1500000}},
+        }},
+        // deviceInfo + address still required
+    },
+    Sessionid: session,
+})
+
+// /refund — extendInfo.orderType required
+_, _ = refund.New(c).Refund(ctx, &refund.RefundParam{
+    CaptureRequestID:     "CAP-1",
+    ExternalReferenceUID: "user-1",
+    RefundAmount:         1500000,
+    SubOrders:            []refund.SubOrderRefundRequest{{Amount: 1500000, MerchantID: "merchant-1"}},
+    ExtendInfo:           &refund.RefundExtendInfo{OrderType: "GRAB_MART"},
+})
+```
+
+### Verification
+
+- Pinned spec SHA256 prefix `d8b60434` matches the local upstream
+  source at `open-api-document/directories/white-label/G/swagger.yaml`.
+- `go test ./...` green.
+
 ## [0.8.0] — 2026-07-20
 
 Syncs the SDK to the upstream **GrabPayLater** Partner API spec
@@ -1932,7 +2045,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.9.0
 [0.8.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.8.0
 [0.7.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.7.0
 [0.6.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.6.1

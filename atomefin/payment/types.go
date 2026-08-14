@@ -26,16 +26,15 @@ import "github.com/atome-fin/atome-fin-go-sdk/atomefin"
 type PaymentOrderType string
 
 const (
-	OrderTypeTransport           PaymentOrderType = "TRANSPORT"
-	OrderTypeGrabFood            PaymentOrderType = "GRAB_FOOD"
-	OrderTypeGrabMart            PaymentOrderType = "GRAB_MART"
-	OrderTypeSpecializedDelivery PaymentOrderType = "SPECIALIZED_DELIVERY"
+	OrderTypeTransport PaymentOrderType = "TRANSPORT"
+	OrderTypeGrabFood  PaymentOrderType = "GRAB_FOOD"
+	OrderTypeGrabMart  PaymentOrderType = "GRAB_MART"
 )
 
 // IsValid reports whether t is one of the spec-defined order types.
 func (t PaymentOrderType) IsValid() bool {
 	switch t {
-	case OrderTypeTransport, OrderTypeGrabFood, OrderTypeGrabMart, OrderTypeSpecializedDelivery:
+	case OrderTypeTransport, OrderTypeGrabFood, OrderTypeGrabMart:
 		return true
 	}
 	return false
@@ -45,58 +44,67 @@ func (t PaymentOrderType) IsValid() bool {
 // (opaque string on the wire).
 type CreditProfile string
 
-// SubOrder is one line item inside an Auth / Capture request body.
+// SubOrder is one merchant-dimension entry inside an Auth / Capture
+// request body. Per the spec's MerchantSubOrder schema (and the
+// FullMerchantSubOrder / FoodAuthMerchantSubOrder overlays):
 //
-// On /capture the SubOrders slice MUST equal the /auth set byte-for-byte
-// (same items, same order, same amounts) — DESIGN.md §1.4.
+//   - GRAB_MART auth/capture: SubOrderID + MerchantID + Amount
+//     required; MerchantName / MerchantCategory required at the wire
+//     level for Mart; we keep them non-omitempty so an empty value
+//     still serialises (the server validates scenario rules).
+//   - GRAB_FOOD auth/capture: SubOrderID + MerchantID + Amount.
+//   - TRANSPORT: Amount only; exactly one entry.
+//
+// On /capture the SubOrders slice MUST equal the /auth set
+// byte-for-byte (same items, same order, same amounts) — DESIGN.md §1.4.
+//
+// SKU-level detail lives under
+// RequestExtendInfo.MainOrderExtendInfos[].SkuInfos, NOT here.
 type SubOrder struct {
 	// SubOrderID is partner-generated and must be unique within a request.
-	SubOrderID string `json:"subOrderId"`
-	// Amount is the line-item charge in minor units.
-	// Σ over SubOrders MUST equal AuthRequest.TotalAmount.
-	Amount atomefin.Amount `json:"amount"`
-	// Quantity is the number of units; >= 1.
-	Quantity int `json:"quantity"`
-
-	// PeriodType — installment tenor for this line; see Q17 for the
-	// relationship to the order-level periodType.
-	PeriodType *int `json:"periodType,omitempty"`
-	// SkuID — product SKU identifier (required per spec).
-	SkuID string `json:"skuId"`
-	// SkuName — display label.
-	SkuName string `json:"skuName,omitempty"`
-	// SpuID — catalog parent identifier.
-	SpuID string `json:"spuId,omitempty"`
-	// CategoryID — partner taxonomy id (required per spec).
-	CategoryID string `json:"categoryId"`
-	// CategoryOneName — top-level category name (required per spec).
-	CategoryOneName string `json:"categoryOneName"`
-	// CategoryCodes — additional category codes; emit as `[]` not `null`
-	// (R8: required-empty parity).
-	CategoryCodes []string `json:"categoryCodes,omitempty"`
-	// MerchantID — merchant or driver identifier (required per spec).
-	MerchantID string `json:"merchantId"`
-	// MerchantName — merchant or driver display name.
+	// Required for GRAB_MART / GRAB_FOOD on /auth and /capture.
+	SubOrderID string `json:"subOrderId,omitempty"`
+	// MerchantID links this sub-order to a merchant (or driver for
+	// legacy transport integrations). Required for GRAB_MART /
+	// GRAB_FOOD auth/capture.
+	MerchantID string `json:"merchantId,omitempty"`
+	// MerchantName is the merchant display name (Food & Mart).
 	MerchantName string `json:"merchantName,omitempty"`
-	// MerchantCategory — merchant category (Food & Mart); omit for Transport.
+	// MerchantCategory is the merchant category (Food & Mart).
 	MerchantCategory string `json:"merchantCategory,omitempty"`
-	// MerchantJoinedDate — merchant onboarding or driver registration date.
+	// MerchantJoinedDate is the merchant onboarding date; optional in
+	// all scenarios per spec.
 	MerchantJoinedDate string `json:"merchantJoinedDate,omitempty"`
-	// ExtendInfo — per-line metadata bag (typed; no map[string]any).
-	ExtendInfo *SubOrderExtendInfo `json:"extendInfo,omitempty"`
+	// Amount is the sub-order (merchant) total in minor units.
+	Amount atomefin.Amount `json:"amount"`
+	// PeriodType is the installment tenor for this sub-order when
+	// applicable (e.g. 1, 3, 6, 9, 12).
+	PeriodType *int `json:"periodType,omitempty"`
 }
 
-// SubOrderExtendInfo is the per-line metadata bag. The spec defines this
-// as an open object; we model the known keys explicitly so the public
-// surface is type-safe. Unknown keys round-trip
-// opaquely via the Extras map only when the partner explicitly opts
-// into it — for v0.1 we leave it empty and rely on forward-compat
-// strict-decode failures to surface new fields.
-type SubOrderExtendInfo struct {
-	// Reserved for future spec additions. Today this struct is empty
-	// because the spec defines SubOrder.extendInfo as a free object.
-	// Keeping the type ensures we can add fields in a minor release
-	// without breaking the AuthRequest signature.
+// SkuInfo is one SKU line item under
+// MainOrderExtendInfo.SkuInfos (spec's SkuInfo /
+// MartAuthCaptureSkuInfo / FoodAuthSkuInfo). Amount is required in
+// every scenario that sends SkuInfos; SkuID is required for
+// GRAB_MART (plan/auth/capture) and GRAB_FOOD (auth/capture).
+type SkuInfo struct {
+	SkuID           string          `json:"skuId,omitempty"`
+	SkuName         string          `json:"skuName,omitempty"`
+	CategoryID      string          `json:"categoryId,omitempty"`
+	CategoryOneName string          `json:"categoryOneName,omitempty"`
+	CategoryCodes   []string        `json:"categoryCodes,omitempty"`
+	Quantity        int             `json:"quantity,omitempty"`
+	Amount          atomefin.Amount `json:"amount"`
+}
+
+// MainOrderExtendInfo is the per-merchant extension block under
+// extendInfo.mainOrderExtendInfos[]. Spec's MainOrderExtendInfo
+// requires merchantId + skuInfos when the array is present
+// (GRAB_MART plan/auth/capture, GRAB_FOOD auth/capture);
+// FoodPlanMainOrderExtendInfo relaxes both to optional.
+type MainOrderExtendInfo struct {
+	MerchantID string    `json:"merchantId,omitempty"`
+	SkuInfos   []SkuInfo `json:"skuInfos,omitempty"`
 }
 
 // ---------- Request-side extendInfo deep tree ----------
@@ -118,14 +126,13 @@ func (p Platform) IsValid() bool {
 }
 
 // RequestExtendInfo is the top of the request-side extendInfo tree.
+// Per the spec's AuthCaptureExtendInfoBase overlays, /auth and
+// /capture require: orderType, creditProfile, deviceInfo, address.
+// GRAB_MART / GRAB_FOOD additionally require mainOrderExtendInfos.
 type RequestExtendInfo struct {
-	// UserCreditScore is the partner's risk score for the user,
-	// 0..1. Modelled as *float64 so 0.0 (worst score) is
-	// distinguishable from absent.
-	//
-	// This is the SOLE permitted public-surface float — a probability,
-	// not money, so the int64-amount rule does not apply. Validate via
-	// IsValidScore before passing to /auth.
+	// UserCreditScore is optional and legacy — not part of the
+	// white-label G spec's extendInfo trees. Retained for internal
+	// risk pipelines; omit when unused.
 	UserCreditScore *float64 `json:"userCreditScore,omitempty"`
 
 	// OrderType is the Grab order business line (TRANSPORT, GRAB_FOOD, …).
@@ -133,18 +140,25 @@ type RequestExtendInfo struct {
 	OrderType PaymentOrderType `json:"orderType"`
 
 	// CreditProfile is an integration-agreed JSON risk-control payload.
-	CreditProfile CreditProfile `json:"creditProfile,omitempty"`
+	// Required by the spec on /auth and /capture.
+	CreditProfile CreditProfile `json:"creditProfile"`
 
 	// DeviceInfo describes the device originating the request.
-	DeviceInfo *DeviceInfo `json:"deviceInfo,omitempty"`
+	// Required by the spec on /auth and /capture.
+	DeviceInfo *DeviceInfo `json:"deviceInfo"`
 
-	// Address is the user's shipping address.
-	// PII — DESIGN.md §10 redaction list.
-	Address *Address `json:"address,omitempty"`
+	// Address is the user's shipping address. Required on /auth and
+	// /capture. PII — DESIGN.md §10 redaction list.
+	Address *Address `json:"address"`
 
 	// RiskInfo carries partner-side risk signals. Driver and trip
 	// fields apply to TRANSPORT orders.
 	RiskInfo *PaymentRiskInfo `json:"riskInfo,omitempty"`
+
+	// MainOrderExtendInfos carries SKU detail per merchant.
+	// Required for GRAB_MART (plan/auth/capture) and GRAB_FOOD
+	// (auth/capture); omit for TRANSPORT.
+	MainOrderExtendInfos []MainOrderExtendInfo `json:"mainOrderExtendInfos,omitempty"`
 }
 
 // IsValidScore reports whether s is in the spec's 0..1 range.
@@ -158,12 +172,13 @@ func IsValidScore(s *float64) bool {
 }
 
 // DeviceInfo describes the originating device.
+// Required by the spec on /auth and /capture.
 type DeviceInfo struct {
-	Platform  Platform       `json:"platform,omitempty"`
-	GPS       *GeoPoint      `json:"gps"`
-	Device    *DeviceProfile `json:"device,omitempty"`
-	WifiList  []WifiAP       `json:"wifiList,omitempty"`
-	IPAddress *IPAddress     `json:"ipAddress,omitempty"`
+	Platform  Platform       `json:"platform"`
+	GPS       *GeoPoint      `json:"gps,omitempty"`
+	Device    *DeviceProfile `json:"device"`
+	WifiList  []WifiAP       `json:"wifiList"`
+	IPAddress *IPAddress     `json:"ipAddress"`
 }
 
 // GeoPoint is a (longitude, latitude, time) triple. The spec models
@@ -178,24 +193,24 @@ type GeoPoint struct {
 // Most fields are PII — DESIGN.md §10 redaction list.
 type DeviceProfile struct {
 	DeviceID            string     `json:"deviceId"`
-	GoogleAdvertisingID string     `json:"googleAdvertisingId,omitempty"`
+	GoogleAdvertisingID string     `json:"googleAdvertisingId"`
 	IDFA                string     `json:"idfa,omitempty"`
 	IDFV                string     `json:"idfv,omitempty"`
-	UTDID               string     `json:"utdid"`               // PII
-	IsRoot              *bool      `json:"isRoot,omitempty"`    // pointer: distinguish false from absent
+	UTDID               string     `json:"utdid,omitempty"` // PII; optional per spec
+	IsRoot              *bool      `json:"isRoot"`
 	AndroidID           string     `json:"androidId,omitempty"` // PII
-	Build               *BuildInfo `json:"build,omitempty"`
+	Build               *BuildInfo `json:"build"`
 }
 
 // BuildInfo is the device's android.os.Build snapshot.
 type BuildInfo struct {
-	Board        string `json:"board,omitempty"`
-	Brand        string `json:"brand,omitempty"`
+	Board        string `json:"board"`
+	Brand        string `json:"brand"`
 	CPUABI       string `json:"cpuAbi,omitempty"`
-	Device       string `json:"device,omitempty"`
-	Manufacturer string `json:"manufacturer,omitempty"`
-	Model        string `json:"model,omitempty"`
-	Product      string `json:"product,omitempty"`
+	Device       string `json:"device"`
+	Manufacturer string `json:"manufacturer"`
+	Model        string `json:"model"`
+	Product      string `json:"product"`
 }
 
 // WifiAP is one Wi-Fi access point seen by the device.
@@ -207,24 +222,25 @@ type WifiAP struct {
 // IPAddress carries the device's reported IPs.
 // Strings are not parsed; partner responsibility to pass valid values.
 type IPAddress struct {
-	EthIP  string `json:"ethIp,omitempty"`
-	TrueIP string `json:"trueIp,omitempty"`
+	EthIP  string `json:"ethIp"`
+	TrueIP string `json:"trueIp"`
 }
 
 // Address is the user's shipping address.
 // Every field is PII per DESIGN.md §10.
+// Spec-required on /auth and /capture.
 type Address struct {
-	ShippingAddress *ShippingAddress `json:"shippingAddress,omitempty"`
-	ShippingName    string           `json:"shippingName,omitempty"`    // PII
-	ShippingPhoneNo string           `json:"shippingPhoneNo,omitempty"` // PII
+	ShippingAddress *ShippingAddress `json:"shippingAddress"`
+	ShippingName    string           `json:"shippingName"`    // PII
+	ShippingPhoneNo string           `json:"shippingPhoneNo"` // PII
 }
 
 // ShippingAddress is the structured address sub-object.
 type ShippingAddress struct {
 	State    string `json:"state,omitempty"`
-	City     string `json:"city,omitempty"`
+	City     string `json:"city"`
 	District string `json:"district,omitempty"`
-	Address1 string `json:"address1,omitempty"`
+	Address1 string `json:"address1"`
 	Address2 string `json:"address2,omitempty"`
 }
 
@@ -316,7 +332,7 @@ func IsValidCurrentStatus(s atomefin.AccountStatus) bool {
 // InstallmentDetail is one row of a per-sub-order installment schedule.
 // All money fields are minor units (R10/R12 corpus applies).
 type InstallmentDetail struct {
-	SubOrderID      string          `json:"subOrderId"`
+	SubOrderID      string          `json:"subOrderId,omitempty"`
 	TotalTenor      int             `json:"totalTenor"`
 	CurrentTenor    int             `json:"currentTenor"`
 	RepayAmount     atomefin.Amount `json:"repayAmount"`
@@ -339,7 +355,11 @@ type InstallmentPlan struct {
 // AuthorizationData.SubOrderInstallmentPlans and
 // PaymentResult.SubOrderInstallmentPlans.
 type SubOrderInstallmentPlans struct {
-	SubOrderID       string            `json:"subOrderId"`
+	SubOrderID string `json:"subOrderId,omitempty"`
+	// MerchantID echoes the request merchant for GRAB_MART / GRAB_FOOD
+	// per MartAuthCaptureSubOrderInstallmentPlans /
+	// FoodAuthCaptureSubOrderInstallmentPlans. Optional for TRANSPORT.
+	MerchantID       string            `json:"merchantId,omitempty"`
 	OrderAmount      atomefin.Amount   `json:"orderAmount"`
 	InstallmentPlans []InstallmentPlan `json:"installmentPlans"`
 }

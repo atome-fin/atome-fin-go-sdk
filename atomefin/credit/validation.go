@@ -129,24 +129,6 @@ func validateCreditApplication(req *CreditApplicationParam) error {
 			Message: "required",
 		}
 	}
-	if req.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult01 == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.livenessCheck.livenessCheckResult01",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult02 == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.livenessCheck.livenessCheckResult02",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult03 == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.livenessCheck.livenessCheckResult03",
-			Message: "required",
-		}
-	}
 	if req.ApplicationEssentialInfo.IndividualProfile == nil {
 		return &atomefin.ValidationError{
 			Field:   "applicationEssentialInfo.individualProfile",
@@ -189,30 +171,6 @@ func validateCreditApplication(req *CreditApplicationParam) error {
 	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo == nil {
 		return &atomefin.ValidationError{
 			Field:   "applicationEssentialInfo.platformInformation.deviceInfo",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.GPS == nil {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.gps",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.GPS.Longitude == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.gps.longitude",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.GPS.Latitude == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.gps.latitude",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.GPS.Time == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.gps.time",
 			Message: "required",
 		}
 	}
