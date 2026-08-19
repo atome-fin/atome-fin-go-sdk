@@ -186,7 +186,7 @@ func TestService_BillDetail_Success(t *testing.T) {
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","bill":{"billId":"202605","billMonth":"202605","billTotalAmount":800000,"outstandingAmount":800000,"repaidAmount":0,"principalAmount":780000,"interestAmount":20000,"dueDate":"20260615","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE"},"orders":[{"orderId":"ORD-1","requestId":"CAP-1","createTime":1746489600000,"periodType":"3","currentPeriod":1,"totalAmount":500000,"outstandingAmount":500000,"repaidAmount":0,"principalAmount":490000,"interestAmount":10000,"dueDate":"20260615","status":"BILLED","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE"}]}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","bill":{"billId":"202605","billMonth":"202605","billTotalAmount":800000,"outstandingAmount":800000,"repaidAmount":0,"principalAmount":780000,"interestAmount":20000,"dueDate":"20260615","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE"},"mainOrders":[{"orderId":"ORD-1","requestId":"CAP-1","merchantId":"merchant-1","subOrderId":"so-1","createTime":1746489600000,"periodType":"3","currentPeriod":1,"totalAmount":500000,"outstandingAmount":500000,"repaidAmount":0,"principalAmount":490000,"interestAmount":10000,"dueDate":"20260615","status":"BILLED","repaymentStatus":"UNPAID","overdueStatus":"NOT_OVERDUE"}]}}`))
 	}))
 	defer srv.Close()
 
@@ -201,8 +201,11 @@ func TestService_BillDetail_Success(t *testing.T) {
 	if resp.Data == nil || resp.Data.Bill == nil || resp.Data.Bill.BillID != "202605" {
 		t.Errorf("Data = %#v", resp.Data)
 	}
-	if len(resp.Data.Orders) != 1 {
-		t.Errorf("Orders len = %d", len(resp.Data.Orders))
+	if len(resp.Data.MainOrders) != 1 {
+		t.Errorf("MainOrders len = %d", len(resp.Data.MainOrders))
+	}
+	if resp.Data.MainOrders[0].MerchantID != "merchant-1" || resp.Data.MainOrders[0].SubOrderID != "so-1" {
+		t.Errorf("MainOrders[0] = %#v", resp.Data.MainOrders[0])
 	}
 	if gotPath != "/billDetail" {
 		t.Errorf("path = %q", gotPath)

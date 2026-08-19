@@ -18,10 +18,12 @@
       "repaymentStatus": "REPAID",
       "overdueStatus": "NOT_OVERDUE"
     },
-    "orders": [
+    "mainOrders": [
       {
         "orderId": "ORD-2026-0401-A",
         "requestId": "CAP-2026-0401-A",
+        "merchantId": "merchant-1",
+        "subOrderId": "so-1",
         "createTime": 1743484800000,
         "periodType": "3",
         "currentPeriod": 1,

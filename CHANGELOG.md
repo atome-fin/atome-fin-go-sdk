@@ -7,10 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
-## [0.9.0] — 2026-08-14
+## [0.8.1] — 2026-08-17
 
 Syncs the SDK to the upstream **GrabPayLater** Partner API spec
-(white-label `G`, pinned `swagger-2026-08-14-d8b60434.yaml`). Checkout
+(white-label `G`, pinned `swagger-2026-08-17-1e38547f.yaml`). Checkout
 moves from SKU-on-subOrder to **merchant-dimension** `subOrders` plus
 `extendInfo.mainOrderExtendInfos[].skuInfos[]`.
 
@@ -34,11 +34,20 @@ validation rules change in ways that require partner call-site updates.
 - **`transaction.TradeBillDetail`** — optional `gracePeriod`,
   `status`, `repaymentStatus`, `overdueStatus`, `discounts` on
   `/transactionDetail` bill rows.
+- **`payment.Riplay`** / **`RiplayRequest`** / **`RiplayResponse`** —
+  `POST /riplay` returns the RIPLAY contract URL for a selected
+  tenor (`sessionId` + `externalReferenceUid` + `tenor`).
 
 ### Changed
 
-- **Pinned spec** — `internal/spec/testdata/swagger-2026-08-14-d8b60434.yaml`
+- **Pinned spec** — `internal/spec/testdata/swagger-2026-08-17-1e38547f.yaml`
   replaces `swagger-2026-07-20-792f74c1.yaml`.
+- **`bill.BillDetail.MainOrders`** — replaces `orders`; each
+  `BillMainOrder` adds optional capture `merchantId` / `subOrderId`
+  (omit for TRANSPORT). `mainOrderId` is not used.
+- **`transaction.TradeSubOrder`** / **`TradeSubOrderDetail`** —
+  add optional `merchantId`; `subOrderId` is optional (omit for
+  TRANSPORT).
 - **`payment.SubOrder`** / **`payment.PlanSubOrder`** — merchant
   rollup only (`subOrderId`, `merchantId`, `merchantName`,
   `merchantCategory`, `merchantJoinedDate`, `amount`, `periodType`).
@@ -50,8 +59,9 @@ validation rules change in ways that require partner call-site updates.
 - **`POST /payment-plan`** — `sessionid` request header is no longer
   required (still forwarded when set). Session is returned on the
   response.
-- **`POST /payment-precheck`** — `subOrders` optional (all fields
-  optional when sent); `extendInfo.orderType` required.
+- **`POST /payment-precheck`** — `subOrders`, `extendInfo`, and
+  `extendInfo.orderType` are optional (all sub-order fields are
+  optional when sent).
 - **Scenario validation** — GRAB_FOOD / TRANSPORT require exactly one
   sub-order; GRAB_MART `/payment-plan` requires `merchantId` +
   `mainOrderExtendInfos`; GRAB_FOOD / GRAB_MART `/auth` `/capture`
@@ -83,6 +93,11 @@ plan, _ := payment.New(c).PaymentPlan(ctx, &payment.PaymentPlanRequest{
     },
 })
 session := plan.Data.ExtendInfo.SessionID
+
+// /riplay — RIPLAY URL for the selected tenor
+_, _ = payment.New(c).Riplay(ctx, &payment.RiplayRequest{
+    SessionID: session, ExternalReferenceUID: "user-1", Tenor: 3,
+})
 
 // /auth — sessionid header from plan; SKUs under extendInfo
 _, _ = payment.New(c).Auth(ctx, &payment.AuthRequest{
@@ -116,7 +131,7 @@ _, _ = refund.New(c).Refund(ctx, &refund.RefundParam{
 
 ### Verification
 
-- Pinned spec SHA256 prefix `d8b60434` matches the local upstream
+- Pinned spec SHA256 prefix `1e38547f` matches the local upstream
   source at `open-api-document/directories/white-label/G/swagger.yaml`.
 - `go test ./...` green.
 
@@ -2045,8 +2060,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.9.0...HEAD
-[0.9.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.9.0
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.8.1
 [0.8.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.8.0
 [0.7.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.7.0
 [0.6.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.6.1

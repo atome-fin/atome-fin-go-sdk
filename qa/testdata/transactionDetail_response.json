@@ -13,6 +13,7 @@
       "subOrders": [
         {
           "subOrderId": "so-1",
+          "merchantId": "merchant-1",
           "principalAmount": 1450000,
           "interestAmount": 50000,
           "billOrderDetails": [

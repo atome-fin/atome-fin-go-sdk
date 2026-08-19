@@ -27,6 +27,7 @@ var outboundCovered = []string{
 	"GET /query-voidAuth",
 	"POST /payment-precheck",
 	"POST /payment-plan",
+	"POST /riplay",
 
 	// refund/
 	"POST /refund",

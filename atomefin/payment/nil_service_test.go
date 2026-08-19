@@ -56,6 +56,17 @@ func TestNilService_CaptureDoesNotPanic(t *testing.T) {
 	mustValidationOnNilService(t, err)
 }
 
+func TestNilService_RiplayDoesNotPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Riplay on nil receiver panicked: %v", r)
+		}
+	}()
+	var svc *payment.Service
+	_, err := svc.Riplay(context.Background(), &payment.RiplayRequest{})
+	mustValidationOnNilService(t, err)
+}
+
 func TestNilService_VoidAuthDoesNotPanic(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {

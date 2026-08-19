@@ -51,9 +51,9 @@ func TestR10_Bill_TotalAmount(t *testing.T) {
 	})
 }
 
-func TestR10_BillOrder_Amount(t *testing.T) {
-	marshal.AssertAmountRoundtrip[bill.BillOrder](t, func(v int64) bill.BillOrder {
-		return bill.BillOrder{
+func TestR10_BillMainOrder_Amount(t *testing.T) {
+	marshal.AssertAmountRoundtrip[bill.BillMainOrder](t, func(v int64) bill.BillMainOrder {
+		return bill.BillMainOrder{
 			OrderID: "ORD-1", RequestID: "REQ-1", CreateTime: 1746489600000,
 			PeriodType: "3", CurrentPeriod: 1,
 			TotalAmount: v, PrincipalAmount: v, InterestAmount: 0,

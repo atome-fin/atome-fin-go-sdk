@@ -117,7 +117,8 @@ type TradeRepaymentInfo struct {
 }
 
 type TradeSubOrder struct {
-	SubOrderID      string          `json:"subOrderId"`
+	SubOrderID      string          `json:"subOrderId,omitempty"`
+	MerchantID      string          `json:"merchantId,omitempty"`
 	PrincipalAmount atomefin.Amount `json:"principalAmount"`
 	InterestAmount  atomefin.Amount `json:"interestAmount,omitempty"`
 	DiscountAmount  atomefin.Amount `json:"discountAmount,omitempty"`
@@ -160,7 +161,8 @@ type TradePaymentInfoDetail struct {
 }
 
 type TradeSubOrderDetail struct {
-	SubOrderID       string                  `json:"subOrderId"`
+	SubOrderID       string                  `json:"subOrderId,omitempty"`
+	MerchantID       string                  `json:"merchantId,omitempty"`
 	PrincipalAmount  atomefin.Amount         `json:"principalAmount"`
 	InterestAmount   atomefin.Amount         `json:"interestAmount,omitempty"`
 	DiscountAmount   atomefin.Amount         `json:"discountAmount,omitempty"`

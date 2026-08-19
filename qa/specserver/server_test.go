@@ -38,6 +38,7 @@ func TestLoadDefault_PinnedSpec_ParsesAllOps(t *testing.T) {
 		"GET /credit-result",
 		"POST /repayment-request",
 		"GET /repayment-result",
+		"POST /riplay",
 	}
 	for _, want := range wantOps {
 		parts := strings.SplitN(want, " ", 2)
@@ -104,6 +105,27 @@ func TestLoadDefault_BodyRequired_NestedSubOrders(t *testing.T) {
 	} {
 		if !contains(auth.RequiredBody, want) {
 			t.Errorf("POST /auth body missing required path %q (got %v)", want, auth.RequiredBody)
+		}
+	}
+}
+
+func TestLoadDefault_PaymentPrecheckMinimalBody(t *testing.T) {
+	s, err := specserver.LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault: %v", err)
+	}
+	precheck, ok := s.Op("POST", "/payment-precheck")
+	if !ok {
+		t.Fatal("POST /payment-precheck missing")
+	}
+	for _, want := range []string{"externalReferenceUid", "totalAmount"} {
+		if !contains(precheck.RequiredBody, want) {
+			t.Errorf("required body missing %q (got %v)", want, precheck.RequiredBody)
+		}
+	}
+	for _, optional := range []string{"extendInfo", "extendInfo.orderType", "subOrders"} {
+		if contains(precheck.RequiredBody, optional) {
+			t.Errorf("optional body path %q marked required (got %v)", optional, precheck.RequiredBody)
 		}
 	}
 }

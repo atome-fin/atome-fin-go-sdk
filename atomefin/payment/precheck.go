@@ -18,9 +18,8 @@ type PaymentPreCheckRequest struct {
 	TotalAmount atomefin.Amount `json:"totalAmount"`
 	// SubOrders enumerates the cart contents to evaluate (PlanSubOrder shape).
 	SubOrders []PlanSubOrder `json:"subOrders,omitempty"`
-	// ExtendInfo carries orderType. Required by the spec
-	// (BasePaymentPrecheckRequest).
-	ExtendInfo *PreCheckExtendInfo `json:"extendInfo"`
+	// ExtendInfo optionally carries orderType for scenario-specific routing.
+	ExtendInfo *PreCheckExtendInfo `json:"extendInfo,omitempty"`
 
 	// RequestID is client-side only for idempotency logging; not in the
 	// spec body. Populated by the SDK when empty before the network call.
@@ -28,10 +27,10 @@ type PaymentPreCheckRequest struct {
 }
 
 // PreCheckExtendInfo is the extendInfo bag on /payment-precheck.
-// Per the spec's PaymentPrecheckExtendInfo it carries orderType only.
+// Per the spec's PaymentPrecheckExtendInfo it carries optional orderType only.
 // Sub-order fields are all optional for every scenario.
 type PreCheckExtendInfo struct {
-	OrderType PaymentOrderType `json:"orderType"`
+	OrderType PaymentOrderType `json:"orderType,omitempty"`
 }
 
 // PaymentPreCheckSubOrder is a backward-compatible alias for PlanSubOrder.
@@ -108,20 +107,19 @@ func validatePaymentPreCheckRequest(req *PaymentPreCheckRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
-	if req.ExtendInfo == nil {
-		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
-	}
-	if !req.ExtendInfo.OrderType.IsValid() {
+	if req.ExtendInfo != nil && req.ExtendInfo.OrderType != "" && !req.ExtendInfo.OrderType.IsValid() {
 		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: validOrderTypesMsg}
 	}
 	// Per spec: ALL subOrders fields are optional on /payment-precheck
 	// for every scenario; subOrders itself may be omitted entirely.
-	switch req.ExtendInfo.OrderType {
-	case OrderTypeGrabFood, OrderTypeTransport:
-		if len(req.SubOrders) > 1 {
-			return &atomefin.ValidationError{
-				Field:   "subOrders",
-				Message: "must contain at most one entry for " + string(req.ExtendInfo.OrderType),
+	if req.ExtendInfo != nil {
+		switch req.ExtendInfo.OrderType {
+		case OrderTypeGrabFood, OrderTypeTransport:
+			if len(req.SubOrders) > 1 {
+				return &atomefin.ValidationError{
+					Field:   "subOrders",
+					Message: "must contain at most one entry for " + string(req.ExtendInfo.OrderType),
+				}
 			}
 		}
 	}

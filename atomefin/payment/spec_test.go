@@ -77,6 +77,13 @@ func TestSpec_PaymentEndpoints(t *testing.T) {
 				return err
 			},
 		},
+		{
+			Op: "POST /riplay",
+			Run: func(c *atomefin.Client) error {
+				_, err := payment.New(c).Riplay(context.Background(), specSampleRiplayRequest())
+				return err
+			},
+		},
 	})
 }
 
@@ -122,10 +129,6 @@ func specSamplePreCheckRequest() *payment.PaymentPreCheckRequest {
 	return &payment.PaymentPreCheckRequest{
 		ExternalReferenceUID: "u-spec-1",
 		TotalAmount:          1500000,
-		SubOrders: []payment.PlanSubOrder{
-			specSamplePlanSubOrder(1500000),
-		},
-		ExtendInfo: &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 	}
 }
 
@@ -139,5 +142,13 @@ func specSamplePaymentPlanRequest() *payment.PaymentPlanRequest {
 		},
 		ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		Sessionid:  "session-spec",
+	}
+}
+
+func specSampleRiplayRequest() *payment.RiplayRequest {
+	return &payment.RiplayRequest{
+		SessionID:            "SES-spec-1",
+		ExternalReferenceUID: "u-spec-1",
+		Tenor:                3,
 	}
 }

@@ -57,6 +57,29 @@ func TestService_PaymentPreCheck_Eligible(t *testing.T) {
 	}
 }
 
+func TestService_PaymentPreCheck_MinimalRequest(t *testing.T) {
+	var gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		gotBody = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok"}`))
+	}))
+	defer srv.Close()
+
+	c := mustClient(t, srv)
+	_, err := payment.New(c).PaymentPreCheck(context.Background(), &payment.PaymentPreCheckRequest{
+		ExternalReferenceUID: "u-minimal",
+		TotalAmount:          125000,
+	})
+	if err != nil {
+		t.Fatalf("PaymentPreCheck: %v", err)
+	}
+	if strings.Contains(gotBody, `"extendInfo"`) || strings.Contains(gotBody, `"subOrders"`) {
+		t.Errorf("minimal body contains optional fields: %s", gotBody)
+	}
+}
+
 func TestService_PaymentPreCheck_Denied(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -169,11 +192,6 @@ func TestPaymentPreCheck_Validate_TableDriven(t *testing.T) {
 			}(),
 			ExtendInfo: &payment.PreCheckExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		}, "totalAmount"},
-		{"missing-extendInfo", &payment.PaymentPreCheckRequest{
-			ExternalReferenceUID: "u",
-			TotalAmount:          1,
-			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
-		}, "extendInfo"},
 		{"bad-orderType", &payment.PaymentPreCheckRequest{
 			ExternalReferenceUID: "u",
 			TotalAmount:          1,
@@ -205,6 +223,11 @@ func TestPaymentPreCheckResponse_Roundtrip_Denied(t *testing.T) {
 
 func TestR3_PaymentPreCheckRequest_OmitsOptionalSubOrders(t *testing.T) {
 	marshal.AssertOmitemptyZero[payment.PaymentPreCheckRequest](t, "subOrders")
+}
+
+func TestR3_PaymentPreCheckRequest_OmitsOptionalExtendInfo(t *testing.T) {
+	marshal.AssertOmitemptyZero[payment.PaymentPreCheckRequest](t, "extendInfo")
+	marshal.AssertOmitemptyZero[payment.PreCheckExtendInfo](t, "orderType")
 }
 
 func TestR10_PaymentPreCheckRequest_TotalAmount(t *testing.T) {

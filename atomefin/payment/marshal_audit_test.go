@@ -225,6 +225,12 @@ func TestR4_AuthRequest_RequiredEmitsAtZero(t *testing.T) {
 	)
 }
 
+func TestR4_RiplayRequest_RequiredEmitsAtZero(t *testing.T) {
+	marshal.AssertRequiredEmits[payment.RiplayRequest](t,
+		"sessionId", "externalReferenceUid", "tenor",
+	)
+}
+
 func TestMainOrderExtendInfo_Roundtrip(t *testing.T) {
 	marshal.DeepEqualRoundTrip[payment.RequestExtendInfo](t, payment.RequestExtendInfo{
 		OrderType: payment.OrderTypeGrabMart,

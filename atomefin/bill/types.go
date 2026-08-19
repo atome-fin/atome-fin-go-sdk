@@ -77,7 +77,7 @@ type BillDetail struct {
 	Currency         atomefin.Currency `json:"currency,omitempty"`
 	Bill             *Bill             `json:"bill,omitempty"`
 	RepaymentDetails []RepaymentDetail `json:"repaymentDetails,omitempty"`
-	Orders           []BillOrder       `json:"orders,omitempty"`
+	MainOrders       []BillMainOrder   `json:"mainOrders,omitempty"`
 	Paginator        *Paginator        `json:"paginator,omitempty"`
 }
 
@@ -99,10 +99,15 @@ type Paginator struct {
 	TotalCount int `json:"totalCount,omitempty"`
 }
 
-// BillOrder is one order line on a bill detail response.
-type BillOrder struct {
+// BillMainOrder is one merchant-dimension bill line on /billDetail
+// (swagger BillMainOrder). merchantId / subOrderId echo POST /capture
+// subOrders[] when those fields were sent (GRAB_MART / GRAB_FOOD);
+// TRANSPORT typically omits both. mainOrderId is not used.
+type BillMainOrder struct {
 	OrderID           string          `json:"orderId"`
 	RequestID         string          `json:"requestId"`
+	MerchantID        string          `json:"merchantId,omitempty"`
+	SubOrderID        string          `json:"subOrderId,omitempty"`
 	CreateTime        int64           `json:"createTime"`
 	PeriodType        string          `json:"periodType"`
 	CurrentPeriod     int             `json:"currentPeriod"`
