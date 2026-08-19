@@ -1,0 +1,8 @@
+{
+  "code": "SUCCESS",
+  "message": "success",
+  "data": {
+    "tenor": 3,
+    "url": "https://cdn.example.com/riplay/SES-20260807001/3.pdf"
+  }
+}
