@@ -95,8 +95,32 @@ func specSampleCreditInformationParam() *credit.CreditInformationParam {
 		Email:                "spec@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.CreditInformationIndividualProfile{
-				OCRResult: &credit.CreditInformationOCRResult{FullName: "Spec User"},
+			LivenessCheck: &credit.LivenessCheck{Result: "PASS", SnapshotPhoto: "base64-photo"},
+			IndividualProfile: &credit.IndividualProfile{
+				IDType:       "KTP",
+				OCRResult:    &credit.OCRResult{FullName: "Spec User"},
+				IDFrontPhoto: "base64-id-front-photo",
+			},
+			PlatformInformation: &credit.PlatformInformation{
+				SceneType:           credit.SceneCheckoutPage,
+				LatestGkycTimeStamp: "1620285931000",
+				UserFlag:            credit.UserFlagGrab,
+				SCDUserLevel:        credit.SCDUserLevel2,
+				CreditProfile:       `{"modelScores":[]}`,
+				DeviceInfo: &credit.DeviceInfo{
+					Platform: "ANDROID",
+					Device: &credit.Device{
+						DeviceID:            "device-spec",
+						GoogleAdvertisingID: "advertising-spec",
+						IsRoot:              false,
+						Build: &credit.DeviceBuild{
+							Board: "board", Brand: "brand", Device: "device",
+							Manufacturer: "manufacturer", Model: "model", Product: "product",
+						},
+					},
+					WifiList:  []credit.WifiAP{{SSID: "wifi-spec"}},
+					IPAddress: &credit.IPAddress{EthIP: "192.0.2.1", TrueIP: "198.51.100.1"},
+				},
 			},
 		},
 	}
@@ -104,57 +128,13 @@ func specSampleCreditInformationParam() *credit.CreditInformationParam {
 
 func specSampleCreditApplicationParam() *credit.CreditApplicationParam {
 	return &credit.CreditApplicationParam{
-		RequestID:                "r-spec-app",
-		ExternalReferenceUID:     "u-spec-1",
-		MobileNumber:             "+6281298000000",
-		Email:                    "spec@example.com",
-		Country:                  credit.CountryIndonesia,
-		ApplicationEssentialInfo: specSampleCreditApplicationEssentialInfo(),
+		RequestID:            "r-spec-app",
+		ExternalReferenceUID: "u-spec-1",
+		MobileNumber:         "+6281298000000",
+		Email:                "spec@example.com",
+		Country:              credit.CountryIndonesia,
 		ExtendInfo: &credit.CreditApplicationExtendInfo{
 			CreditInformationRequestID: "r-spec-info",
-		},
-	}
-}
-
-func specSampleCreditApplicationEssentialInfo() *credit.ApplicationEssentialInfo {
-	return &credit.ApplicationEssentialInfo{
-		LivenessCheck: &credit.LivenessCheck{
-			Result:                "PASS",
-			SnapshotPhoto:         "base64-photo",
-			LivenessCheckResult01: "0.98",
-			LivenessCheckResult02: "0.97",
-			LivenessCheckResult03: "PASS",
-		},
-		IndividualProfile: &credit.IndividualProfile{
-			IDType:       "KTP",
-			IDFrontPhoto: "base64-id-front-photo",
-			OCRResult: &credit.OCRResult{
-				IDNumber:            "3173051234567890",
-				FullName:            "Spec User",
-				BirthPlace:          "Jakarta",
-				OCRReligion:         "ISLAM",
-				OCRGender:           "MAN",
-				ManuallyBirthDate:   "1995-05-20",
-				OCRProvince:         "DKI Jakarta",
-				OCRCity:             "Jakarta Selatan",
-				OCRDistrict:         "Kebayoran Baru",
-				JobType:             "EMPLOYEE",
-				ManuallyExpiredDate: "2099-12-31",
-				ManuallyCitizenship: "WNI",
-				ManuallyRt:          "001",
-				ManuallyRw:          "002",
-			},
-		},
-		PlatformInformation: &credit.PlatformInformation{
-			SceneType: credit.SceneCheckoutPage,
-			DeviceInfo: &credit.DeviceInfo{
-				Platform: "ANDROID",
-				GPS: &credit.GPSSample{
-					Longitude: "106.827153",
-					Latitude:  "-6.175392",
-					Time:      "1620285931000",
-				},
-			},
 		},
 	}
 }

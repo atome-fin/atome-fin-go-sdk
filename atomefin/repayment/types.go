@@ -135,7 +135,12 @@ const (
 // Decoding NEVER goes through IsValid (forward-compat). Use at the
 // validator layer or in business-logic switches.
 func (e RepaymentEvent) IsValid() bool {
-	return e == RepaymentEventNormal
+	switch e {
+	case RepaymentEventNormal, RepaymentEventAtomeRepayment, RepaymentEventOverpaidRepayment:
+		return true
+	default:
+		return false
+	}
 }
 
 // String returns the wire literal verbatim.

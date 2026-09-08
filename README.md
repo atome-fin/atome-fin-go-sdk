@@ -169,7 +169,8 @@ import away.
 | `atomefin/encrypt` | AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid envelope used by `/credit-information` and `/credit-application`. Stdlib-only. `Marshal` / `Unmarshal`, `RandomAESKey` (rejection-sampled A — Z), header build/parse. |
 | `atomefin/mock` | First-class testing surface (see Mock catalog above). |
 | `atomefin/transport` | `RetryPolicy`, `Logger`, `Observer`, `NewSlogLogger`, User-Agent assembly. |
-| `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` + `QueryAuth` / `QueryCapture` / `QueryVoidAuth` + `*PollUntilTerminal` + `PaymentPreCheck` / `PaymentPlan` / `Riplay`; typed request/response structs. |
+| `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` / `ReAuth` + `QueryAuth` / `QueryCapture` / `QueryVoidAuth` / `QueryReAuth` + `*PollUntilTerminal` + `PaymentPreCheck` / `PaymentPlan`; typed request/response structs. |
+| `atomefin/virtualaccount` | `Service` with `ListBanks` / `GetOrCreate` for `/va/getList` and `/va/vaCodeByBank`; typed bank and VA structs. |
 | `atomefin/refund` | `Service` with `Refund` / `QueryRefund` / `RefundPollUntilTerminal`; types `RefundParam`, `RefundResult`, `SubOrderRefundRequest`, `SubOrderRefundInfo`. |
 | `atomefin/repayment` | `Service` with `Repayment` / `QueryRepayment` / `RepaymentPollUntilTerminal`; types `RepaymentParam`, `RepaymentResult`, `CommerceAccountChanges`. |
 | `atomefin/credit` | `Service` for the credit lifecycle plus account-ops: `SubmitInformation` (KYC start), `SubmitApplication`, `QueryResult` / `QueryInformationResult`, `BalanceHistory`, `ModifyApplicationInfo`, `CloseAccount`. |
@@ -202,14 +203,11 @@ invariants (full int64 round-trip; fractional decode rejected
 loudly; encoder never emits `.` or scientific notation on any
 amount key).
 
-### `userCreditScore` is the only float on the public surface
+### No floats on request money shapes
 
-`payment.RequestExtendInfo.UserCreditScore` is a `*float64` in
-the range `[0, 1]`. It is the **sole** carve-out from the int64
-rule because it is a probability, not money. No other `float32`
-/ `float64` is allowed anywhere on a request, response, or
-callback shape. `credit.PlatformInformation.UserCreditScore`
-follows the same `*float64` precedent (since v0.2.1).
+Risk payloads are JSON strings agreed per integration. No `float32`
+/ `float64` is allowed on a request, response, or callback money
+shape.
 
 ### `sessionid` is an HTTP header, never the JSON body
 
@@ -371,7 +369,10 @@ is the surface inventory you diff against when the spec moves.
 | `GET` | `/transactionDetail` | partner → atome-fin | `transaction.New(c).TransactionDetail(ctx, requestID, externalReferenceUID, transactionType)` | `requestId` + `externalReferenceUid` + `transactionType` query | `*transaction.TransactionDetailResponse` | full single-transaction view (linked `billId`, `failureCode`, free-form `notes`) |
 | `POST` | `/payment-precheck` | partner → atome-fin | `payment.New(c).PaymentPreCheck(ctx, req)` | `*payment.PaymentPreCheckRequest` | `*payment.PaymentPreCheckResponse` | eligibility / risk pre-flight before `/auth`; only `externalReferenceUid` + `totalAmount` are required; `extendInfo.orderType` is optional |
 | `POST` | `/payment-plan` | partner → atome-fin | `payment.New(c).PaymentPlan(ctx, req)` | `*payment.PaymentPlanRequest` | `*payment.PaymentPlanResponse` | installment-plan options (1/3/6/9/12 tenors) + per-month breakdown; partner surfaces choice to user |
-| `POST` | `/riplay` | partner → atome-fin | `payment.New(c).Riplay(ctx, req)` | `*payment.RiplayRequest` | `*payment.RiplayResponse` | RIPLAY contract URL for a selected tenor; uses `sessionId` from `/payment-plan` (valid 2h) |
+| `POST` | `/reAuth` | partner → atome-fin | `payment.New(c).ReAuth(ctx, req)` | `*payment.ReAuthRequest` | `*payment.ReAuthResponse` | after `/voidAuth`; creates a new authorization with updated SKU/amount while reusing original rates; no `sessionid`, synchronous terminal result |
+| `GET` | `/query-reAuth` | partner → atome-fin | `payment.New(c).QueryReAuth(ctx, requestID, externalReferenceUID)` | `requestId` + `externalReferenceUid` query | `*payment.ReAuthResponse` | idempotent read of a prior `/reAuth` result |
+| `POST` | `/va/getList` | partner → atome-fin | `virtualaccount.New(c).ListBanks(ctx)` | empty JSON object | `*virtualaccount.VirtualAccountListResponse` | available virtual-account bank codes |
+| `POST` | `/va/vaCodeByBank` | partner → atome-fin | `virtualaccount.New(c).GetOrCreate(ctx, req)` | `*virtualaccount.VirtualAccountRequest` | `*virtualaccount.VirtualAccountResponse` | retrieves or creates the user's VA for a selected bank |
 | `POST` | `/repayment-request` | partner → atome-fin | `repayment.New(c).Repayment(ctx, req)` | `*repayment.RepaymentParam` | `*repayment.RepaymentResponse` | apply a repayment against a prior auth + bill; uses `CommerceAccountChanges` (distinct from `payment.AccountChanges`) |
 | `GET` | `/repayment-result` | partner → atome-fin | `repayment.New(c).QueryRepayment(ctx, requestID, externalReferenceUID)` | `requestId` + `externalReferenceUid` query | `*repayment.RepaymentResponse` | polling alternative to PROCESSING webhook |
 | `POST` | `<repaymentNotifyUrl>` | atome-fin → partner | `callback.RepaymentHandler(v, fn)` | `*callback.RepaymentEvent` (= `repayment.RepaymentResponse`) | `callback.AckResponse` | terminal-only |

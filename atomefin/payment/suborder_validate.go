@@ -1,8 +1,40 @@
 package payment
 
-import "github.com/atome-fin/atome-fin-go-sdk/atomefin"
+import (
+	"fmt"
+
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
+)
 
 const validOrderTypesMsg = "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART"
+
+// validateCheckoutAmounts applies the IDR partner-side minimums in the
+// 2026-09-07 spec: periodType 1 requires order/sub-order amounts >= 1;
+// periodType 3 requires order >= 20,000 and each sub-order >= 3.
+func validateCheckoutAmounts(periodType int, totalAmount atomefin.Amount, subOrderAmounts []atomefin.Amount) error {
+	minimumTotal := atomefin.Amount(1)
+	minimumSubOrder := atomefin.Amount(1)
+	switch periodType {
+	case 3:
+		minimumTotal = 20000
+		minimumSubOrder = 3
+	}
+	if totalAmount < minimumTotal {
+		return &atomefin.ValidationError{
+			Field:   "totalAmount",
+			Message: fmt.Sprintf("below IDR %d minimum for periodType %d", minimumTotal, periodType),
+		}
+	}
+	for _, amount := range subOrderAmounts {
+		if amount < minimumSubOrder {
+			return &atomefin.ValidationError{
+				Field:   "subOrders[].amount",
+				Message: fmt.Sprintf("below IDR %d minimum for periodType %d", minimumSubOrder, periodType),
+			}
+		}
+	}
+	return nil
+}
 
 // validatePlanSubOrders applies /payment-plan scenario rules:
 // GRAB_MART requires merchantId + amount on every entry;
@@ -158,10 +190,26 @@ func sumPlanSubOrderAmount(orders []PlanSubOrder) atomefin.Amount {
 	return sum
 }
 
+func planSubOrderAmounts(orders []PlanSubOrder) []atomefin.Amount {
+	amounts := make([]atomefin.Amount, len(orders))
+	for i, so := range orders {
+		amounts[i] = so.Amount
+	}
+	return amounts
+}
+
 func sumSubOrderAmount(orders []SubOrder) atomefin.Amount {
 	var sum atomefin.Amount
 	for _, so := range orders {
 		sum += so.Amount
 	}
 	return sum
+}
+
+func subOrderAmounts(orders []SubOrder) []atomefin.Amount {
+	amounts := make([]atomefin.Amount, len(orders))
+	for i, so := range orders {
+		amounts[i] = so.Amount
+	}
+	return amounts
 }

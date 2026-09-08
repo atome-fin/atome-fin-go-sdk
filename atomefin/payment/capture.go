@@ -151,6 +151,9 @@ func validateCaptureRequest(req *CaptureRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
+	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, subOrderAmounts(req.SubOrders)); err != nil {
+		return err
+	}
 	if req.ExtendInfo == nil {
 		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
 	}
@@ -165,9 +168,6 @@ func validateCaptureRequest(req *CaptureRequest) error {
 	}
 	if err := validateAuthCaptureMainOrderExtendInfos(req.ExtendInfo.OrderType, req.ExtendInfo.MainOrderExtendInfos); err != nil {
 		return err
-	}
-	if !IsValidScore(req.ExtendInfo.UserCreditScore) {
-		return &atomefin.ValidationError{Field: "extendInfo.userCreditScore", Message: "must be in [0, 1]"}
 	}
 	return nil
 }

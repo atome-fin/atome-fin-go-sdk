@@ -9,7 +9,6 @@
 package payment_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/payment"
@@ -225,9 +224,10 @@ func TestR4_AuthRequest_RequiredEmitsAtZero(t *testing.T) {
 	)
 }
 
-func TestR4_RiplayRequest_RequiredEmitsAtZero(t *testing.T) {
-	marshal.AssertRequiredEmits[payment.RiplayRequest](t,
-		"sessionId", "externalReferenceUid", "tenor",
+func TestR4_ReAuthRequest_RequiredEmitsAtZero(t *testing.T) {
+	marshal.AssertRequiredEmits[payment.ReAuthRequest](t,
+		"requestId", "externalReferenceUid", "authOrderId", "totalAmount",
+		"periodType", "extendInfo",
 	)
 }
 
@@ -264,31 +264,5 @@ func TestPositionScoped_PreviousStatusRejectsClosed(t *testing.T) {
 func TestPositionScoped_CurrentStatusAcceptsClosed(t *testing.T) {
 	if !payment.IsValidCurrentStatus("ACCOUNT_CLOSED") {
 		t.Error("ACCOUNT_CLOSED must be valid for currentStatus")
-	}
-}
-
-// ---------- userCreditScore validity ----------
-
-func TestUserCreditScore_RangeCheck(t *testing.T) {
-	in := func(v float64) *float64 { return &v }
-	cases := []struct {
-		s    *float64
-		want bool
-	}{
-		{nil, true},
-		{in(0), true},
-		{in(0.5), true},
-		{in(1), true},
-		{in(-0.01), false},
-		{in(1.0001), false},
-	}
-	for _, c := range cases {
-		if got := payment.IsValidScore(c.s); got != c.want {
-			label := "<nil>"
-			if c.s != nil {
-				label = fmt.Sprintf("%g", *c.s)
-			}
-			t.Errorf("IsValidScore(%s) = %v, want %v", label, got, c.want)
-		}
 	}
 }

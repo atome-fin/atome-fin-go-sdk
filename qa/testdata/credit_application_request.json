@@ -4,51 +4,6 @@
   "mobileNumber": "+628129801929",
   "email": "user42@example.com",
   "country": "ID",
-  "applicationEssentialInfo": {
-    "livenessCheck": {
-      "result": "PASS",
-      "snapshotPhoto": "base64-photo",
-      "livenessCheckResult01": "0.98",
-      "livenessCheckResult02": "0.97",
-      "livenessCheckResult03": "PASS"
-    },
-    "individualProfile": {
-      "idType": "KTP",
-      "ocrResult": {
-        "idNumber": "3173051234567890",
-        "fullName": "Luna Zhang",
-        "birthPlace": "Jakarta",
-        "ocrReligion": "ISLAM",
-        "ocrGender": "WOMAN",
-        "manuallyBirthDate": "1990-01-15",
-        "ocrProvince": "DKI Jakarta",
-        "ocrCity": "Jakarta Selatan",
-        "ocrDistrict": "Kebayoran Baru",
-        "jobType": "EMPLOYEE",
-        "ocrMaritalStatus": "SINGLE",
-        "manuallyExpiredDate": "2099-12-31",
-        "manuallyCitizenship": "WNI",
-        "manuallyRt": "001",
-        "manuallyRw": "002"
-      },
-      "idFrontPhoto": "base64-id-front-photo"
-    },
-    "platformInformation": {
-      "sceneType": "CHECKOUT_PAGE",
-      "creditProfile": "{\"modelScores\":[{\"scoreType\":\"application_model\",\"scoreValue\":\"-99\"}]}",
-      "deviceInfo": {
-        "platform": "ANDROID",
-        "gps": {
-          "longitude": "106.827153",
-          "latitude": "-6.175392",
-          "time": "1620285931000"
-        },
-        "ipAddress": {
-          "trueIp": "196.127.1.1"
-        }
-      }
-    }
-  },
   "extendInfo": {
     "creditInformationRequestId": "01HCRDIN1234567890ABCDEFGH"
   }

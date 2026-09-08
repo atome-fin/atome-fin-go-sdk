@@ -1,5 +1,6 @@
-// Package payment implements the outbound POST /auth, POST /capture and
-// POST /voidAuth calls of the atomefin white-label "G" API.
+// Package payment implements the outbound POST /auth, POST /capture,
+// POST /voidAuth, and POST /reAuth calls of the atomefin white-label
+// "G" API.
 //
 // See doc.go for the package overview and the constructor pattern. This
 // file hosts the Service struct, its constructor, and the small

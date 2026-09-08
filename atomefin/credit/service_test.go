@@ -72,21 +72,41 @@ func validInformationParam() *credit.CreditInformationParam {
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.CreditInformationIndividualProfile{
-				OCRResult: &credit.CreditInformationOCRResult{FullName: "Test User"},
+			PlatformInformation: &credit.PlatformInformation{
+				SceneType:     credit.SceneCheckoutPage,
+				UserFlag:      credit.UserFlagGrab,
+				SCDUserLevel:  credit.SCDUserLevel2,
+				CreditProfile: `{"modelScores":[]}`,
+				DeviceInfo:    specSampleCreditDevice(),
 			},
 		},
 	}
 }
 
+func specSampleCreditDevice() *credit.DeviceInfo {
+	return &credit.DeviceInfo{
+		Platform: "ANDROID",
+		Device: &credit.Device{
+			DeviceID:            "device-1",
+			GoogleAdvertisingID: "advertising-1",
+			IsRoot:              false,
+			Build: &credit.DeviceBuild{
+				Board: "board", Brand: "brand", Device: "device",
+				Manufacturer: "manufacturer", Model: "model", Product: "product",
+			},
+		},
+		WifiList:  []credit.WifiAP{{SSID: "wifi-1"}},
+		IPAddress: &credit.IPAddress{EthIP: "192.0.2.1", TrueIP: "198.51.100.1"},
+	}
+}
+
 func validApplicationParam() *credit.CreditApplicationParam {
 	return &credit.CreditApplicationParam{
-		RequestID:                "app-1",
-		ExternalReferenceUID:     "user-42",
-		MobileNumber:             "+628129801929",
-		Email:                    "u@example.com",
-		Country:                  credit.CountryIndonesia,
-		ApplicationEssentialInfo: specSampleCreditApplicationEssentialInfo(),
+		RequestID:            "app-1",
+		ExternalReferenceUID: "user-42",
+		MobileNumber:         "+628129801929",
+		Email:                "u@example.com",
+		Country:              credit.CountryIndonesia,
 		ExtendInfo: &credit.CreditApplicationExtendInfo{
 			CreditInformationRequestID: "info-1",
 		},

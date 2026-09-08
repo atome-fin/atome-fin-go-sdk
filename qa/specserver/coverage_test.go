@@ -22,12 +22,17 @@ var outboundCovered = []string{
 	"POST /auth",
 	"POST /capture",
 	"POST /voidAuth",
+	"POST /reAuth",
 	"GET /query-auth",
 	"GET /query-capture",
 	"GET /query-voidAuth",
+	"GET /query-reAuth",
 	"POST /payment-precheck",
 	"POST /payment-plan",
-	"POST /riplay",
+
+	// virtualaccount/
+	"POST /va/getList",
+	"POST /va/vaCodeByBank",
 
 	// refund/
 	"POST /refund",

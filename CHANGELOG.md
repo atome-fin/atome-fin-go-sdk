@@ -7,6 +7,44 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.2] — 2026-09-08
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-09-07-d0d2f50d.yaml`.
+
+### Added
+
+- **`payment.ReAuth`** / **`ReAuthRequest`** / **`ReAuthResponse`** —
+  `POST /reAuth` creates a new authorization after `/voidAuth` while
+  reusing original rates; synchronous terminal result and no callback.
+- **`payment.QueryReAuth`** — idempotent `GET /query-reAuth`.
+- **`virtualaccount.Service`** — `POST /va/getList` and
+  `POST /va/vaCodeByBank` with typed bank codes and VA responses.
+- Checkout minimum-amount validation for IDR `periodType` 1 and 3.
+- **`credit.CreditInformationEssentialInfo.LivenessCheck`** — required
+  for the non-overlap (`NON_OVERLAP`) request shape.
+- **`credit.PlatformInformation.LatestGkycTimeStamp`**,
+  `UserFlag`, and `SCDUserLevel` — platform risk and KYC identifiers.
+
+### Changed
+
+- **Pinned spec** — `swagger-2026-09-07-d0d2f50d.yaml` replaces
+  `swagger-2026-08-17-1e38547f.yaml`.
+- **Repayment event enum** — `ATOME_REPAYMENT` and
+  `OVERPAID_REPAYMENT` are valid events.
+- **`/credit-information`** — now supports the full non-overlap and
+  overlap request shapes. Non-overlap requires `livenessCheck`,
+  `individualProfile`, and `platformInformation.latestGkycTimeStamp`;
+  overlap sends `platformInformation` only.
+
+### Removed
+
+- **`payment.Riplay`** / **`RiplayRequest`** / **`RiplayResponse`** and
+  `/payment-plan` `riplayInfoList` — RIPLAY is now a fixed, Atome-provided
+  URL and has no API response shape in the 2026-09-07 spec.
+- **`credit.CreditApplicationParam.ApplicationEssentialInfo`** — the
+  full application-essential payload moved to `/credit-information`.
+
 ## [0.8.1] — 2026-08-17
 
 Syncs the SDK to the upstream **GrabPayLater** Partner API spec
@@ -93,11 +131,6 @@ plan, _ := payment.New(c).PaymentPlan(ctx, &payment.PaymentPlanRequest{
     },
 })
 session := plan.Data.ExtendInfo.SessionID
-
-// /riplay — RIPLAY URL for the selected tenor
-_, _ = payment.New(c).Riplay(ctx, &payment.RiplayRequest{
-    SessionID: session, ExternalReferenceUID: "user-1", Tenor: 3,
-})
 
 // /auth — sessionid header from plan; SKUs under extendInfo
 _, _ = payment.New(c).Auth(ctx, &payment.AuthRequest{
@@ -2060,7 +2093,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.8.1
 [0.8.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.8.0
 [0.7.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.7.0

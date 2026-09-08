@@ -165,29 +165,6 @@ func TestAuth_Validate_RejectsMissingSKUFields(t *testing.T) {
 	}
 }
 
-func TestAuth_Validate_RejectsBadCreditScore(t *testing.T) {
-	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
-	bad := 1.5
-	req := &payment.AuthRequest{
-		RequestID:            "r",
-		ExternalReferenceUID: "u",
-		TotalAmount:          1,
-		PeriodType:           1,
-		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
-		Sessionid:            "s",
-		ExtendInfo: &payment.RequestExtendInfo{
-			OrderType:       payment.OrderTypeGrabFood,
-			UserCreditScore: &bad,
-			MainOrderExtendInfos: []payment.MainOrderExtendInfo{{
-				MerchantID: "m",
-				SkuInfos:   []payment.SkuInfo{{SkuID: "sku-1", Amount: 1}},
-			}},
-		},
-	}
-	_, err := payment.New(c).Auth(context.Background(), req)
-	mustValidationError(t, err, "userCreditScore")
-}
-
 // ---------- Capture rejections ----------
 
 func TestCapture_Validate_NilRequest(t *testing.T) {

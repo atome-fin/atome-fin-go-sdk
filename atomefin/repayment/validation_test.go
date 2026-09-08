@@ -133,8 +133,6 @@ func TestRepaymentEvent_IsValid(t *testing.T) {
 		t.Errorf("%q.IsValid() = false; want true", repayment.RepaymentEventNormal)
 	}
 	for _, e := range []repayment.RepaymentEvent{
-		repayment.RepaymentEventAtomeRepayment,
-		repayment.RepaymentEventOverpaidRepayment,
 		repayment.RepaymentEvent("UNKNOWN"),
 		repayment.RepaymentEvent(""),
 	} {

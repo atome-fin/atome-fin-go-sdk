@@ -100,6 +100,28 @@ func (s *Service) QueryVoidAuth(ctx context.Context, requestID, externalReferenc
 	return &resp, nil
 }
 
+// QueryReAuth retrieves the terminal result of a prior /reAuth
+// submission keyed by `requestID` + `externalReferenceUID`.
+//
+// Spec endpoint: GET /query-reAuth?externalReferenceUid=<x>&requestId=<y>
+func (s *Service) QueryReAuth(ctx context.Context, requestID, externalReferenceUID string) (*ReAuthResponse, error) {
+	if err := s.checkConfigured(); err != nil {
+		return nil, err
+	}
+	if err := validateQueryParams(requestID, externalReferenceUID); err != nil {
+		return nil, err
+	}
+	q := url.Values{
+		"requestId":            []string{requestID},
+		"externalReferenceUid": []string{externalReferenceUID},
+	}
+	var resp ReAuthResponse
+	if err := s.invokeGET(ctx, "/query-reAuth", q, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // validateQueryParams enforces the spec's `requestId` (≤64 chars,
 // non-empty) and `externalReferenceUid` (non-empty) constraints.
 // Both are spec-required on the Query* GETs.

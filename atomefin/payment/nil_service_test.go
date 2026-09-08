@@ -56,14 +56,25 @@ func TestNilService_CaptureDoesNotPanic(t *testing.T) {
 	mustValidationOnNilService(t, err)
 }
 
-func TestNilService_RiplayDoesNotPanic(t *testing.T) {
+func TestNilService_ReAuthDoesNotPanic(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("Riplay on nil receiver panicked: %v", r)
+			t.Errorf("ReAuth on nil receiver panicked: %v", r)
 		}
 	}()
 	var svc *payment.Service
-	_, err := svc.Riplay(context.Background(), &payment.RiplayRequest{})
+	_, err := svc.ReAuth(context.Background(), &payment.ReAuthRequest{})
+	mustValidationOnNilService(t, err)
+}
+
+func TestNilService_QueryReAuthDoesNotPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("QueryReAuth on nil receiver panicked: %v", r)
+		}
+	}()
+	var svc *payment.Service
+	_, err := svc.QueryReAuth(context.Background(), "r", "u")
 	mustValidationOnNilService(t, err)
 }
 

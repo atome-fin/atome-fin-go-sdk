@@ -204,7 +204,7 @@ func TestR4_CreditInformationParam_RequiredEmitsAtZero(t *testing.T) {
 func TestR4_CreditApplicationParam_RequiredEmitsAtZero(t *testing.T) {
 	marshal.AssertRequiredEmits[credit.CreditApplicationParam](t,
 		"requestId", "externalReferenceUid", "mobileNumber",
-		"email", "country", "applicationEssentialInfo", "extendInfo",
+		"email", "country", "extendInfo",
 	)
 }
 

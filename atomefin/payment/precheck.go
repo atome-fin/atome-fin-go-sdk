@@ -24,6 +24,10 @@ type PaymentPreCheckRequest struct {
 	// RequestID is client-side only for idempotency logging; not in the
 	// spec body. Populated by the SDK when empty before the network call.
 	RequestID string `json:"-"`
+	// PeriodType is client-side only. It is inferred from the optional
+	// sub-order periodType when present, then used for the partner-side
+	// IDR minimum-amount validation. It is not serialized.
+	PeriodType int `json:"-"`
 }
 
 // PreCheckExtendInfo is the extendInfo bag on /payment-precheck.
@@ -107,6 +111,9 @@ func validatePaymentPreCheckRequest(req *PaymentPreCheckRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
+	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, planSubOrderAmounts(req.SubOrders)); err != nil {
+		return err
+	}
 	if req.ExtendInfo != nil && req.ExtendInfo.OrderType != "" && !req.ExtendInfo.OrderType.IsValid() {
 		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: validOrderTypesMsg}
 	}
@@ -122,6 +129,12 @@ func validatePaymentPreCheckRequest(req *PaymentPreCheckRequest) error {
 				}
 			}
 		}
+	}
+	if req.PeriodType == 0 && len(req.SubOrders) > 0 && req.SubOrders[0].PeriodType != nil {
+		req.PeriodType = *req.SubOrders[0].PeriodType
+	}
+	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, planSubOrderAmounts(req.SubOrders)); err != nil {
+		return err
 	}
 	if len(req.SubOrders) > 0 && sumPlanSubOrderAmount(req.SubOrders) != req.TotalAmount {
 		return &atomefin.ValidationError{

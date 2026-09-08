@@ -8,8 +8,6 @@ import "github.com/atome-fin/atome-fin-go-sdk/atomefin"
 //   - No interface{} or map[string]any anywhere on the public surface.
 //   - Money fields are bare int64; required money fields never use
 //     ,omitempty (so legitimate zero-deltas serialise).
-//   - userCreditScore is the SOLE permitted public-surface float
-//     (it is a probability, not money — see RequestExtendInfo).
 //   - JSON tags are byte-for-byte from the spec (lowerCamelCase).
 //   - Time fields stay int64 ms-since-epoch on the wire — no time.Time
 //     in the JSON struct.
@@ -130,11 +128,6 @@ func (p Platform) IsValid() bool {
 // /capture require: orderType, creditProfile, deviceInfo, address.
 // GRAB_MART / GRAB_FOOD additionally require mainOrderExtendInfos.
 type RequestExtendInfo struct {
-	// UserCreditScore is optional and legacy — not part of the
-	// white-label G spec's extendInfo trees. Retained for internal
-	// risk pipelines; omit when unused.
-	UserCreditScore *float64 `json:"userCreditScore,omitempty"`
-
 	// OrderType is the Grab order business line (TRANSPORT, GRAB_FOOD, …).
 	// Required by the spec on /auth and /capture.
 	OrderType PaymentOrderType `json:"orderType"`
@@ -159,16 +152,6 @@ type RequestExtendInfo struct {
 	// Required for GRAB_MART (plan/auth/capture) and GRAB_FOOD
 	// (auth/capture); omit for TRANSPORT.
 	MainOrderExtendInfos []MainOrderExtendInfo `json:"mainOrderExtendInfos,omitempty"`
-}
-
-// IsValidScore reports whether s is in the spec's 0..1 range.
-// Returns true for nil (absent) so callers can validate without
-// repeating the nil-check.
-func IsValidScore(s *float64) bool {
-	if s == nil {
-		return true
-	}
-	return *s >= 0 && *s <= 1
 }
 
 // DeviceInfo describes the originating device.

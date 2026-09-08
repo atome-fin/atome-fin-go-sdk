@@ -248,20 +248,14 @@ type CreditInformationParam struct {
 // specific nested types so this lightweight step cannot accidentally
 // send the broader /credit-application KYC payload.
 type CreditInformationEssentialInfo struct {
-	IndividualProfile *CreditInformationIndividualProfile `json:"individualProfile"`
-}
-
-// CreditInformationIndividualProfile is the individualProfile bag on
-// /credit-information. Swagger currently allows only ocrResult.fullName
-// at this step.
-type CreditInformationIndividualProfile struct {
-	OCRResult *CreditInformationOCRResult `json:"ocrResult"`
-}
-
-// CreditInformationOCRResult is the OCR subset allowed on
-// /credit-information.
-type CreditInformationOCRResult struct {
-	FullName string `json:"fullName"`
+	// LivenessCheck is required for non-overlap users (GKYC or OVO
+	// premium); omit it for overlap users.
+	LivenessCheck *LivenessCheck `json:"livenessCheck,omitempty"`
+	// IndividualProfile is required for non-overlap users; omit it
+	// for overlap users.
+	IndividualProfile *IndividualProfile `json:"individualProfile,omitempty"`
+	// PlatformInformation is required for both request shapes.
+	PlatformInformation *PlatformInformation `json:"platformInformation"`
 }
 
 // CreditInformationExtendInfo is the extendInfo bag on a
@@ -287,9 +281,6 @@ type CreditApplicationParam struct {
 	Email string `json:"email"`
 	// Country is the ISO-style market code; currently "ID" only.
 	Country Country `json:"country"`
-	// ApplicationEssentialInfo carries the KYC blob (idType, OCR
-	// fields, residential, work, platform, others). Required.
-	ApplicationEssentialInfo *ApplicationEssentialInfo `json:"applicationEssentialInfo"`
 	// ExtendInfo links to the prior /credit-information call.
 	// Required (per spec).
 	ExtendInfo *CreditApplicationExtendInfo `json:"extendInfo"`
@@ -406,11 +397,58 @@ const (
 	SceneWalletDashboardEntry CreditSceneType = "WALLET_DASHBOARD_ENTRY"
 )
 
+// UserFlag identifies the partner platform user type.
+type UserFlag string
+
+// Spec-defined partner platform user flags.
+const (
+	UserFlagOVO    UserFlag = "OVO"
+	UserFlagCommon UserFlag = "COMMON"
+	UserFlagGrab   UserFlag = "GRAB"
+)
+
+// IsValid reports whether f is a spec-defined user flag.
+func (f UserFlag) IsValid() bool {
+	switch f {
+	case UserFlagOVO, UserFlagCommon, UserFlagGrab:
+		return true
+	default:
+		return false
+	}
+}
+
+// SCDUserLevel is the partner platform user level.
+type SCDUserLevel string
+
+// Spec-defined partner platform user levels.
+const (
+	SCDUserLevel1 SCDUserLevel = "1"
+	SCDUserLevel2 SCDUserLevel = "2"
+	SCDUserLevel3 SCDUserLevel = "3"
+)
+
+// IsValid reports whether l is a spec-defined user level.
+func (l SCDUserLevel) IsValid() bool {
+	switch l {
+	case SCDUserLevel1, SCDUserLevel2, SCDUserLevel3:
+		return true
+	default:
+		return false
+	}
+}
+
 // PlatformInformation carries partner-side risk signals.
 type PlatformInformation struct {
 	// CreditProfile is a JSON string carrying partner risk model
 	// scores and engineered features.
-	CreditProfile string `json:"creditProfile,omitempty"`
+	CreditProfile string `json:"creditProfile"`
+	// LatestGkycTimeStamp is the user's last Grab KYC timestamp. It is
+	// required for non-overlap users and optional for overlap users.
+	LatestGkycTimeStamp string `json:"latestGkycTimeStamp,omitempty"`
+	// UserFlag identifies the partner platform user type.
+	UserFlag UserFlag `json:"userFlag"`
+	// SCDUserLevel is the partner platform user level ("1", "2", or "3").
+	SCDUserLevel SCDUserLevel `json:"scdUserLevel"`
 	// SceneType is the UI entry point where the user started credit.
 	SceneType CreditSceneType `json:"sceneType"`
 	// DeviceInfo is the user's device snapshot at submission time.
@@ -420,15 +458,15 @@ type PlatformInformation struct {
 // DeviceInfo is the user's device snapshot.
 type DeviceInfo struct {
 	// Platform is the device platform (ANDROID | IOS).
-	Platform string `json:"platform,omitempty"`
+	Platform string `json:"platform"`
 	// GPS is the GPS sample (longitude/latitude/time strings).
 	GPS *GPSSample `json:"gps,omitempty"`
 	// Device is the device-build snapshot.
-	Device *Device `json:"device,omitempty"`
+	Device *Device `json:"device"`
 	// WifiList is the visible Wi-Fi networks at submission time.
-	WifiList []WifiAP `json:"wifiList,omitempty"`
+	WifiList []WifiAP `json:"wifiList"`
 	// IPAddress carries ethIp / trueIp.
-	IPAddress *IPAddress `json:"ipAddress,omitempty"`
+	IPAddress *IPAddress `json:"ipAddress"`
 }
 
 // GPSSample is the GPS sample on a device snapshot. Spec types
@@ -444,35 +482,35 @@ type GPSSample struct {
 // Device is the device-build snapshot.
 type Device struct {
 	DeviceID            string       `json:"deviceId"`
-	GoogleAdvertisingID string       `json:"googleAdvertisingId,omitempty"`
+	GoogleAdvertisingID string       `json:"googleAdvertisingId"`
 	IDFA                string       `json:"idfa,omitempty"`
 	IDFV                string       `json:"idfv,omitempty"`
-	UTDID               string       `json:"utdid"`
-	IsRoot              bool         `json:"isRoot,omitempty"`
+	UTDID               string       `json:"utdid,omitempty"`
+	IsRoot              bool         `json:"isRoot"`
 	AndroidID           string       `json:"androidId,omitempty"`
-	Build               *DeviceBuild `json:"build,omitempty"`
+	Build               *DeviceBuild `json:"build"`
 }
 
 // DeviceBuild mirrors the Android Build.* fields.
 type DeviceBuild struct {
-	Board        string `json:"board,omitempty"`
-	Brand        string `json:"brand,omitempty"`
+	Board        string `json:"board"`
+	Brand        string `json:"brand"`
 	CPUAbi       string `json:"cpuAbi,omitempty"`
-	Device       string `json:"device,omitempty"`
-	Manufacturer string `json:"manufacturer,omitempty"`
-	Model        string `json:"model,omitempty"`
-	Product      string `json:"product,omitempty"`
+	Device       string `json:"device"`
+	Manufacturer string `json:"manufacturer"`
+	Model        string `json:"model"`
+	Product      string `json:"product"`
 }
 
 // WifiAP is one visible Wi-Fi network.
 type WifiAP struct {
-	SSID string `json:"ssid,omitempty"`
+	SSID string `json:"ssid"`
 }
 
 // IPAddress is the IP-address bag (ethIp / trueIp).
 type IPAddress struct {
-	EthIP  string `json:"ethIp,omitempty"`
-	TrueIP string `json:"trueIp,omitempty"`
+	EthIP  string `json:"ethIp"`
+	TrueIP string `json:"trueIp"`
 }
 
 // ---------- Response envelopes & data types ----------

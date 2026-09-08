@@ -37,6 +37,7 @@ func TestService_PaymentPlan_Success(t *testing.T) {
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1500000),
 		},
+		PeriodType: 3,
 		ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		Sessionid:  "session-plan",
 	})
@@ -74,6 +75,7 @@ func TestService_PaymentPlan_AutoMintsRequestID(t *testing.T) {
 	c := mustClient(t, srv)
 	req := &payment.PaymentPlanRequest{
 		ExternalReferenceUID: "u-1",
+		PeriodType:           1,
 		TotalAmount:          1,
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1),
@@ -100,6 +102,7 @@ func TestService_PaymentPlan_4xxBecomesAPIError(t *testing.T) {
 	_, err := payment.New(c).PaymentPlan(context.Background(), &payment.PaymentPlanRequest{
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
+		PeriodType:           1,
 		TotalAmount:          1,
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1),

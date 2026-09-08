@@ -122,9 +122,36 @@ func buildRequest() *credit.CreditInformationParam {
 		Email:                envOr("ATOME_FIN_EMAIL", "grab-pre-test@example.com"),
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.CreditInformationIndividualProfile{
-				OCRResult: &credit.CreditInformationOCRResult{
+			LivenessCheck: &credit.LivenessCheck{
+				Result:        "PASS",
+				SnapshotPhoto: envOr("ATOME_FIN_SNAPSHOT_PHOTO", "base64-liveness-photo"),
+			},
+			IndividualProfile: &credit.IndividualProfile{
+				IDType:       "KTP",
+				IDFrontPhoto: envOr("ATOME_FIN_ID_FRONT_PHOTO", "base64-id-front-photo"),
+				OCRResult: &credit.OCRResult{
 					FullName: envOr("ATOME_FIN_FULL_NAME", "Grab Pre Test"),
+				},
+			},
+			PlatformInformation: &credit.PlatformInformation{
+				SceneType:           credit.SceneCheckoutPage,
+				LatestGkycTimeStamp: "1620285931000",
+				UserFlag:            credit.UserFlagGrab,
+				SCDUserLevel:        credit.SCDUserLevel2,
+				CreditProfile:       `{"modelScores":[]}`,
+				DeviceInfo: &credit.DeviceInfo{
+					Platform: "ANDROID",
+					Device: &credit.Device{
+						DeviceID:            "grab-pre-device",
+						GoogleAdvertisingID: "grab-pre-advertising-id",
+						IsRoot:              false,
+						Build: &credit.DeviceBuild{
+							Board: "board", Brand: "brand", Device: "device",
+							Manufacturer: "manufacturer", Model: "model", Product: "product",
+						},
+					},
+					WifiList:  []credit.WifiAP{{SSID: "Grab-Pre-WiFi"}},
+					IPAddress: &credit.IPAddress{EthIP: "192.0.2.1", TrueIP: "198.51.100.1"},
 				},
 			},
 		},

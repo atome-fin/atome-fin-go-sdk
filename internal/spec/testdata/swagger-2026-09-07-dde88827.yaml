@@ -12,7 +12,7 @@ info:
 
 
     Draft **partner white-label** API under base path `servers`: **Auth–Capture–Void** checkout, optional **credit & installment
-    checkout** (`/payment-precheck`, `/payment-plan`), **refunds**, **bills**, **transactions**, **repayment**, and partner-hosted
+    checkout** (`/payment-precheck`, `/payment-plan`), **refunds**, **bills**, **transactions**, **repayment**, **virtual accounts**, and partner-hosted
     **callbacks**. ---
 
     ## Go SDK
@@ -27,21 +27,27 @@ info:
     ---
 
 
-    ## Auth–Capture–Void
+    ## Auth–Capture–Void / ReAuth
 
-    - **POST** `/auth`, `/capture`, `/voidAuth`: RSA2 signature on the JSON body (`Authorization` header); treat **`requestId`**
+    - **POST** `/auth`, `/capture`, `/voidAuth`, `/reAuth`: RSA2 signature on the JSON body (`Authorization` header); treat **`requestId`**
     as idempotent.
 
     - **Sync behaviour:** HTTP `200` on first submission may mean **processing** (`data.status = PROCESSING`). After a **terminal**
     state, the same POST retried with the same `requestId` returns **`SUCCESS` / `FAILED`** directly.
 
-    - **Polling:** **GET** `/query-auth`, `/query-capture`, `/query-voidAuth` return the same envelope as the corresponding
+    - **Polling:** **GET** `/query-auth`, `/query-capture`, `/query-voidAuth`, `/query-reAuth` return the same envelope as the corresponding
     POST `200` for `requestId` + `externalReferenceUid`; sign the **GET** query string per the **signature** tag.
 
     - **Callbacks (Atome → partner):** `/<authNotifyUrl>` and `/<captureNotifyUrl>` fire **only** for **terminal** outcomes;
-    they **never** carry `PROCESSING`.
+    they **never** carry `PROCESSING`. `/reAuth` is **synchronous** — no callback.
 
-    - **`/voidAuth` eligibility:** Callable only after `/auth` has completed with `SUCCESS`, and **before** `/capture` is submitted for the same `authOrderId`. Not allowed while capture is `PROCESSING` or after capture has been submitted.
+    - **`/reAuth` is synchronous:** HTTP `200` carries the terminal `data.status` (`SUCCESS` or `FAILED`). There is no `PROCESSING` and no callback.
+
+    - **`/voidAuth` eligibility:** Callable only after `/auth` (or `/reAuth`) has completed with `SUCCESS`, and **before** `/capture` is submitted for the same `authOrderId`. Not allowed while capture is `PROCESSING` or after capture has been submitted. `/voidAuth` unfreezes the authorization and **keeps** the pricing snapshot. Partner then either stops (user abandoned the order) or calls `/reAuth`.
+
+    - **ReAuth (SKU / amount change, keep original rates):** After a successful `/auth`, if SKU or amount changes (merchants must stay the same), call **`POST /voidAuth`** (unfreeze OA1, keep the pricing snapshot) then **`POST /reAuth`** (new OA2, no `sessionid`, rates mapped from OA1 by merchant-dimension `rateIndex`). Then **`POST /capture`** on OA2. `/reAuth` does **not** call the pricing center; price consumption still happens only on `/capture`.
+
+    - **Plan → capture window:** `/reAuth` and `/capture` must complete within **7 days** of the original `/payment-plan`. After that window both are rejected (`AUTH_EXPIRED`).
 
     | Flow | Method | Path |
 
@@ -49,7 +55,9 @@ info:
 
     | Hold / capture / void | POST | `/auth`, `/capture`, `/voidAuth` |
 
-    | Poll same outcome | GET | `/query-auth`, `/query-capture`, `/query-voidAuth` |
+    | Re-auth (after `/voidAuth`) | POST | `/reAuth` |
+
+    | Poll same outcome | GET | `/query-auth`, `/query-capture`, `/query-voidAuth`, `/query-reAuth` |
 
     | Auth / capture result callback | POST | `/<authNotifyUrl>`, `/<captureNotifyUrl>` |
 
@@ -169,7 +177,21 @@ tags:
 
     | 2026-08-14 | Payment & Risk | `deviceInfo.gps` and nested `longitude` / `latitude` / `time` are optional on `/credit-application`, `/auth`, and `/capture`. |
 
-    | 2026-08-17 | Payment | `/payment-precheck` `extendInfo.orderType` is optional. |'
+    | 2026-08-17 | Payment | `/payment-precheck` `extendInfo.orderType` is optional. |
+
+    | 2026-08-25 | Payment | ReAuth flow: `POST /cancelForReAuth` (unfreeze OA1, keep pricing snapshot) and `POST /reAuth` (new OA2, no `sessionid`, reuse OA1 rates by merchant-dimension). `/reAuth` is **synchronous** (no `PROCESSING`, no callback). Query: `/query-cancelForReAuth`, `/query-reAuth`. Distinct from `/voidAuth` (terminal user cancel). `/reAuth` and `/capture` must complete within **7 days** of `/payment-plan`. Merchants must not change between OA1 and OA2. |
+
+    | 2026-08-26 | Repayment | Repayment `event` enum aligned with TTS-ID: adds `ATOME_REPAYMENT` and `OVERPAID_REPAYMENT`. |
+
+    | 2026-09-01 | Virtual Account | Added `POST /va/getList` to query available VA banks and `POST /va/vaCodeByBank` to query or create a user VA for the selected bank. |
+
+    | 2026-09-02 | Credit | `POST /credit-information` collects the full `applicationEssentialInfo` payload (moved from `/credit-application`). Request body is split by type: `NON_OVERLAP` (GKYC or OVO premium, requires `livenessCheck` and `individualProfile`) and `OVERLAP` (`platformInformation` only). `platformInformation` is required in both; financial information is not collected this period. `POST /credit-application` removes `applicationEssentialInfo`. `platformInformation` adds `latestGkycTimeStamp` (optional), required `userFlag` (`OVO` / `COMMON` / `GRAB`), and required `scdUserLevel` (`1` / `2` / `3`). |
+
+    | 2026-09-02 | Payment | `/cancelForReAuth` and `/query-cancelForReAuth` are merged into `/voidAuth`. `/voidAuth` unfreezes the authorization and keeps the pricing snapshot; partner may then call `/reAuth` or stop. |
+
+    | 2026-09-07 | Payment | RIPLAY is a static file this period: Atome provides Grab a fixed URL. Removes `POST /riplay` and `/payment-plan` `data.extendInfo.riplayInfoList`. |
+
+    | 2026-09-07 | Credit | `platformInformation.latestGkysTimeStamp` renamed to `latestGkycTimeStamp`. |'
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -182,24 +204,34 @@ tags:
 - name: Credit
 - name: Payment
   description: '**Auth–Capture–Void:** Auth freezes limit; capture completes the order; void releases the hold. **`/voidAuth`**
-    is allowed only after `/auth` succeeds (`SUCCESS`) and before `/capture` is submitted for the same `authOrderId`; not allowed
-    while capture is `PROCESSING` or after capture has been submitted. Partner
-    must treat `requestId` as an idempotent key for every `/auth`, `/capture`, and `/voidAuth` request.
+    is allowed only after `/auth` (or `/reAuth`) succeeds (`SUCCESS`) and before `/capture` is submitted for the same `authOrderId`; not allowed
+    while capture is `PROCESSING` or after capture has been submitted. `/voidAuth` unfreezes the authorization and **keeps**
+    the pricing snapshot. Partner then either stops (user abandoned the order) or calls `/reAuth`. Partner
+    must treat `requestId` as an idempotent key for every `/auth`, `/capture`, `/voidAuth`, and `/reAuth` request.
 
-    **Installments / checkout:** Pre-check, payment plan, `/query-auth`, `/query-capture`, and `/query-voidAuth` use the same
+    **ReAuth (keep original rates):** If SKU or amount changes after a successful `/auth` and merchants stay the same, call
+    **`/voidAuth`** then **`/reAuth`** (no `sessionid`), then **`/capture`** on the new `authOrderId`. `/reAuth` maps
+    rates from the original authorization by merchant-dimension `rateIndex` and does **not** call the pricing center. `/reAuth`
+    returns the terminal result **synchronously** (no `PROCESSING`, no callback).
+
+    **Installments / checkout:** Pre-check, payment plan, `/query-auth`, `/query-capture`, `/query-voidAuth`,
+    and `/query-reAuth` use the same
     `Payment` tag; treat `requestId` as idempotent per integration rules for those paths.
 
-    **Minimum order / sub-order amounts:** For payment-precheck, payment-plan, auth, and capture, one merchant = one sub-order. For `periodType` = 1: order >= 1 IDR, each sub-order >= 1
+    **Minimum order / sub-order amounts:** For payment-precheck, payment-plan, auth, reAuth, and capture, one merchant = one sub-order. For `periodType` = 1: order >= 1 IDR, each sub-order >= 1
     IDR; for `periodType` = 3: order >= 20,000 IDR, each sub-order >= 3 IDR. Partners must validate `totalAmount` and
-    `subOrders[].amount` before `POST /payment-precheck`, `POST /payment-plan`, `POST /auth`, and `POST /capture`.
+    `subOrders[].amount` before `POST /payment-precheck`, `POST /payment-plan`, `POST /auth`, `POST /reAuth`, and `POST /capture`.
 
     **Checkout session:** `POST /payment-plan` returns `data.extendInfo.sessionId`, generated by Atome and valid for **2 hours**.
-    Pass it as the `sessionid` request header on `POST /auth`. Use the same `sessionId` with `externalReferenceUid` and `tenor` on
-    `POST /riplay` to fetch the RIPLAY contract URL for the selected tenor. `POST /capture` must be submitted within **7 days** of a
-    successful `/auth`.
+    Pass it as the `sessionid` request header on `POST /auth` only — **`/reAuth` does not use `sessionid`**. `POST /reAuth` and `POST /capture` must be submitted within **7 days** of the
+    original `/payment-plan`.
+
+    **RIPLAY:** This period RIPLAY is a **static file**. Atome provides Grab a **fixed URL** (agreed during integration). There is no `/riplay` API and no `riplayInfoList` on `/payment-plan`.
 
     '
 - name: Repayment
+- name: Virtual Account
+  description: Query available virtual-account banks and retrieve or create a user's repayment VA.
 - name: Refund
   description: 'Asynchronously notify the final order result,  and notify the result by callback.</br>
 
@@ -213,6 +245,7 @@ tags:
     URL **only when** `/auth` or `/capture` reaches a **terminal** `data.status` (e.g. `SUCCESS` or `FAILED`). While the synchronous
     API still shows **processing** (`PROCESSING`), Atome does **not** send these callbacks. After a terminal state is reached,
     the partner may also obtain the same terminal outcome via **idempotent** `/auth` / `/capture` retry (same `requestId`).
+    `/reAuth` returns the terminal result on the POST itself and does **not** send a callback.
 
     '
 - name: All Models
@@ -235,6 +268,11 @@ tags:
     ## VoidResultData
 
     <SchemaDefinition schemaRef="#/components/schemas/VoidResultData" />
+
+
+    ## ReAuthAuthorizationData
+
+    <SchemaDefinition schemaRef="#/components/schemas/ReAuthAuthorizationData" />
 
 
     ## CallbackAckResponse
@@ -345,9 +383,17 @@ paths:
       tags:
       - Credit
       summary: Submit credit information
-      description: 'Lightweight first step of the credit flow: tell Atome the partner-side user identity
+      description: 'First step of the credit flow: submit partner-side user identity, country, and
 
-        and country. The full KYC payload is then sent via `POST /credit-application`.
+        `applicationEssentialInfo`. Choose the request body by user type:<br/>
+
+        **Non-overlap** (GKYC or OVO premium): `livenessCheck`, `individualProfile`, and `platformInformation.latestGkycTimeStamp` are required.<br/>
+
+        **Overlap**: send `platformInformation` only; omit `livenessCheck` and `individualProfile`.<br/>
+
+        `platformInformation` is required in both bodies. Financial information (`emergencyContact`,
+
+        `workInformation`) is not collected in this period.
 
         '
       parameters:
@@ -412,6 +458,11 @@ paths:
       tags:
       - Credit
       summary: Submit credit application
+      description: 'Second step of the credit flow. KYC and platform profile are collected on `POST /credit-information`
+
+        (`applicationEssentialInfo`); this call correlates the application via `extendInfo.creditInformationRequestId`.
+
+        '
       parameters:
       - in: header
         name: Authorization
@@ -1205,62 +1256,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerErrorResponse'
-  /riplay:
-    post:
-      tags:
-      - Payment
-      summary: Get RIPLAY contract URL
-      description: |
-        Returns the RIPLAY (Ringkasan Informasi Produk dan Layanan) contract URL for the installment tenor the user selected.
-
-        Call after `POST /payment-plan`. Pass the `sessionId` from `data.extendInfo.sessionId` together with
-        `externalReferenceUid` and `tenor`. The session is valid for **2 hours**. Expired or unknown sessions are rejected
-        with `SESSION_NOT_FOUND`. If no RIPLAY document exists for that tenor, Atome returns `NOT_FOUND`.
-
-        `tenor` is the same value as `periodType` / `riplayInfoList[].totalTenor` (e.g. 1, 3, 6, 9, 12).
-      parameters:
-      - in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-        description: RSA2 signature over the POST JSON body; see **signature** tag.
-      requestBody:
-        $ref: '#/components/requestBodies/RiplayParam'
-      responses:
-        '200':
-          description: SUCCESS
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RiplayAckResponse'
-              examples:
-                tenor-3:
-                  summary: 3-month RIPLAY URL
-                  value:
-                    code: SUCCESS
-                    message: success
-                    data:
-                      tenor: 3
-                      url: https://cdn.example.com/riplay/SES-20260807001/3.pdf
-        '400':
-          description: PARAMS_MISSING、WRONG_PARAMS_FORMAT、PARAMS_WRONG、NOT_FOUND、SESSION_NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaymentStyle400Error'
-        '401':
-          description: INVALID_SIGNATURE
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthorizationErrorResponse'
-        '500':
-          description: SERVER_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServerErrorResponse'
   /auth:
     post:
       tags:
@@ -1285,8 +1280,10 @@ paths:
         **Session:** Pass the `sessionId` returned by `POST /payment-plan` in the `sessionid` request header. The session is
         valid for **2 hours** from issuance; expired or unknown sessions are rejected with `SESSION_NOT_FOUND`.
 
-        **Auth–capture window:** A successful `/auth` (`data.status = SUCCESS`) must be followed by `POST /capture` within
-        **7 days**. Later capture attempts may be rejected with `AUTH_EXPIRED`.
+        **Auth–capture window:** `/capture` (and any `/reAuth` after `/voidAuth`) must be submitted within **7 days**
+        of the original `/payment-plan`. Later attempts may be rejected with `AUTH_EXPIRED`.
+
+        **SKU / amount change:** Call `/voidAuth` then `/reAuth` (no `sessionid`) so the original installment rates are reused.
 
 
         **Synchronous response:**
@@ -1579,8 +1576,9 @@ paths:
         `periodType` (same rules as `/auth`) — 1-month: order >= 1 IDR, sub-order >= 1 IDR; 3-month: order >= 20,000 IDR,
         sub-order >= 3 IDR. See **Minimum order / sub-order amounts** in Overview.
 
-        **Auth–capture window:** `/capture` must be submitted within **7 days** of a successful `/auth` (`data.status = SUCCESS`).
-        Requests beyond this window may be rejected with `AUTH_EXPIRED`.
+        **Auth–capture window:** `/capture` must be submitted within **7 days** of the original `/payment-plan`. After
+        `/voidAuth` → `/reAuth`, pass the **new** `authOrderId` (OA2). Requests beyond this window may be rejected
+        with `AUTH_EXPIRED`.
 
 
         **Synchronous response:**
@@ -1855,11 +1853,21 @@ paths:
       - Payment
       summary: Void authorization
       description: 'Partner uses this to cancel a successful authorization and release the frozen credit limit.
+        Atome unfreezes the authorization and **keeps** the pricing snapshot from `/payment-plan`.
 
 
-        **Eligibility:** Only after `/auth` has reached terminal `SUCCESS` for the given `authOrderId`, and **before** any
+        **Eligibility:** Only after `/auth` or `/reAuth` has reached terminal `SUCCESS` for the given `authOrderId`, and **before** any
         `/capture` request is submitted for that authorization. Void is **not** available once `/capture` has been submitted,
         including while capture `status` is `PROCESSING`.
+
+
+        After a successful `/voidAuth`, partner either:
+
+        - **stops** — user abandoned the order; or
+        - calls **`/reAuth`** then **`/capture`** — SKU / amount changed, keep original installment rates.
+
+
+        Treat `requestId` as idempotent.
 
         '
       parameters:
@@ -1937,6 +1945,234 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Void400Error'
+        '401':
+          description: INVALID_SIGNATURE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorizationErrorResponse'
+        '500':
+          description: SERVER_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerErrorResponse'
+  /reAuth:
+    post:
+      tags:
+      - Payment
+      summary: Re-authorize (reuse original rates)
+      description: |
+        Partner uses this after a successful `/voidAuth` to freeze a **new** authorization (OA2) with updated
+        SKU / amount while **reusing the original installment rates**.
+
+        **No session:** Do **not** send the `sessionid` header. `/reAuth` does **not** call the pricing center. Atome
+        reads the pricing snapshot stored on OA1 and maps rates onto the new sub-orders by merchant-dimension
+        `rateIndex`. Price consumption still happens only on `/capture` (same pricing result).
+
+        **Constraints:**
+        - `authOrderId` must be OA1 (or the previous OA) after a successful `/voidAuth`.
+        - **Merchants must not change.** Each `subOrders[].merchantId` must match the original authorization. SKU
+          details and amounts may change. A merchant that is not in the original pricing snapshot cannot be rated.
+        - `periodType` must match the original  `/auth`.
+        - `/reAuth` and the subsequent `/capture` on OA2 must complete within **7 days** of the original
+          `/payment-plan`. Later attempts may be rejected with `AUTH_EXPIRED`.
+
+        **Merchant-dimension sub-orders:** Same rules as `/auth` / `/capture`. One merchant = one `subOrders[]` entry;
+        SKU details are grouped under `extendInfo.mainOrderExtendInfos[].skuInfos[]` for GRAB_MART and GRAB_FOOD only —
+        **TRANSPORT omits `mainOrderExtendInfos` entirely**.
+
+        **Minimum amounts (partner-side validation):** Same as `/auth` — 1-month (`periodType` = 1): order >= 1 IDR,
+        sub-order >= 1 IDR; 3-month (`periodType` = 3): order >= 20,000 IDR, sub-order >= 3 IDR.
+
+        **Synchronous response:** HTTP `200` carries the **terminal** result on the first submission (`data.status` =
+        `SUCCESS` or `FAILED`). There is no `PROCESSING` and **no callback**. Treat `requestId` as idempotent — a retry
+        with the same `requestId` returns the same terminal envelope.
+      parameters:
+      - in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+        description: RSA2 signature over the POST JSON body; see **signature** tag.
+      requestBody:
+        $ref: '#/components/requestBodies/ReAuthRequest'
+      responses:
+        '200':
+          description: |
+            Terminal result returned synchronously. Inspect `code` and `data.status` (`SUCCESS` or `FAILED`).
+            `data.authOrderId` is the **new** authorization (OA2); pass it to `/capture`. There is no `PROCESSING`
+            and no callback.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReAuthAckResponse'
+              examples:
+                GRAB_MART:
+                  summary: GRAB_MART — two merchants, amount changed
+                  description: Merchants match OA1. Each `subOrderInstallmentPlans[]` entry requires `subOrderId` and `merchantId`. `authOrderId` is OA2.
+                  value:
+                    code: SUCCESS
+                    message: success
+                    data:
+                      requestId: REAUTH-MART-20260825001
+                      currency: IDR
+                      authOrderId: AUTH-ORD-20260825001
+                      originalAuthOrderId: AUTH-ORD-20260807001
+                      totalAmount: 145000
+                      status: SUCCESS
+                      subOrderInstallmentPlans:
+                        - subOrderId: SUB-MART-001
+                          merchantId: MCH-10001
+                          orderAmount: 95000
+                          installmentPlans:
+                            - totalTenor: 3
+                              orderRepayAmount: 95000
+                              orderInterestAmount: 0
+                              installmentDetails:
+                                - subOrderId: SUB-MART-001
+                                  totalTenor: 3
+                                  currentTenor: 1
+                                  repayAmount: 31667
+                                  principalAmount: 31667
+                                  interestAmount: 0
+                                  billId: '202608'
+                                  billDate: '2026-08-25'
+                                  dueDate: '2026-09-25'
+                        - subOrderId: SUB-MART-002
+                          merchantId: MCH-10002
+                          orderAmount: 50000
+                          installmentPlans:
+                            - totalTenor: 3
+                              orderRepayAmount: 50000
+                              orderInterestAmount: 0
+                              installmentDetails:
+                                - subOrderId: SUB-MART-002
+                                  totalTenor: 3
+                                  currentTenor: 1
+                                  repayAmount: 16667
+                                  principalAmount: 16667
+                                  interestAmount: 0
+                                  billId: '202608'
+                                  billDate: '2026-08-25'
+                                  dueDate: '2026-09-25'
+                GRAB_FOOD:
+                  summary: GRAB_FOOD — single sub-order, amount changed
+                  description: Exactly one entry. `subOrderId` and `merchantId` are required. Merchant matches OA1.
+                  value:
+                    code: SUCCESS
+                    message: success
+                    data:
+                      requestId: REAUTH-FOOD-20260825001
+                      currency: IDR
+                      authOrderId: AUTH-ORD-20260825002
+                      originalAuthOrderId: AUTH-ORD-20260807002
+                      totalAmount: 140000
+                      status: SUCCESS
+                      subOrderInstallmentPlans:
+                        - subOrderId: SUB-FOOD-001
+                          merchantId: MCH-FOOD-001
+                          orderAmount: 140000
+                          installmentPlans:
+                            - totalTenor: 3
+                              orderRepayAmount: 140000
+                              orderInterestAmount: 0
+                              installmentDetails:
+                                - subOrderId: SUB-FOOD-001
+                                  totalTenor: 3
+                                  currentTenor: 1
+                                  repayAmount: 46667
+                                  principalAmount: 46667
+                                  interestAmount: 0
+                                  billId: '202608'
+                                  billDate: '2026-08-25'
+                                  dueDate: '2026-09-25'
+                TRANSPORT:
+                  summary: TRANSPORT — single sub-order, amount changed
+                  description: Exactly one entry. `subOrderId` and `merchantId` are typically omitted.
+                  value:
+                    code: SUCCESS
+                    message: success
+                    data:
+                      requestId: REAUTH-TRANSPORT-20260825001
+                      currency: IDR
+                      authOrderId: AUTH-ORD-20260825003
+                      originalAuthOrderId: AUTH-ORD-20260807003
+                      totalAmount: 42000
+                      status: SUCCESS
+                      subOrderInstallmentPlans:
+                        - orderAmount: 42000
+                          installmentPlans:
+                            - totalTenor: 3
+                              orderRepayAmount: 42000
+                              orderInterestAmount: 0
+                              installmentDetails:
+                                - totalTenor: 3
+                                  currentTenor: 1
+                                  repayAmount: 14000
+                                  principalAmount: 14000
+                                  interestAmount: 0
+                                  billId: '202608'
+                                  billDate: '2026-08-25'
+                                  dueDate: '2026-09-25'
+        '400':
+          description: PARAMS_MISSING、WRONG_PARAMS_FORMAT、PARAMS_WRONG、NOT_FOUND、AUTH_EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReAuth400Error'
+        '401':
+          description: INVALID_SIGNATURE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorizationErrorResponse'
+        '500':
+          description: SERVER_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerErrorResponse'
+  /query-reAuth:
+    get:
+      tags:
+      - Payment
+      summary: query re-authorization result
+      description: |
+        Idempotent read of the same outcome as `POST /reAuth` HTTP 200 for the given `requestId` and
+        `externalReferenceUid`. Sign the **GET** query string per the **signature** tag.
+      parameters:
+      - in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+        description: Request parameter signature. e.g. a=&b=&c=...
+      - name: requestId
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      - name: externalReferenceUid
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      responses:
+        '200':
+          description: SUCCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReAuthAckResponse'
+        '400':
+          description: PARAMS_MISSING、WRONG_PARAMS_FORMAT、PARAMS_WRONG、NOT_FOUND、AUTH_EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReAuth400Error'
         '401':
           description: INVALID_SIGNATURE
           content:
@@ -2516,6 +2752,138 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: INVALID_SIGNATURE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorizationErrorResponse'
+        '500':
+          description: SERVER_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerErrorResponse'
+  /va/getList:
+    post:
+      tags:
+      - Virtual Account
+      summary: Query available VA banks
+      description: Returns the banks currently available for Grab ID virtual-account repayment.
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          type: string
+        description: RSA2 signature over the JSON request body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              description: Empty JSON object. Sign the exact payload sent in the request.
+            example: {}
+      responses:
+        '200':
+          description: SUCCESS
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - SUCCESS
+                  message:
+                    type: string
+                    description: Human-readable result message.
+                  data:
+                    type: array
+                    description: Available VA bank codes.
+                    items:
+                      $ref: '#/components/schemas/VirtualAccountBankCode'
+                required:
+                - code
+                - message
+                - data
+              example:
+                code: SUCCESS
+                message: success
+                data:
+                - BCA
+                - MANDIRI
+                - BRI
+                - BNI
+                - PERMATA
+                - SAHABAT_SAMPOERNA
+        '400':
+          description: FAILED — VA account is temporarily unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VirtualAccountErrorResponse'
+        '401':
+          description: INVALID_SIGNATURE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorizationErrorResponse'
+        '500':
+          description: SERVER_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerErrorResponse'
+  /va/vaCodeByBank:
+    post:
+      tags:
+      - Virtual Account
+      summary: Query or create a user VA
+      description: Returns the user's active VA for the selected bank. If no VA exists for that bank, Atome creates one and returns it.
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          type: string
+        description: RSA2 signature over the JSON request body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VirtualAccountRequest'
+      responses:
+        '200':
+          description: SUCCESS
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - SUCCESS
+                  message:
+                    type: string
+                    description: Human-readable result message.
+                  data:
+                    $ref: '#/components/schemas/VirtualAccount'
+                required:
+                - code
+                - message
+                - data
+        '400':
+          description: PARAMS_MISSING, PARAMS_WRONG, USER_ACCOUNT_NOT_EXIST, ACCOUNT_CLOSED, CREDIT_APPLICATION_NOT_APPROVED, or FAILED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VirtualAccountErrorResponse'
         '401':
           description: INVALID_SIGNATURE
           content:
@@ -3124,12 +3492,213 @@ components:
                 maxLength: 64
               authOrderId:
                 type: string
-                description: 'authOrderId from a terminal `/auth` response with `status` = `SUCCESS`; no `/capture` may exist for this authorization (including capture `PROCESSING`).'
+                description: 'authOrderId from a terminal `/auth` or `/reAuth` response with `status` = `SUCCESS`; no `/capture` may exist for this authorization (including capture `PROCESSING`).'
                 maxLength: 64
             required:
             - requestId
             - externalReferenceUid
             - authOrderId
+    ReAuthRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReAuthRequestBody'
+          examples:
+            GRAB_MART-changed:
+              summary: GRAB_MART — same merchants, SKU / amount changed
+              description: |
+                `authOrderId` is OA1 after `/voidAuth`. Merchants (`MCH-10001`, `MCH-10002`) must match OA1.
+                SKU lines and amounts may change. No `sessionid` header.
+              value:
+                requestId: REAUTH-MART-20260825001
+                externalReferenceUid: E897321804
+                authOrderId: AUTH-ORD-20260807001
+                totalAmount: 145000
+                periodType: 3
+                subOrders:
+                  - subOrderId: SUB-MART-001
+                    merchantId: MCH-10001
+                    merchantName: Indomaret Kelapa Gading
+                    merchantCategory: GROCERY
+                    amount: 95000
+                  - subOrderId: SUB-MART-002
+                    merchantId: MCH-10002
+                    merchantName: Alfamart Senayan
+                    merchantCategory: GROCERY
+                    amount: 50000
+                extendInfo:
+                  orderType: GRAB_MART
+                  mainOrderExtendInfos:
+                    - merchantId: MCH-10001
+                      skuInfos:
+                        - skuId: SKU-MART-001
+                          skuName: Indomie Goreng Original
+                          categoryId: CAT-INSTANT-NOODLE
+                          categoryOneName: Instant Noodles
+                          categoryCodes:
+                            - FOOD
+                            - GROCERY
+                          quantity: 6
+                          amount: 60000
+                        - skuId: SKU-MART-002
+                          skuName: Aqua 600ml
+                          categoryId: CAT-BEVERAGE
+                          categoryOneName: Beverages
+                          categoryCodes:
+                            - BEVERAGE
+                          quantity: 3
+                          amount: 35000
+                    - merchantId: MCH-10002
+                      skuInfos:
+                        - skuId: SKU-MART-003
+                          skuName: Ultra Milk 1L
+                          categoryId: CAT-DAIRY
+                          categoryOneName: Dairy
+                          categoryCodes:
+                            - DAIRY
+                          quantity: 2
+                          amount: 50000
+                  creditProfile: '{"extendedFeatures":[{"key":"crowd_id","value":"encoded_id_1"},{"key":"crowd_date","value":"20240311"}],"modelScores":[{"scoreType":"application_model","scoreValue":31,"version":"v1.0"},{"scoreType":"behavior_model","scoreValue":74,"version":"v1.0"}]}'
+                  deviceInfo:
+                    platform: ANDROID
+                    gps:
+                      longitude: '106.827153'
+                      latitude: '-6.175392'
+                      time: '1620285931000'
+                    device:
+                      deviceId: shgdasjass
+                      isRoot: false
+                      googleAdvertisingId: 38400000-8cf0-11bd-b23d-10cb46e3a0aa
+                      build:
+                        board: goldfish
+                        brand: google
+                        device: generic
+                        manufacturer: Google
+                        model: Pixel 6
+                        product: redfin
+                    wifiList:
+                      - ssid: Office-WiFi
+                    ipAddress:
+                      ethIp: 192.168.0.10
+                      trueIp: 203.0.113.50
+                  address:
+                    shippingAddress:
+                      state: DKI Jakarta
+                      city: Jakarta Selatan
+                      district: Kebayoran Baru
+                      address1: Jl. Senopati No. 12
+                    shippingName: Luna Zhang
+                    shippingPhoneNo: '+628129801929'
+            GRAB_FOOD-changed:
+              summary: GRAB_FOOD — same merchant, amount changed
+              description: |
+                **Exactly one** `subOrders[]` entry. `subOrderId` is required. Merchant must match OA1.
+              value:
+                requestId: REAUTH-FOOD-20260825001
+                externalReferenceUid: E897321804
+                authOrderId: AUTH-ORD-20260807002
+                totalAmount: 140000
+                periodType: 3
+                subOrders:
+                  - subOrderId: SUB-FOOD-001
+                    merchantId: MCH-FOOD-001
+                    merchantName: Warung Nasi Padang Sederhana
+                    merchantCategory: RESTAURANT
+                    amount: 140000
+                extendInfo:
+                  orderType: GRAB_FOOD
+                  mainOrderExtendInfos:
+                    - merchantId: MCH-FOOD-001
+                      skuInfos:
+                        - skuId: SKU-FOOD-001
+                          quantity: 2
+                          amount: 90000
+                        - skuId: SKU-FOOD-002
+                          quantity: 2
+                          amount: 50000
+                  creditProfile: '{"extendedFeatures":[{"key":"crowd_id","value":"encoded_id_1"},{"key":"crowd_date","value":"20240311"}],"modelScores":[{"scoreType":"application_model","scoreValue":31,"version":"v1.0"},{"scoreType":"behavior_model","scoreValue":74,"version":"v1.0"}]}'
+                  deviceInfo:
+                    platform: ANDROID
+                    gps:
+                      longitude: '106.827153'
+                      latitude: '-6.175392'
+                      time: '1620285931000'
+                    device:
+                      deviceId: shgdasjass
+                      isRoot: false
+                      googleAdvertisingId: 38400000-8cf0-11bd-b23d-10cb46e3a0aa
+                      build:
+                        board: goldfish
+                        brand: google
+                        device: generic
+                        manufacturer: Google
+                        model: Pixel 6
+                        product: redfin
+                    wifiList:
+                      - ssid: Office-WiFi
+                    ipAddress:
+                      ethIp: 192.168.0.10
+                      trueIp: 203.0.113.50
+                  address:
+                    shippingAddress:
+                      state: DKI Jakarta
+                      city: Jakarta Pusat
+                      district: Menteng
+                      address1: Jl. Teuku Umar No. 5
+                    shippingName: Luna Zhang
+                    shippingPhoneNo: '+628129801929'
+            TRANSPORT-changed:
+              summary: TRANSPORT — amount changed
+              description: '**Exactly one** `subOrders[]` entry; **`totalAmount` must equal `subOrders[0].amount`**. No `mainOrderExtendInfos`.'
+              value:
+                requestId: REAUTH-TRANSPORT-20260825001
+                externalReferenceUid: E897321804
+                authOrderId: AUTH-ORD-20260807003
+                totalAmount: 42000
+                periodType: 1
+                subOrders:
+                  - amount: 42000
+                extendInfo:
+                  orderType: TRANSPORT
+                  creditProfile: '{"extendedFeatures":[{"key":"crowd_id","value":"encoded_id_1"},{"key":"crowd_date","value":"20240311"}],"modelScores":[{"scoreType":"application_model","scoreValue":31,"version":"v1.0"},{"scoreType":"behavior_model","scoreValue":74,"version":"v1.0"}]}'
+                  deviceInfo:
+                    platform: ANDROID
+                    gps:
+                      longitude: '106.827153'
+                      latitude: '-6.175392'
+                      time: '1620285931000'
+                    device:
+                      deviceId: shgdasjass
+                      isRoot: false
+                      googleAdvertisingId: 38400000-8cf0-11bd-b23d-10cb46e3a0aa
+                      build:
+                        board: goldfish
+                        brand: google
+                        device: generic
+                        manufacturer: Google
+                        model: Pixel 6
+                        product: redfin
+                    wifiList:
+                      - ssid: Office-WiFi
+                    ipAddress:
+                      ethIp: 192.168.0.10
+                      trueIp: 203.0.113.50
+                  address:
+                    shippingAddress:
+                      state: DKI Jakarta
+                      city: Jakarta Selatan
+                      district: Kebayoran Baru
+                      address1: Senayan City Mall
+                    shippingName: Senayan City Mall
+                    shippingPhoneNo: '+628129801929'
+                  riskInfo:
+                    driverInfo:
+                      averageRating: 4.85
+                      isVerified: true
+                    tripMetadata:
+                      estimatedDistance: 10.2
+                      pickupLocation: Grand Indonesia
     AuthCallbackRequest:
       required: true
       content:
@@ -3206,12 +3775,30 @@ components:
             - mobileNumber
             - email
             - country
-            - applicationEssentialInfo
             - extendInfo
           examples:
             ID:
               summary: Indonesia Request body example
-              description: 'applicationEssentialInfo.platformInformation.deviceInfo.gps is not required.<br/>
+              value:
+                requestId: R897321804
+                externalReferenceUid: E897321804
+                mobileNumber: '+628129801929'
+                email: xxx@xxx.com
+                country: ID
+                extendInfo:
+                  creditInformationRequestId: R897321804
+    CreditInformation:
+      required: true
+      content:
+        application/json:
+          schema:
+            oneOf:
+            - $ref: '#/components/schemas/CreditInformationNonOverlapRequest'
+            - $ref: '#/components/schemas/CreditInformationOverlapRequest'
+          examples:
+            NON_OVERLAP:
+              summary: Non-overlap (GKYC or OVO premium)
+              description: 'Requires `livenessCheck`, `individualProfile`, and `platformInformation.latestGkycTimeStamp`. `platformInformation` is required.<br/>
 
                 **platformInformation.creditProfile** sample is for reference only — final JSON structure is agreed during partner integration.
 
@@ -3252,6 +3839,9 @@ components:
                   platformInformation:
                     sceneType: CHECKOUT_PAGE
                     creditProfile: '{"extendedFeatures":[{"key":"crowd_id","value":"encoded_id_1"},{"key":"crowd_date","value":"20240311"}],"modelScores":[{"scoreType":"application_model","scoreValue":31,"version":"v1.0"},{"scoreType":"behavior_model","scoreValue":74,"version":"v1.0"}]}'
+                    latestGkycTimeStamp: '1620285931000'
+                    userFlag: GRAB
+                    scdUserLevel: '2'
                     deviceInfo:
                       platform: ANDROID
                       gps:
@@ -3281,7 +3871,53 @@ components:
                         ethIp: HSHGAJSLSS
                         trueIp: 196.127.1.1
                 extendInfo:
-                  creditInformationRequestId: R897321804
+                  language: id
+            OVERLAP:
+              summary: Overlap
+              description: 'Overlap users send `platformInformation` only. Omit `livenessCheck` and `individualProfile`.'
+              value:
+                requestId: R897321804
+                externalReferenceUid: E897321804
+                mobileNumber: '+628129801929'
+                email: xxx@xxx.com
+                country: ID
+                applicationEssentialInfo:
+                  platformInformation:
+                    sceneType: CHECKOUT_PAGE
+                    creditProfile: '{"extendedFeatures":[{"key":"crowd_id","value":"encoded_id_1"},{"key":"crowd_date","value":"20240311"}],"modelScores":[{"scoreType":"application_model","scoreValue":31,"version":"v1.0"},{"scoreType":"behavior_model","scoreValue":74,"version":"v1.0"}]}'
+                    latestGkycTimeStamp: '1620285931000'
+                    userFlag: GRAB
+                    scdUserLevel: '2'
+                    deviceInfo:
+                      platform: ANDROID
+                      gps:
+                        longitude: '106.827153'
+                        latitude: '-6.175392'
+                        time: '1620285931000'
+                      device:
+                        deviceId: shgdasjass
+                        googleAdvertisingId: 38400000-8cf0-11bd-b23d-10cb46e3a0aa
+                        idfa: 00000000-0000-0000-0000-000000000000
+                        idfv: 00000000-0000-0000-0000-000000000001
+                        utdid: shgdasjass
+                        isRoot: true
+                        androidId: '2930128310389'
+                        build:
+                          board: string
+                          brand: string
+                          cpuAbi: string
+                          device: string
+                          manufacturer: string
+                          model: string
+                          product: string
+                      wifiList:
+                      - ssid: string
+                      - ssid: string
+                      ipAddress:
+                        ethIp: HSHGAJSLSS
+                        trueIp: 196.127.1.1
+                extendInfo:
+                  language: id
             ID-ENUM:
               summary: Indonesia Enum definition
               value:
@@ -3300,197 +3936,25 @@ components:
                     - WIDOWED
                     - SEPARATED
                     - OTHERS
-                emergencyContact:
-                  relation:
-                  - SPOUSE
-                  - PARENTS
-                  - CHILDREN
-                  - RELATIVES
-                  - SIBLINGS
-                  - FRIENDS
-                  - COLLEAGUES
-                  - OTHERS
-                workInformation:
-                  workSince:
-                  - < 1 year
-                  - 1 - 2 years
-                  - 2 - 3 years
-                  - 3 - 5 years
-                  - '> 5 years'
-                  jobIndustry:
-                  - Agriculture
-                  - Mining and excavation
-                  - Oil and gas
-                  - Electricity, gas, and water
-                  - Building
-                  - Trade, hotel, and restaurant
-                  - Transportation
-                  - Communication
-                  - Finance
-                  - Government service
-                  - Private services
-                  - Media, film
-                  - Military
-                  - Indonesia national police
-                  - Lawyer firm
-                  - Others
-                  jobPosition:
-                  - Supervisor
-                  - Director
-                  - Manager
-                  - Staff
-                  - Others
-                platformInformation:
-                  sceneType:
-                  - PRODUCT_LANDING_PAGE
-                  - PROMO_BANNER_PAGE
-                  - MARKETING_PUSH_ENTRY
-                  - CHECKOUT_PAGE
-                  - WALLET_DASHBOARD_ENTRY
-                  registrationDate:
-                  - L30D
-                  - L30D - L60D
-                  - L60D - L90D
-                  - L90D
-                  firstSuccessfulPurchaseDate:
-                  - L30D
-                  - L30D - L60D
-                  - L60D - L90D
-                  - L90D
-                  lastSuccessfulPurchaseDate:
-                  - L30D
-                  - L30D - L60D
-                  - L60D - L90D
-                  - L90D
-                others:
-                  zolozResults:
-                  - type:
-                    - FACE_FACTOR_RESULT
-                    - RISK_FACTOR_RESULT
-                    - ID_FACTOR_RESULT
-                    result:
-                    - SUCCESS
-                    - PENDING
-                    - FAILED
-                    errorCode:
-                    - NOT_SAME_PERSON
-                    - ATTACK_HIGH_RISK
-                    - VELOCITY_HIGH_RISK
-                    - ID_NETWORK_HIGH_RISK
-                    - NO_REQUIRED_ID
-                    - BLUR
-                    - NO_FACE_DETECTED
-                    - NOT_REAL_DOC
-                    - EXPOSURE
-                    - UNKNOWN
+                  platformInformation:
+                    sceneType:
+                    - PRODUCT_LANDING_PAGE
+                    - PROMO_BANNER_PAGE
+                    - MARKETING_PUSH_ENTRY
+                    - CHECKOUT_PAGE
+                    - WALLET_DASHBOARD_ENTRY
+                    userFlag:
+                    - OVO
+                    - COMMON
+                    - GRAB
+                    scdUserLevel:
+                    - '1'
+                    - '2'
+                    - '3'
                 extendInfo:
                   language:
                   - en
                   - id
-    CreditInformation:
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              requestId:
-                type: string
-                description: Partner-side idempotent request identifier (max 64 chars).
-                maxLength: 64
-              externalReferenceUid:
-                type: string
-                description: Partner-side stable identifier for the end user.
-                maxLength: 64
-              mobileNumber:
-                type: string
-                description: |-
-                  Mobile phone number with the dialling code prefix, e.g. `+62XXXXXXXXXXX`.
-                  Validation: `pattern`: `^\+628\d{8,12}$`, 12-16 characters including `+`.
-                minLength: 12
-                maxLength: 16
-                pattern: '^\+628\d{8,12}$'
-              email:
-                type: string
-                minLength: 5
-                maxLength: 64
-                description: |-
-                  User's email address. Auto-trimmed and lowercased before validation.
-                  Validation: `pattern`: `^[A-Za-z0-9]([A-Za-z0-9._%+\-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z]{2,})+$`.
-                  Length: 5-64 characters.
-                  Temporary / disposable email addresses are rejected.
-                pattern: '^[A-Za-z0-9]([A-Za-z0-9._%+\-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z]{2,})+$'
-              country:
-                type: string
-                description: 'User''s country (ISO-style market code).<br/>
-
-                  `ID`: Indonesia<br/>
-
-                  '
-                enum:
-                - ID
-              applicationEssentialInfo:
-                type: object
-                description: Essential application fields collected at the credit information step.
-                required:
-                - individualProfile
-                properties:
-                  individualProfile:
-                    type: object
-                    description: KYC profile of the end user.
-                    required:
-                    - ocrResult
-                    properties:
-                      ocrResult:
-                        type: object
-                        description: OCR-extracted fields from the ID document.
-                        required:
-                        - fullName
-                        properties:
-                          fullName:
-                            type: string
-                            description: |-
-                              Full legal name as printed on the ID.
-                              Validation: 2–60 characters; allows letters, spaces, dots, apostrophes.
-                              Consecutive spaces are compressed. Single-name users are allowed.
-                              Must not match any emergency-contact name (after stripping special characters
-                              and comparing only letters, case-insensitive).
-                            minLength: 2
-                            maxLength: 60
-                            pattern: "^[A-Za-z\\u00C0-\\u024F.']{1}[A-Za-z\\u00C0-\\u024F.' ]{0,58}[A-Za-z\\u00C0-\\u024F.']?$"
-              extendInfo:
-                type: object
-                description: Extended fields agreed per integration.
-                properties:
-                  language:
-                    type: string
-                    description: Display language for the Atome-hosted information collection page. Optional; defaults to `id` when omitted.
-                    enum:
-                    - en
-                    - id
-                    default: id
-            required:
-            - requestId
-            - externalReferenceUid
-            - mobileNumber
-            - email
-            - country
-            - applicationEssentialInfo
-          examples:
-            ID:
-              summary: Indonesia request body example
-              value:
-                requestId: R897321804
-                externalReferenceUid: E897321804
-                mobileNumber: '+628129801929'
-                email: xxx@xxx.com
-                country: ID
-                applicationEssentialInfo:
-                  individualProfile:
-                    ocrResult:
-                      fullName: Luna Zhang
-                extendInfo:
-                  language: id
     CreditApplicationChange:
       required: true
       content:
@@ -3552,19 +4016,6 @@ components:
               - $ref: '#/components/schemas/MartRefundResult'
               - $ref: '#/components/schemas/FoodRefundResult'
               - $ref: '#/components/schemas/TransportRefundResult'
-    RiplayParam:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/RiplayRequest'
-          examples:
-            tenor-3:
-              summary: Fetch 3-month RIPLAY URL
-              value:
-                sessionId: SES-20260807001
-                externalReferenceUid: E897321804
-                tenor: 3
     PaymentPlanParam:
       required: true
       content:
@@ -4359,7 +4810,9 @@ components:
           properties:
             authOrderId:
               type: string
-              description: Authorization reference returned in the `/auth` response.
+              description: |
+                For `/capture`: authorization from the preceding `/auth` or `/reAuth` (`SUCCESS`).
+                For `/reAuth`: the original authorization (OA1) after a successful `/voidAuth`.
               maxLength: 64
           required:
             - authOrderId
@@ -4498,6 +4951,59 @@ components:
               $ref: '#/components/schemas/FoodAuthCaptureExtendInfo'
     TransportCaptureRequest:
       title: TRANSPORT capture
+      description: Exactly one minimal sub-order (`amount` only). `totalAmount` must equal `subOrders[0].amount`. No `mainOrderExtendInfos`.
+      allOf:
+        - $ref: '#/components/schemas/BaseCaptureRequest'
+        - type: object
+          properties:
+            subOrders:
+              type: array
+              minItems: 1
+              maxItems: 1
+              items:
+                $ref: '#/components/schemas/MinimalMerchantSubOrder'
+            extendInfo:
+              $ref: '#/components/schemas/TransportAuthCaptureExtendInfo'
+    ReAuthRequestBody:
+      description: |
+        Same payload shape as `/capture`. `authOrderId` is the original authorization (OA1) after `/voidAuth`.
+        Merchants on `subOrders[]` must match OA1; SKU details and amounts may change. `periodType` must match the
+        original `/payment-plan` / `/auth`.
+      oneOf:
+        - $ref: '#/components/schemas/MartReAuthRequest'
+        - $ref: '#/components/schemas/FoodReAuthRequest'
+        - $ref: '#/components/schemas/TransportReAuthRequest'
+    MartReAuthRequest:
+      title: GRAB_MART reAuth
+      description: Same merchants as OA1. Multiple merchant sub-orders with required `extendInfo.mainOrderExtendInfos`.
+      allOf:
+        - $ref: '#/components/schemas/BaseCaptureRequest'
+        - type: object
+          properties:
+            subOrders:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/FullMerchantSubOrder'
+            extendInfo:
+              $ref: '#/components/schemas/MartAuthCaptureExtendInfo'
+    FoodReAuthRequest:
+      title: GRAB_FOOD reAuth
+      description: Same merchant as OA1. Exactly one sub-order with required `subOrderId`.
+      allOf:
+        - $ref: '#/components/schemas/BaseCaptureRequest'
+        - type: object
+          properties:
+            subOrders:
+              type: array
+              minItems: 1
+              maxItems: 1
+              items:
+                $ref: '#/components/schemas/FoodAuthMerchantSubOrder'
+            extendInfo:
+              $ref: '#/components/schemas/FoodAuthCaptureExtendInfo'
+    TransportReAuthRequest:
+      title: TRANSPORT reAuth
       description: Exactly one minimal sub-order (`amount` only). `totalAmount` must equal `subOrders[0].amount`. No `mainOrderExtendInfos`.
       allOf:
         - $ref: '#/components/schemas/BaseCaptureRequest'
@@ -4720,7 +5226,7 @@ components:
         properties:
           authOrderId:
             type: string
-            description: Authorization identifier from the preceding `/auth` call.
+            description: Authorization identifier from the preceding `/auth` or `/reAuth` call.
     MartCaptureResultData:
       title: GRAB_MART capture
       allOf:
@@ -4797,6 +5303,110 @@ components:
           description: Authorization identifier that was voided.
         accountChanges:
           $ref: '#/components/schemas/AccountChanges'
+    ReAuthAckResponse:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+          description: '`SUCCESS`: Request completed. Business outcome lives in `data.status` (`SUCCESS` or `FAILED`) on this
+            HTTP `200` — `/reAuth` is synchronous and does not return `PROCESSING` or send a callback.<br/>
+
+            `INVALID_ORDER_AMOUNT`: `totalAmount` or a sub-order `amount` is below the minimum for `periodType`, or above the
+            maximum installable amount.<br/>
+
+            `CREDIT_APPLICATION_NOT_APPROVED`: User''s application for credit was not approved<br/>
+
+            `USER_CREDIT_LIMIT_INSUFFICIENT`: Available credit is insufficient for the requested amount.<br/>
+
+            `ACCOUNT_BLOCKED_OVERDUE`: The account is blocked due to overdue bills<br/>
+
+            `ACCOUNT_BLOCKED`: The account is blocked due to risk or compliance reasons<br/>
+
+            `ACCOUNT_TEMP_BLOCKED`: The account is temporarily blocked<br/>
+
+            `RISK_REJECT`: Risk control declined the re-authorization.<br/>
+
+            '
+          enum:
+          - SUCCESS
+          - INVALID_ORDER_AMOUNT
+          - CREDIT_APPLICATION_NOT_APPROVED
+          - USER_CREDIT_LIMIT_INSUFFICIENT
+          - ACCOUNT_BLOCKED_OVERDUE
+          - ACCOUNT_BLOCKED
+          - ACCOUNT_TEMP_BLOCKED
+          - RISK_REJECT
+        message:
+          type: string
+          description: Human-readable outcome or error detail.
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/MartReAuthAuthorizationData'
+            - $ref: '#/components/schemas/FoodReAuthAuthorizationData'
+            - $ref: '#/components/schemas/TransportReAuthAuthorizationData'
+    ReAuthAuthorizationData:
+      allOf:
+        - $ref: '#/components/schemas/AuthAuthorizationData'
+        - type: object
+          required:
+            - originalAuthOrderId
+          properties:
+            originalAuthOrderId:
+              type: string
+              description: The original authorization (OA1) supplied in the request `authOrderId` after `/voidAuth`.
+            authOrderId:
+              type: string
+              description: New authorization (OA2) created by `/reAuth`. Use this value on the subsequent `/capture`.
+            status:
+              type: string
+              description: Terminal business status of the re-authorization. Returned on the first HTTP `200`.
+              enum:
+              - SUCCESS
+              - FAILED
+    MartReAuthAuthorizationData:
+      title: GRAB_MART reAuth
+      allOf:
+        - $ref: '#/components/schemas/ReAuthAuthorizationData'
+        - type: object
+          properties:
+            subOrderInstallmentPlans:
+              type: array
+              minItems: 1
+              description: One entry per merchant. Each entry requires `subOrderId` and `merchantId`, matching the request.
+              items:
+                $ref: '#/components/schemas/MartAuthCaptureSubOrderInstallmentPlans'
+      description: GRAB_MART `/reAuth` result. Multiple merchant sub-orders; each `subOrderInstallmentPlans[]` entry requires `subOrderId` and `merchantId`.
+    FoodReAuthAuthorizationData:
+      title: GRAB_FOOD reAuth
+      allOf:
+        - $ref: '#/components/schemas/ReAuthAuthorizationData'
+        - type: object
+          properties:
+            subOrderInstallmentPlans:
+              type: array
+              minItems: 1
+              maxItems: 1
+              description: Exactly one entry. Requires `subOrderId` and `merchantId`, matching the request.
+              items:
+                $ref: '#/components/schemas/FoodAuthCaptureSubOrderInstallmentPlans'
+      description: GRAB_FOOD `/reAuth` result. Exactly one sub-order; `subOrderId` and `merchantId` are required.
+    TransportReAuthAuthorizationData:
+      title: TRANSPORT reAuth
+      allOf:
+        - $ref: '#/components/schemas/ReAuthAuthorizationData'
+        - type: object
+          properties:
+            subOrderInstallmentPlans:
+              type: array
+              minItems: 1
+              maxItems: 1
+              description: Exactly one entry. `subOrderId` and `merchantId` are optional and typically omitted.
+              items:
+                $ref: '#/components/schemas/TransportAuthCaptureSubOrderInstallmentPlans'
+      description: TRANSPORT `/reAuth` result. Exactly one sub-order; `subOrderId` and `merchantId` are optional.
     PaymentStyle400Error:
       type: object
       required:
@@ -4813,7 +5423,7 @@ components:
 
             `NOT_FOUND`: Data not found, e.g. user account does not exist<br/>
 
-            `SESSION_NOT_FOUND`: The checkout `sessionId` is missing, expired, or does not match a session issued by `/payment-plan` (session validity: **2 hours**). Applies to `POST /auth` (`sessionid` header) and `POST /riplay` (`sessionId` in the body).<br/>
+            `SESSION_NOT_FOUND`: The checkout `sessionId` is missing, expired, or does not match a session issued by `/payment-plan` (session validity: **2 hours**). Applies to `POST /auth` (`sessionid` header).<br/>
 
             '
           enum:
@@ -4825,72 +5435,6 @@ components:
         message:
           type: string
           description: Human-readable error detail.
-    RiplayRequest:
-      type: object
-      description: Lookup the RIPLAY contract URL for one installment tenor under an active checkout session.
-      properties:
-        sessionId:
-          type: string
-          maxLength: 64
-          description: Checkout session identifier returned by `POST /payment-plan` in `data.extendInfo.sessionId`. Valid for **2 hours**.
-        externalReferenceUid:
-          type: string
-          maxLength: 64
-          description: Partner-side stable identifier for the end user. Must match the `/payment-plan` request.
-        tenor:
-          type: integer
-          description: Installment tenor selected by the user. Same value as `periodType` / `riplayInfoList[].totalTenor` (e.g. 1, 3, 6, 9, 12).
-          enum:
-            - 1
-            - 3
-            - 6
-            - 9
-            - 12
-      required:
-        - sessionId
-        - externalReferenceUid
-        - tenor
-    RiplayInfo:
-      type: object
-      description: RIPLAY document for one installment tenor.
-      properties:
-        totalTenor:
-          type: integer
-          description: Installment tenor for this RIPLAY document.
-        url:
-          type: string
-          description: RIPLAY contract URL.
-      required:
-        - totalTenor
-        - url
-    RiplayAckResponse:
-      type: object
-      description: Acknowledgement payload returned by `POST /riplay`.
-      properties:
-        code:
-          type: string
-          enum:
-            - SUCCESS
-        message:
-          type: string
-          description: success
-        data:
-          $ref: '#/components/schemas/RiplayResultData'
-      required:
-        - code
-        - message
-    RiplayResultData:
-      type: object
-      properties:
-        tenor:
-          type: integer
-          description: Echo of the requested `tenor`.
-        url:
-          type: string
-          description: RIPLAY contract URL for this tenor.
-      required:
-        - tenor
-        - url
     Capture400Error:
       type: object
       required:
@@ -4909,7 +5453,7 @@ components:
 
             `CAPTURE_AMOUNT_EXCEED`: Capture amount out of range<br/>
 
-            `AUTH_EXPIRED`: Capture exceeds the allowed window — `/capture` must be submitted within **7 days** of a successful `/auth`<br/>
+            `AUTH_EXPIRED`: `/reAuth` or `/capture` exceeds the allowed window — both must be submitted within **7 days** of the original `/payment-plan`<br/>
 
             '
           enum:
@@ -4941,6 +5485,35 @@ components:
           - PARAMS_MISSING
           - WRONG_PARAMS_FORMAT
           - NOT_FOUND
+        message:
+          type: string
+          description: Human-readable error detail.
+    ReAuth400Error:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+          description: '`PARAMS_MISSING`: Missing parameter<br/>
+
+            `WRONG_PARAMS_FORMAT`: Wrong parameter format<br/>
+
+            `PARAMS_WRONG`: Wrong parameter — e.g. merchants do not match OA1, `periodType` differs from the original
+            `/auth`, or `authOrderId` is not after a successful `/voidAuth` (already captured or still active)<br/>
+
+            `NOT_FOUND`: Data not found, e.g. user account or original authorization does not exist<br/>
+
+            `AUTH_EXPIRED`: `/reAuth` exceeds the allowed window — must be submitted within **7 days** of the original `/payment-plan`<br/>
+
+            '
+          enum:
+          - PARAMS_MISSING
+          - WRONG_PARAMS_FORMAT
+          - PARAMS_WRONG
+          - NOT_FOUND
+          - AUTH_EXPIRED
         message:
           type: string
           description: Human-readable error detail.
@@ -5559,6 +6132,62 @@ components:
         time:
           type: integer
           description: Event time (Unix milliseconds).
+    VirtualAccountBankCode:
+      type: string
+      description: Bank code supported for Grab ID VA repayment.
+      enum:
+      - BCA
+      - MANDIRI
+      - BRI
+      - BNI
+      - PERMATA
+      - SAHABAT_SAMPOERNA
+    VirtualAccountRequest:
+      type: object
+      properties:
+        externalReferenceUid:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Partner-side stable identifier for the user.
+        bankCode:
+          $ref: '#/components/schemas/VirtualAccountBankCode'
+      required:
+      - externalReferenceUid
+      - bankCode
+    VirtualAccount:
+      type: object
+      properties:
+        vaNumber:
+          type: string
+          description: Virtual account number for the selected bank.
+        bankCode:
+          $ref: '#/components/schemas/VirtualAccountBankCode'
+        createTime:
+          type: integer
+          format: int64
+          description: VA creation time in Unix milliseconds.
+      required:
+      - vaNumber
+      - bankCode
+    VirtualAccountErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+          - PARAMS_MISSING
+          - PARAMS_WRONG
+          - USER_ACCOUNT_NOT_EXIST
+          - ACCOUNT_CLOSED
+          - CREDIT_APPLICATION_NOT_APPROVED
+          - FAILED
+        message:
+          type: string
+          description: Human-readable error detail. `FAILED` may indicate that VA is temporarily unavailable or that the selected bank account is unavailable.
+      required:
+      - code
+      - message
     RepaymentResult:
       type: object
       description: 'repayment result '
@@ -5589,9 +6218,15 @@ components:
           type: string
           description: '`NORMAL`: Partner-initiated repayment.<br/>
 
+            `ATOME_REPAYMENT`: The user initiates repayment through the ATOME channel.<br/>
+
+            `OVERPAID_REPAYMENT`: The repayment use overpaid balance, triggered by ATOME.<br/>
+
             '
           enum:
           - NORMAL
+          - ATOME_REPAYMENT
+          - OVERPAID_REPAYMENT
         accountChanges:
           $ref: '#/components/schemas/CommerceAccountChanges'
       required:
@@ -6307,10 +6942,6 @@ components:
               description: Checkout session identifier generated by Atome. Pass as the `sessionid` request header on `POST /auth`. Valid for **2 hours** from issuance.
             sumOrderInstallmentPlans:
               $ref: '#/components/schemas/SumOrderInstallmentPlans'
-            riplayInfoList:
-              type: array
-              items:
-                $ref: '#/components/schemas/RiplayInfo'
     MartPaymentPlanAckResponse:
       title: GRAB_MART payment-plan
       allOf:
@@ -7173,19 +7804,104 @@ components:
       - interestAmountAfterDiscount
       - billTotalAmountAfterDiscount
       - repaidAmountExcludeDiscount
+    CreditInformationRequestBase:
+      type: object
+      description: Shared fields for `POST /credit-information`.
+      properties:
+        requestId:
+          type: string
+          description: Partner-side idempotent request identifier (max 64 chars).
+          maxLength: 64
+        externalReferenceUid:
+          type: string
+          description: Partner-side stable identifier for the end user.
+          maxLength: 64
+        mobileNumber:
+          type: string
+          description: |-
+            Mobile phone number with the dialling code prefix, e.g. `+62XXXXXXXXXXX`.
+            Validation: `pattern`: `^\+628\d{8,12}$`, 12-16 characters including `+`.
+          minLength: 12
+          maxLength: 16
+          pattern: '^\+628\d{8,12}$'
+        email:
+          type: string
+          minLength: 5
+          maxLength: 64
+          description: |-
+            User's email address. Auto-trimmed and lowercased before validation.
+            Validation: `pattern`: `^[A-Za-z0-9]([A-Za-z0-9._%+\-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z]{2,})+$`.
+            Length: 5-64 characters.
+            Temporary / disposable email addresses are rejected.
+          pattern: '^[A-Za-z0-9]([A-Za-z0-9._%+\-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z]{2,})+$'
+        country:
+          type: string
+          description: 'User''s country (ISO-style market code).<br/>
+
+            `ID`: Indonesia<br/>
+
+            '
+          enum:
+          - ID
+        extendInfo:
+          type: object
+          description: Extended fields agreed per integration.
+          properties:
+            language:
+              type: string
+              description: Display language for the Atome-hosted information collection page. Optional; defaults to `id` when omitted.
+              enum:
+              - en
+              - id
+              default: id
+      required:
+      - requestId
+      - externalReferenceUid
+      - mobileNumber
+      - email
+      - country
+      - applicationEssentialInfo
+    CreditInformationNonOverlapRequest:
+      title: Non-overlap (GKYC or OVO premium)
+      description: Non-overlap users (GKYC or OVO premium). `livenessCheck`, `individualProfile`, and `platformInformation.latestGkycTimeStamp` are required.
+      allOf:
+      - $ref: '#/components/schemas/CreditInformationRequestBase'
+      - type: object
+        properties:
+          applicationEssentialInfo:
+            $ref: '#/components/schemas/ApplicationEssentialInfoNonOverlap'
+        required:
+        - applicationEssentialInfo
+    CreditInformationOverlapRequest:
+      title: Overlap
+      description: Overlap users. Send `applicationEssentialInfo.platformInformation` only; omit `livenessCheck` and `individualProfile`.
+      allOf:
+      - $ref: '#/components/schemas/CreditInformationRequestBase'
+      - type: object
+        properties:
+          applicationEssentialInfo:
+            $ref: '#/components/schemas/ApplicationEssentialInfoOverlap'
+        required:
+        - applicationEssentialInfo
     ApplicationEssentialInfo:
       type: object
-      description: 'KYC and risk profile collected on the partner side. Field shape may differ by
+      description: 'KYC and risk profile collected on `POST /credit-information`. Field shape may differ by
 
         country (currently `ID` only); see the **Request samples** for the country-specific body
 
-        and enum definitions. Final field set is agreed per integration contract.
+        and enum definitions. Final field set is agreed per integration contract.<br/><br/>
+
+        Use **Non-overlap** or **Overlap** request body by user type. `platformInformation` is required in both.
+
+        Financial information (`emergencyContact`, `workInformation`) is not collected in this period.
 
         '
+      required:
+      - platformInformation
       properties:
         livenessCheck:
           type: object
-          description: Liveness check result with the photo.
+          description: Liveness check result with the photo. Required in the Non-overlap request body (GKYC or OVO premium); omit in the Overlap request body.
           required:
           - result
           - snapshotPhoto
@@ -7210,7 +7926,7 @@ components:
               description: Action results from the liveness check (`action_results`). Optional.
         individualProfile:
           type: object
-          description: KYC profile of the end user.
+          description: KYC profile of the end user. Required in the Non-overlap request body (GKYC or OVO premium); omit in the Overlap request body.
           required:
           - idType
           - ocrResult
@@ -7364,17 +8080,63 @@ components:
           - sceneType
           - deviceInfo
           - creditProfile
+          - userFlag
+          - scdUserLevel
           properties:
             creditProfile:
               $ref: '#/components/schemas/CreditProfile'
+            latestGkycTimeStamp:
+              type: string
+              description: Timestamp of the user's last KYC on the Grab side. Required for **non-overlap** users (GKYC or OVO premium); optional for overlap users.
+            userFlag:
+              type: string
+              description: 'User tag.<br/>
+
+                `OVO`: OVO user<br/>
+
+                `COMMON`: Common user<br/>
+
+                `GRAB`: Grab user<br/>
+
+                '
+              enum:
+              - OVO
+              - COMMON
+              - GRAB
+            scdUserLevel:
+              type: string
+              description: 'User level: `1`, `2`, or `3`.'
+              enum:
+              - '1'
+              - '2'
+              - '3'
             sceneType:
               $ref: '#/components/schemas/CreditSceneType'
             deviceInfo:
               $ref: '#/components/schemas/PlatformDeviceInfo'
-      required:
-      - livenessCheck
-      - individualProfile
-      - platformInformation
+    ApplicationEssentialInfoNonOverlap:
+      title: Non-overlap applicationEssentialInfo
+      description: GKYC or OVO premium. `livenessCheck`, `individualProfile`, `platformInformation`, and `platformInformation.latestGkycTimeStamp` are required.
+      allOf:
+      - $ref: '#/components/schemas/ApplicationEssentialInfo'
+      - type: object
+        required:
+        - livenessCheck
+        - individualProfile
+        - platformInformation
+        properties:
+          platformInformation:
+            type: object
+            required:
+            - latestGkycTimeStamp
+    ApplicationEssentialInfoOverlap:
+      title: Overlap applicationEssentialInfo
+      description: Overlap users. Only `platformInformation` is required; omit `livenessCheck` and `individualProfile`.
+      allOf:
+      - $ref: '#/components/schemas/ApplicationEssentialInfo'
+      - type: object
+        required:
+        - platformInformation
     BillMainOrder:
       type: object
       description: |
@@ -7526,11 +8288,17 @@ components:
           type: string
           description: 'Repayment type.<br/>
 
-            `NORMAL`: Partner-initiated repayment.
+            `NORMAL`: Partner-initiated repayment.<br/>
+
+            `ATOME_REPAYMENT`: The user initiates repayment through the ATOME channel.<br/>
+
+            `OVERPAID_REPAYMENT`: The repayment use overpaid balance, triggered by ATOME.<br/>
 
             '
           enum:
           - NORMAL
+          - ATOME_REPAYMENT
+          - OVERPAID_REPAYMENT
     BillDetail:
       type: object
       properties:
@@ -7826,11 +8594,17 @@ components:
           type: string
           description: 'Repayment type.<br/>
 
-            `NORMAL`: Partner-initiated repayment.
+            `NORMAL`: Partner-initiated repayment.<br/>
+
+            `ATOME_REPAYMENT`: The user initiates repayment through the ATOME channel.<br/>
+
+            `OVERPAID_REPAYMENT`: The repayment use overpaid balance, triggered by ATOME.<br/>
 
             '
           enum:
           - NORMAL
+          - ATOME_REPAYMENT
+          - OVERPAID_REPAYMENT
         createTime:
           type: integer
           description: type is timestamp; repayment success time
@@ -8132,11 +8906,17 @@ components:
           type: string
           description: 'Repayment type.<br/>
 
-            `NORMAL`: Partner-initiated repayment.
+            `NORMAL`: Partner-initiated repayment.<br/>
+
+            `ATOME_REPAYMENT`: The user initiates repayment through the ATOME channel.<br/>
+
+            `OVERPAID_REPAYMENT`: The repayment use overpaid balance, triggered by ATOME.<br/>
 
             '
           enum:
           - NORMAL
+          - ATOME_REPAYMENT
+          - OVERPAID_REPAYMENT
         createTime:
           type: integer
           description: type is timestamp; repayment success time

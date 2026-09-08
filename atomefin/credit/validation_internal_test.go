@@ -32,9 +32,37 @@ func mustValidateError(t *testing.T, err error, wantField string) {
 
 func internalInfoEssential(fullName string) *CreditInformationEssentialInfo {
 	return &CreditInformationEssentialInfo{
-		IndividualProfile: &CreditInformationIndividualProfile{
-			OCRResult: &CreditInformationOCRResult{FullName: fullName},
+		LivenessCheck: &LivenessCheck{Result: "PASS", SnapshotPhoto: "base64-photo"},
+		IndividualProfile: &IndividualProfile{
+			IDType:       "KTP",
+			OCRResult:    &OCRResult{FullName: fullName},
+			IDFrontPhoto: "base64-id-front-photo",
 		},
+		PlatformInformation: &PlatformInformation{
+			SceneType:           SceneCheckoutPage,
+			LatestGkycTimeStamp: "1620285931000",
+			UserFlag:            UserFlagGrab,
+			SCDUserLevel:        SCDUserLevel2,
+			CreditProfile:       `{"modelScores":[]}`,
+			DeviceInfo:          internalValidDeviceInfo(),
+		},
+	}
+}
+
+func internalValidDeviceInfo() *DeviceInfo {
+	return &DeviceInfo{
+		Platform: "ANDROID",
+		Device: &Device{
+			DeviceID:            "device-1",
+			GoogleAdvertisingID: "advertising-1",
+			IsRoot:              false,
+			Build: &DeviceBuild{
+				Board: "board", Brand: "brand", Device: "device",
+				Manufacturer: "manufacturer", Model: "model", Product: "product",
+			},
+		},
+		WifiList:  []WifiAP{{SSID: "wifi-1"}},
+		IPAddress: &IPAddress{EthIP: "192.0.2.1", TrueIP: "198.51.100.1"},
 	}
 }
 
@@ -51,57 +79,13 @@ func internalValidInformationParam() *CreditInformationParam {
 
 func internalValidApplicationParam() *CreditApplicationParam {
 	return &CreditApplicationParam{
-		RequestID:                "r-1",
-		ExternalReferenceUID:     "u-1",
-		MobileNumber:             "+6281298000000",
-		Email:                    "u@example.com",
-		Country:                  CountryIndonesia,
-		ApplicationEssentialInfo: internalValidApplicationEssentialInfo(),
+		RequestID:            "r-1",
+		ExternalReferenceUID: "u-1",
+		MobileNumber:         "+6281298000000",
+		Email:                "u@example.com",
+		Country:              CountryIndonesia,
 		ExtendInfo: &CreditApplicationExtendInfo{
 			CreditInformationRequestID: "info-1",
-		},
-	}
-}
-
-func internalValidApplicationEssentialInfo() *ApplicationEssentialInfo {
-	return &ApplicationEssentialInfo{
-		LivenessCheck: &LivenessCheck{
-			Result:                "PASS",
-			SnapshotPhoto:         "base64-photo",
-			LivenessCheckResult01: "0.98",
-			LivenessCheckResult02: "0.97",
-			LivenessCheckResult03: "PASS",
-		},
-		IndividualProfile: &IndividualProfile{
-			IDType:       "KTP",
-			IDFrontPhoto: "base64-id-front-photo",
-			OCRResult: &OCRResult{
-				IDNumber:            "3173051234567890",
-				FullName:            "Test User",
-				BirthPlace:          "Jakarta",
-				OCRReligion:         "ISLAM",
-				OCRGender:           "MAN",
-				ManuallyBirthDate:   "1995-05-20",
-				OCRProvince:         "DKI Jakarta",
-				OCRCity:             "Jakarta Selatan",
-				OCRDistrict:         "Kebayoran Baru",
-				JobType:             "EMPLOYEE",
-				ManuallyExpiredDate: "2099-12-31",
-				ManuallyCitizenship: "WNI",
-				ManuallyRt:          "001",
-				ManuallyRw:          "002",
-			},
-		},
-		PlatformInformation: &PlatformInformation{
-			SceneType: SceneCheckoutPage,
-			DeviceInfo: &DeviceInfo{
-				Platform: "ANDROID",
-				GPS: &GPSSample{
-					Longitude: "106.827153",
-					Latitude:  "-6.175392",
-					Time:      "1620285931000",
-				},
-			},
 		},
 	}
 }
@@ -172,18 +156,14 @@ func TestValidateCreditInformation_Internal(t *testing.T) {
 			Email:                "e@x",
 			Country:              CountryIndonesia,
 		}, "applicationEssentialInfo"},
-		{"missing-ocr-fullName", &CreditInformationParam{
-			RequestID:            "r",
-			ExternalReferenceUID: "u",
-			MobileNumber:         "+6281298000000",
-			Email:                "e@x",
-			Country:              CountryIndonesia,
-			ApplicationEssentialInfo: &CreditInformationEssentialInfo{
-				IndividualProfile: &CreditInformationIndividualProfile{
-					OCRResult: &CreditInformationOCRResult{},
-				},
-			},
-		}, "applicationEssentialInfo.individualProfile.ocrResult.fullName"},
+		{"missing-platformInformation", &CreditInformationParam{
+			RequestID:                "r",
+			ExternalReferenceUID:     "u",
+			MobileNumber:             "+6281298000000",
+			Email:                    "e@x",
+			Country:                  CountryIndonesia,
+			ApplicationEssentialInfo: &CreditInformationEssentialInfo{},
+		}, "applicationEssentialInfo.platformInformation"},
 		{"extendInfo-bad-language", &CreditInformationParam{
 			RequestID:                "r",
 			ExternalReferenceUID:     "u",
@@ -230,26 +210,6 @@ func TestValidateCreditApplication_Internal(t *testing.T) {
 			req.Country = "PH"
 			return req
 		}, "country"},
-		{"missing-essentialInfo", func(req *CreditApplicationParam) *CreditApplicationParam {
-			req.ApplicationEssentialInfo = nil
-			return req
-		}, "applicationEssentialInfo"},
-		{"missing-livenessCheck", func(req *CreditApplicationParam) *CreditApplicationParam {
-			req.ApplicationEssentialInfo.LivenessCheck = nil
-			return req
-		}, "applicationEssentialInfo.livenessCheck"},
-		{"missing-liveness-result", func(req *CreditApplicationParam) *CreditApplicationParam {
-			req.ApplicationEssentialInfo.LivenessCheck.Result = ""
-			return req
-		}, "applicationEssentialInfo.livenessCheck.result"},
-		{"missing-individualProfile", func(req *CreditApplicationParam) *CreditApplicationParam {
-			req.ApplicationEssentialInfo.IndividualProfile = nil
-			return req
-		}, "individualProfile"},
-		{"missing-platformInformation", func(req *CreditApplicationParam) *CreditApplicationParam {
-			req.ApplicationEssentialInfo.PlatformInformation = nil
-			return req
-		}, "platformInformation"},
 		{"missing-extendInfo", func(req *CreditApplicationParam) *CreditApplicationParam {
 			req.ExtendInfo = nil
 			return req
@@ -272,13 +232,6 @@ func TestValidateCreditApplication_Internal(t *testing.T) {
 
 	if err := validateCreditApplication(base()); err != nil {
 		t.Errorf("valid base request: validateCreditApplication = %v; want nil", err)
-	}
-	optionalLiveness := base()
-	optionalLiveness.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult01 = ""
-	optionalLiveness.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult02 = ""
-	optionalLiveness.ApplicationEssentialInfo.LivenessCheck.LivenessCheckResult03 = ""
-	if err := validateCreditApplication(optionalLiveness); err != nil {
-		t.Errorf("livenessCheckResult01/02/03 optional: validateCreditApplication = %v; want nil", err)
 	}
 	if err := validateCreditInformation(internalValidInformationParam()); err != nil {
 		t.Errorf("valid base request: validateCreditInformation = %v; want nil", err)

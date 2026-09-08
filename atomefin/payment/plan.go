@@ -16,6 +16,10 @@ type PaymentPlanRequest struct {
 	// RequestID is client-side only for idempotency logging; not in the
 	// spec body. Populated by the SDK when empty before the network call.
 	RequestID string `json:"-"`
+	// PeriodType is client-side only. It is inferred from the optional
+	// sub-order periodType when present, then used for partner-side
+	// IDR minimum-amount validation. It is not serialized.
+	PeriodType int `json:"-"`
 	// ExternalReferenceUID is the partner's user identifier.
 	ExternalReferenceUID string `json:"externalReferenceUid"`
 	// TotalAmount in minor units; Σ(SubOrders[].Amount) must equal.
@@ -84,18 +88,8 @@ type PaymentPlanDataExtendInfo struct {
 	// SessionID is the Atome-generated checkout session token. Pass it
 	// back on POST /auth via the `sessionid` header (max 64 chars,
 	// valid 2 hours).
-	SessionID string `json:"sessionId,omitempty"`
-	// RiplayInfoList carries per-tenor disclosure URLs (RI play
-	// requirement, added 2026-08-07).
-	RiplayInfoList           []RiplayInfo              `json:"riplayInfoList,omitempty"`
+	SessionID                string                    `json:"sessionId,omitempty"`
 	SumOrderInstallmentPlans *SumOrderInstallmentPlans `json:"sumOrderInstallmentPlans,omitempty"`
-}
-
-// RiplayInfo is one (tenor, URL) disclosure row on the
-// /payment-plan response.
-type RiplayInfo struct {
-	TotalTenor int    `json:"totalTenor"`
-	URL        string `json:"url"`
 }
 
 // SumOrderInstallmentPlans groups aggregate order-level plan options.
@@ -203,6 +197,16 @@ func validatePaymentPlanRequest(req *PaymentPlanRequest) error {
 	}
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
+	}
+	periodType := req.PeriodType
+	if periodType == 0 && len(req.SubOrders) > 0 && req.SubOrders[0].PeriodType != nil {
+		periodType = *req.SubOrders[0].PeriodType
+	}
+	if err := validateCheckoutAmounts(periodType, req.TotalAmount, planSubOrderAmounts(req.SubOrders)); err != nil {
+		return err
+	}
+	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, planSubOrderAmounts(req.SubOrders)); err != nil {
+		return err
 	}
 	if req.ExtendInfo == nil {
 		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}

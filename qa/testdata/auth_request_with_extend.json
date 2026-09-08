@@ -14,7 +14,6 @@
   ],
   "extendInfo": {
     "orderType": "GRAB_FOOD",
-    "userCreditScore": 0.85,
     "creditProfile": "{\"score\":720}",
     "deviceInfo": {
       "platform": "ANDROID",

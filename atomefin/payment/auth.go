@@ -169,6 +169,9 @@ func validateAuthRequest(req *AuthRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
+	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, subOrderAmounts(req.SubOrders)); err != nil {
+		return err
+	}
 	if req.ExtendInfo == nil {
 		return &atomefin.ValidationError{Field: "extendInfo", Message: "required (carries orderType)"}
 	}
@@ -199,9 +202,6 @@ func validateAuthRequest(req *AuthRequest) error {
 	}
 	if len(req.Sessionid) > 64 {
 		return &atomefin.ValidationError{Field: "sessionid", Message: "exceeds spec maxlength 64"}
-	}
-	if !IsValidScore(req.ExtendInfo.UserCreditScore) {
-		return &atomefin.ValidationError{Field: "extendInfo.userCreditScore", Message: "must be in [0, 1] (per spec)"}
 	}
 	if req.ExtendInfo.DeviceInfo != nil {
 		p := req.ExtendInfo.DeviceInfo.Platform

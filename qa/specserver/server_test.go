@@ -31,6 +31,7 @@ func TestLoadDefault_PinnedSpec_ParsesAllOps(t *testing.T) {
 		"GET /query-auth",
 		"GET /query-capture",
 		"GET /query-voidAuth",
+		"GET /query-reAuth",
 		"GET /query-refund",
 		"GET /heart-beat",
 		"POST /credit-information",
@@ -38,7 +39,8 @@ func TestLoadDefault_PinnedSpec_ParsesAllOps(t *testing.T) {
 		"GET /credit-result",
 		"POST /repayment-request",
 		"GET /repayment-result",
-		"POST /riplay",
+		"POST /va/getList",
+		"POST /va/vaCodeByBank",
 	}
 	for _, want := range wantOps {
 		parts := strings.SplitN(want, " ", 2)

@@ -78,9 +78,16 @@ func TestSpec_PaymentEndpoints(t *testing.T) {
 			},
 		},
 		{
-			Op: "POST /riplay",
+			Op: "POST /reAuth",
 			Run: func(c *atomefin.Client) error {
-				_, err := payment.New(c).Riplay(context.Background(), specSampleRiplayRequest())
+				_, err := payment.New(c).ReAuth(context.Background(), specSampleReAuthRequest())
+				return err
+			},
+		},
+		{
+			Op: "GET /query-reAuth",
+			Run: func(c *atomefin.Client) error {
+				_, err := payment.New(c).QueryReAuth(context.Background(), "r-spec-1", "u-spec-1")
 				return err
 			},
 		},
@@ -125,6 +132,20 @@ func specSampleVoidAuthRequest() *payment.VoidAuthRequest {
 	}
 }
 
+func specSampleReAuthRequest() *payment.ReAuthRequest {
+	return &payment.ReAuthRequest{
+		RequestID:            "r-spec-reauth",
+		ExternalReferenceUID: "u-spec-1",
+		AuthOrderID:          "AUTH-SPEC-1",
+		TotalAmount:          1500000,
+		PeriodType:           3,
+		SubOrders: []payment.SubOrder{
+			specSampleSubOrder(1500000),
+		},
+		ExtendInfo: specSampleRequestExtendInfo(),
+	}
+}
+
 func specSamplePreCheckRequest() *payment.PaymentPreCheckRequest {
 	return &payment.PaymentPreCheckRequest{
 		ExternalReferenceUID: "u-spec-1",
@@ -140,15 +161,8 @@ func specSamplePaymentPlanRequest() *payment.PaymentPlanRequest {
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1500000),
 		},
+		PeriodType: 3,
 		ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		Sessionid:  "session-spec",
-	}
-}
-
-func specSampleRiplayRequest() *payment.RiplayRequest {
-	return &payment.RiplayRequest{
-		SessionID:            "SES-spec-1",
-		ExternalReferenceUID: "u-spec-1",
-		Tenor:                3,
 	}
 }

@@ -55,18 +55,143 @@ func validateCreditInformation(req *CreditInformationParam) error {
 			Message: "required",
 		}
 	}
-	if req.ApplicationEssentialInfo.IndividualProfile == nil ||
-		req.ApplicationEssentialInfo.IndividualProfile.OCRResult == nil ||
-		req.ApplicationEssentialInfo.IndividualProfile.OCRResult.FullName == "" {
+	if req.ApplicationEssentialInfo.PlatformInformation == nil {
 		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.individualProfile.ocrResult.fullName",
+			Field:   "applicationEssentialInfo.platformInformation",
 			Message: "required",
 		}
+	}
+	if req.ApplicationEssentialInfo.LivenessCheck != nil || req.ApplicationEssentialInfo.IndividualProfile != nil {
+		if req.ApplicationEssentialInfo.LivenessCheck == nil {
+			return &atomefin.ValidationError{
+				Field:   "applicationEssentialInfo.livenessCheck",
+				Message: "required for non-overlap requests",
+			}
+		}
+		if req.ApplicationEssentialInfo.IndividualProfile == nil {
+			return &atomefin.ValidationError{
+				Field:   "applicationEssentialInfo.individualProfile",
+				Message: "required for non-overlap requests",
+			}
+		}
+		if req.ApplicationEssentialInfo.PlatformInformation.LatestGkycTimeStamp == "" {
+			return &atomefin.ValidationError{
+				Field:   "applicationEssentialInfo.platformInformation.latestGkycTimeStamp",
+				Message: "required for non-overlap requests",
+			}
+		}
+	}
+	if err := validatePlatformInformation(req.ApplicationEssentialInfo.PlatformInformation); err != nil {
+		return err
 	}
 	if req.ExtendInfo != nil && req.ExtendInfo.Language != "" && !req.ExtendInfo.Language.IsValid() {
 		return &atomefin.ValidationError{
 			Field:   "extendInfo.language",
 			Message: "must be one of en | id",
+		}
+	}
+	return nil
+}
+
+func validatePlatformInformation(pi *PlatformInformation) error {
+	if pi.SceneType == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.sceneType",
+			Message: "required",
+		}
+	}
+	if pi.DeviceInfo == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo",
+			Message: "required",
+		}
+	}
+	if !pi.UserFlag.IsValid() {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.userFlag",
+			Message: "must be one of OVO | COMMON | GRAB",
+		}
+	}
+	if !pi.SCDUserLevel.IsValid() {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.scdUserLevel",
+			Message: "must be one of 1 | 2 | 3",
+		}
+	}
+	if pi.CreditProfile == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.creditProfile",
+			Message: "required",
+		}
+	}
+	if pi.DeviceInfo.Platform != "ANDROID" && pi.DeviceInfo.Platform != "IOS" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.platform",
+			Message: "must be one of ANDROID | IOS",
+		}
+	}
+	if pi.DeviceInfo.Device == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.device",
+			Message: "required",
+		}
+	}
+	if pi.DeviceInfo.Device.GoogleAdvertisingID == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.device.googleAdvertisingId",
+			Message: "required",
+		}
+	}
+	if pi.DeviceInfo.Device.Build == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.device.build",
+			Message: "required",
+		}
+	}
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{"deviceId", pi.DeviceInfo.Device.DeviceID},
+		{"googleAdvertisingId", pi.DeviceInfo.Device.GoogleAdvertisingID},
+		{"build.board", pi.DeviceInfo.Device.Build.Board},
+		{"build.brand", pi.DeviceInfo.Device.Build.Brand},
+		{"build.device", pi.DeviceInfo.Device.Build.Device},
+		{"build.manufacturer", pi.DeviceInfo.Device.Build.Manufacturer},
+		{"build.model", pi.DeviceInfo.Device.Build.Model},
+		{"build.product", pi.DeviceInfo.Device.Build.Product},
+	} {
+		if field.value == "" {
+			return &atomefin.ValidationError{
+				Field:   "applicationEssentialInfo.platformInformation.deviceInfo.device." + field.name,
+				Message: "required",
+			}
+		}
+	}
+	if pi.DeviceInfo.WifiList == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.wifiList",
+			Message: "required",
+		}
+	}
+	for _, wifi := range pi.DeviceInfo.WifiList {
+		if wifi.SSID == "" {
+			return &atomefin.ValidationError{
+				Field:   "applicationEssentialInfo.platformInformation.deviceInfo.wifiList[].ssid",
+				Message: "required",
+			}
+		}
+	}
+	if pi.DeviceInfo.IPAddress == nil {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.ipAddress",
+			Message: "required",
+		}
+	}
+	if pi.DeviceInfo.IPAddress.EthIP == "" || pi.DeviceInfo.IPAddress.TrueIP == "" {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.ipAddress.ethIp/trueIp",
+			Message: "both fields are required",
 		}
 	}
 	return nil
@@ -103,75 +228,6 @@ func validateCreditApplication(req *CreditApplicationParam) error {
 		return &atomefin.ValidationError{
 			Field:   "country",
 			Message: "only ID is currently supported by the spec",
-		}
-	}
-	if req.ApplicationEssentialInfo == nil {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.LivenessCheck == nil {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.livenessCheck",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.LivenessCheck.Result == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.livenessCheck.result",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.LivenessCheck.SnapshotPhoto == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.livenessCheck.snapshotPhoto",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.IndividualProfile == nil {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.individualProfile",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.IndividualProfile.IDType == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.individualProfile.idType",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.IndividualProfile.OCRResult == nil {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.individualProfile.ocrResult",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.IndividualProfile.IDFrontPhoto == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.individualProfile.idFrontPhoto",
-			Message: "required",
-		}
-	}
-	if err := validateOCRResult(req.ApplicationEssentialInfo.IndividualProfile.OCRResult); err != nil {
-		return err
-	}
-	if req.ApplicationEssentialInfo.PlatformInformation == nil {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.PlatformInformation.SceneType == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.sceneType",
-			Message: "required",
-		}
-	}
-	if req.ApplicationEssentialInfo.PlatformInformation.DeviceInfo == nil {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo",
-			Message: "required",
 		}
 	}
 	if req.ExtendInfo == nil {

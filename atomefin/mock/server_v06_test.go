@@ -67,8 +67,32 @@ func TestServer_Idempotency_EncryptedPOST_DecryptsAndExtractsRequestID(t *testin
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.CreditInformationIndividualProfile{
-				OCRResult: &credit.CreditInformationOCRResult{FullName: "Test User"},
+			LivenessCheck: &credit.LivenessCheck{Result: "PASS", SnapshotPhoto: "base64-photo"},
+			IndividualProfile: &credit.IndividualProfile{
+				IDType:       "KTP",
+				OCRResult:    &credit.OCRResult{FullName: "Test User"},
+				IDFrontPhoto: "base64-id-front-photo",
+			},
+			PlatformInformation: &credit.PlatformInformation{
+				SceneType:           credit.SceneCheckoutPage,
+				LatestGkycTimeStamp: "1620285931000",
+				UserFlag:            credit.UserFlagGrab,
+				SCDUserLevel:        credit.SCDUserLevel2,
+				CreditProfile:       `{"modelScores":[]}`,
+				DeviceInfo: &credit.DeviceInfo{
+					Platform: "ANDROID",
+					Device: &credit.Device{
+						DeviceID:            "device-1",
+						GoogleAdvertisingID: "advertising-1",
+						IsRoot:              false,
+						Build: &credit.DeviceBuild{
+							Board: "board", Brand: "brand", Device: "device",
+							Manufacturer: "manufacturer", Model: "model", Product: "product",
+						},
+					},
+					WifiList:  []credit.WifiAP{{SSID: "wifi-1"}},
+					IPAddress: &credit.IPAddress{EthIP: "192.0.2.1", TrueIP: "198.51.100.1"},
+				},
 			},
 		},
 		ExtendInfo: &credit.CreditInformationExtendInfo{Language: credit.LanguageEnglish},
@@ -123,8 +147,32 @@ func TestServer_Idempotency_EncryptedPOST_BypassesWithoutDecryptKey(t *testing.T
 		Email:                "u@example.com",
 		Country:              credit.CountryIndonesia,
 		ApplicationEssentialInfo: &credit.CreditInformationEssentialInfo{
-			IndividualProfile: &credit.CreditInformationIndividualProfile{
-				OCRResult: &credit.CreditInformationOCRResult{FullName: "Test User"},
+			LivenessCheck: &credit.LivenessCheck{Result: "PASS", SnapshotPhoto: "base64-photo"},
+			IndividualProfile: &credit.IndividualProfile{
+				IDType:       "KTP",
+				OCRResult:    &credit.OCRResult{FullName: "Test User"},
+				IDFrontPhoto: "base64-id-front-photo",
+			},
+			PlatformInformation: &credit.PlatformInformation{
+				SceneType:           credit.SceneCheckoutPage,
+				LatestGkycTimeStamp: "1620285931000",
+				UserFlag:            credit.UserFlagGrab,
+				SCDUserLevel:        credit.SCDUserLevel2,
+				CreditProfile:       `{"modelScores":[]}`,
+				DeviceInfo: &credit.DeviceInfo{
+					Platform: "ANDROID",
+					Device: &credit.Device{
+						DeviceID:            "device-1",
+						GoogleAdvertisingID: "advertising-1",
+						IsRoot:              false,
+						Build: &credit.DeviceBuild{
+							Board: "board", Brand: "brand", Device: "device",
+							Manufacturer: "manufacturer", Model: "model", Product: "product",
+						},
+					},
+					WifiList:  []credit.WifiAP{{SSID: "wifi-1"}},
+					IPAddress: &credit.IPAddress{EthIP: "192.0.2.1", TrueIP: "198.51.100.1"},
+				},
 			},
 		},
 		ExtendInfo: &credit.CreditInformationExtendInfo{Language: credit.LanguageEnglish},
