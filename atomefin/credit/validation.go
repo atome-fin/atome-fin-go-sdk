@@ -251,37 +251,6 @@ func validateCreditApplication(req *CreditApplicationParam) error {
 	return nil
 }
 
-func validateOCRResult(ocr *OCRResult) error {
-	required := []struct {
-		field string
-		value string
-	}{
-		{"idNumber", ocr.IDNumber},
-		{"fullName", ocr.FullName},
-		{"birthPlace", ocr.BirthPlace},
-		{"manuallyBirthDate", ocr.ManuallyBirthDate},
-		{"jobType", ocr.JobType},
-		{"ocrProvince", ocr.OCRProvince},
-		{"ocrCity", ocr.OCRCity},
-		{"ocrDistrict", ocr.OCRDistrict},
-		{"ocrGender", ocr.OCRGender},
-		{"ocrReligion", ocr.OCRReligion},
-		{"manuallyRt", ocr.ManuallyRt},
-		{"manuallyRw", ocr.ManuallyRw},
-		{"manuallyExpiredDate", ocr.ManuallyExpiredDate},
-		{"manuallyCitizenship", ocr.ManuallyCitizenship},
-	}
-	for _, r := range required {
-		if r.value == "" {
-			return &atomefin.ValidationError{
-				Field:   "applicationEssentialInfo.individualProfile.ocrResult." + r.field,
-				Message: "required",
-			}
-		}
-	}
-	return nil
-}
-
 // validateCreditApplicationChange is the client-side guard for POST
 // /modify-application-info.
 func validateCreditApplicationChange(req *CreditApplicationChangeParam) error {
