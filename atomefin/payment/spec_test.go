@@ -162,6 +162,7 @@ func specSamplePaymentPlanRequest() *payment.PaymentPlanRequest {
 			specSamplePlanSubOrder(1500000),
 		},
 		PeriodType: 3,
+		Mode:       payment.PaymentPlanModeAsk,
 		ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		Sessionid:  "session-spec",
 	}

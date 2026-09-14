@@ -38,6 +38,7 @@ func TestService_PaymentPlan_Success(t *testing.T) {
 			specSamplePlanSubOrder(1500000),
 		},
 		PeriodType: 3,
+		Mode:       payment.PaymentPlanModeAsk,
 		ExtendInfo: &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 		Sessionid:  "session-plan",
 	})
@@ -76,6 +77,7 @@ func TestService_PaymentPlan_AutoMintsRequestID(t *testing.T) {
 	req := &payment.PaymentPlanRequest{
 		ExternalReferenceUID: "u-1",
 		PeriodType:           1,
+		Mode:                 payment.PaymentPlanModeAsk,
 		TotalAmount:          1,
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1),
@@ -103,6 +105,7 @@ func TestService_PaymentPlan_4xxBecomesAPIError(t *testing.T) {
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
 		PeriodType:           1,
+		Mode:                 payment.PaymentPlanModeAsk,
 		TotalAmount:          1,
 		SubOrders: []payment.PlanSubOrder{
 			specSamplePlanSubOrder(1),
@@ -135,14 +138,31 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 		{"nil-request", nil, "request"},
 		{"missing-externalReferenceUid", &payment.PaymentPlanRequest{
 			RequestID:   "r",
+			Mode:        payment.PaymentPlanModeAsk,
 			TotalAmount: 1,
 			SubOrders:   []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 			ExtendInfo:  &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
 			Sessionid:   "s",
 		}, "externalReferenceUid"},
+		{"missing-mode", &payment.PaymentPlanRequest{
+			RequestID:            "r",
+			ExternalReferenceUID: "u",
+			TotalAmount:          1,
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo:           &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
+		}, "mode"},
+		{"invalid-mode", &payment.PaymentPlanRequest{
+			RequestID:            "r",
+			ExternalReferenceUID: "u",
+			Mode:                 payment.PaymentPlanMode("invalid"),
+			TotalAmount:          1,
+			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
+			ExtendInfo:           &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
+		}, "mode"},
 		{"zero-totalAmount", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
+			Mode:                 payment.PaymentPlanModeAsk,
 			TotalAmount:          0,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 			ExtendInfo:           &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
@@ -151,6 +171,7 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 		{"empty-subOrders", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
+			Mode:                 payment.PaymentPlanModeAsk,
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{},
 			ExtendInfo:           &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},
@@ -159,6 +180,7 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 		{"sum-mismatch", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
+			Mode:                 payment.PaymentPlanModeAsk,
 			TotalAmount:          1000,
 			SubOrders: func() []payment.PlanSubOrder {
 				so := specSamplePlanSubOrder(999)
@@ -170,6 +192,7 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 		{"missing-extendInfo", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
+			Mode:                 payment.PaymentPlanModeAsk,
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 			Sessionid:            "s",
@@ -177,6 +200,7 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 		{"missing-orderType", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
+			Mode:                 payment.PaymentPlanModeAsk,
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 			ExtendInfo:           &payment.CheckoutExtendInfo{},
@@ -185,6 +209,7 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 		{"mart-missing-skuInfos", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
+			Mode:                 payment.PaymentPlanModeAsk,
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 			ExtendInfo: &payment.CheckoutExtendInfo{
@@ -197,6 +222,7 @@ func TestPaymentPlan_Validate_TableDriven(t *testing.T) {
 		{"mart-missing-skuId", &payment.PaymentPlanRequest{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
+			Mode:                 payment.PaymentPlanModeAsk,
 			TotalAmount:          1,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(1)},
 			ExtendInfo: &payment.CheckoutExtendInfo{
@@ -235,6 +261,7 @@ func TestR10_PaymentPlanRequest_TotalAmount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[payment.PaymentPlanRequest](t, func(v int64) payment.PaymentPlanRequest {
 		return payment.PaymentPlanRequest{
 			ExternalReferenceUID: "u-1",
+			Mode:                 payment.PaymentPlanModeAsk,
 			TotalAmount:          v,
 			SubOrders:            []payment.PlanSubOrder{specSamplePlanSubOrder(v)},
 			ExtendInfo:           &payment.CheckoutExtendInfo{OrderType: payment.OrderTypeGrabFood},

@@ -7,6 +7,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.4] — 2026-09-14
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-09-14-fe2f6080.yaml`.
+
+### Added
+
+- **`payment.PaymentPlanMode`** — `ask` generates a new plan and
+  checkout session; `get` retrieves the cached plan.
+- **`payment.PaymentPlanRequest.SessionID`** — optional body-side
+  checkout session for `mode=get`; the `sessionid` header is preferred.
+- **`transaction.TradePaymentInfoDetail.ExtendInfo`** — carries the
+  asynchronous financing agreement URL on `GET /transactionDetail`.
+
+### Changed
+
+- **Pinned spec** — `swagger-2026-09-14-fe2f6080.yaml` replaces
+  `swagger-2026-09-14-160032ca.yaml`.
+- **`payment.PaymentPlanRequest.Mode`** — now required by the spec.
+  `mode=get` accepts the `sessionid` header or body `sessionId`.
+
 ## [0.8.3] — 2026-09-14
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

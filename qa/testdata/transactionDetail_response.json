@@ -10,6 +10,11 @@
       "createTime": 1746089800000,
       "principalAmount": 1450000,
       "interestAmount": 50000,
+      "extendInfo": {
+        "agreement": {
+          "agreementUrl": "https://atome.example/agreements/ORD-2026-0501-A.pdf"
+        }
+      },
       "subOrders": [
         {
           "subOrderId": "so-1",

@@ -3,6 +3,7 @@ package transaction
 import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/bill"
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/payment"
 )
 
 // TransactionType enumerates the kinds of originating transaction
@@ -150,14 +151,20 @@ type TradeDetail struct {
 }
 
 type TradePaymentInfoDetail struct {
-	CaptureRequestID string                `json:"captureRequestId"`
-	OrderID          string                `json:"orderId"`
-	TotalTenor       int                   `json:"totalTenor"`
-	CreateTime       int64                 `json:"createTime"`
-	PrincipalAmount  atomefin.Amount       `json:"principalAmount"`
-	InterestAmount   atomefin.Amount       `json:"interestAmount,omitempty"`
-	DiscountAmount   atomefin.Amount       `json:"discountAmount,omitempty"`
-	SubOrders        []TradeSubOrderDetail `json:"subOrders,omitempty"`
+	CaptureRequestID string                        `json:"captureRequestId"`
+	OrderID          string                        `json:"orderId"`
+	TotalTenor       int                           `json:"totalTenor"`
+	CreateTime       int64                         `json:"createTime"`
+	PrincipalAmount  atomefin.Amount               `json:"principalAmount"`
+	InterestAmount   atomefin.Amount               `json:"interestAmount,omitempty"`
+	DiscountAmount   atomefin.Amount               `json:"discountAmount,omitempty"`
+	SubOrders        []TradeSubOrderDetail         `json:"subOrders,omitempty"`
+	ExtendInfo       *PaymentTransactionExtendInfo `json:"extendInfo,omitempty"`
+}
+
+// PaymentTransactionExtendInfo carries transaction-detail extension fields.
+type PaymentTransactionExtendInfo struct {
+	Agreement *payment.AgreementRef `json:"agreement,omitempty"`
 }
 
 type TradeSubOrderDetail struct {

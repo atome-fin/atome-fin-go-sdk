@@ -171,7 +171,7 @@ func TestService_TransactionDetail_Success(t *testing.T) {
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":{"captureRequestId":"REQ-1","orderId":"ORD-1","totalTenor":3,"createTime":1746089800000,"principalAmount":1000,"subOrders":[{"subOrderId":"so-1","principalAmount":1000,"billOrderDetails":[{"billId":"202605","billDate":"20260515","dueDate":"20260615","totalAmount":1000,"repaidAmount":0,"principalAmount":1000,"interestAmount":0}]}]}}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":{"captureRequestId":"REQ-1","orderId":"ORD-1","totalTenor":3,"createTime":1746089800000,"principalAmount":1000,"subOrders":[{"subOrderId":"so-1","principalAmount":1000,"billOrderDetails":[{"billId":"202605","billDate":"20260515","dueDate":"20260615","totalAmount":1000,"repaidAmount":0,"principalAmount":1000,"interestAmount":0}]}],"extendInfo":{"agreement":{"agreementUrl":"https://atome.example/agreements/ORD-1.pdf"}}}}}`))
 	}))
 	defer srv.Close()
 
@@ -188,6 +188,10 @@ func TestService_TransactionDetail_Success(t *testing.T) {
 	}
 	if resp.Data.PaymentInfo.SubOrders[0].BillOrderDetails[0].BillID != "202605" {
 		t.Errorf("BillID = %q", resp.Data.PaymentInfo.SubOrders[0].BillOrderDetails[0].BillID)
+	}
+	if resp.Data.PaymentInfo.ExtendInfo == nil || resp.Data.PaymentInfo.ExtendInfo.Agreement == nil ||
+		resp.Data.PaymentInfo.ExtendInfo.Agreement.AgreementURL != "https://atome.example/agreements/ORD-1.pdf" {
+		t.Errorf("AgreementURL = %#v", resp.Data.PaymentInfo.ExtendInfo)
 	}
 	if gotPath != "/transactionDetail" {
 		t.Errorf("path = %q", gotPath)

@@ -22,6 +22,13 @@ type PaymentPlanRequest struct {
 	PeriodType int `json:"-"`
 	// ExternalReferenceUID is the partner's user identifier.
 	ExternalReferenceUID string `json:"externalReferenceUid"`
+	// Mode selects the payment-plan interaction: ask generates a new
+	// quote and session; get retrieves the cached quote.
+	Mode PaymentPlanMode `json:"mode"`
+	// SessionID is accepted when Mode is Get. The sessionid header is
+	// preferred; it comes from a prior ask response at
+	// data.extendInfo.sessionId.
+	SessionID string `json:"sessionId,omitempty"`
 	// TotalAmount in minor units; Σ(SubOrders[].Amount) must equal.
 	TotalAmount atomefin.Amount `json:"totalAmount"`
 	// SubOrders enumerates the cart contents to plan against.
@@ -36,6 +43,26 @@ type PaymentPlanRequest struct {
 	// When set, the SDK still forwards it as a request header for
 	// backward compatibility. Not part of the JSON body (json:"-").
 	Sessionid string `json:"-"` // max 64
+}
+
+// PaymentPlanMode selects the Grab ID Ask/Get payment-plan flow.
+type PaymentPlanMode string
+
+// Spec-defined payment-plan modes.
+const (
+	// PaymentPlanModeAsk requests a new installment quote and session.
+	PaymentPlanModeAsk PaymentPlanMode = "ask"
+	// PaymentPlanModeGet retrieves a cached quote by SessionID.
+	PaymentPlanModeGet PaymentPlanMode = "get"
+)
+
+// IsValid reports whether m is a spec-defined payment-plan mode.
+func (m PaymentPlanMode) IsValid() bool {
+	switch m {
+	case PaymentPlanModeAsk, PaymentPlanModeGet:
+		return true
+	}
+	return false
 }
 
 // CheckoutExtendInfo is the extendInfo bag on /payment-plan.
@@ -194,6 +221,15 @@ func validatePaymentPlanRequest(req *PaymentPlanRequest) error {
 	}
 	if req.ExternalReferenceUID == "" {
 		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "required"}
+	}
+	if !req.Mode.IsValid() {
+		return &atomefin.ValidationError{
+			Field:   "mode",
+			Message: "must be one of ask | get",
+		}
+	}
+	if len(req.SessionID) > 64 {
+		return &atomefin.ValidationError{Field: "sessionId", Message: "exceeds spec maxlength 64"}
 	}
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
