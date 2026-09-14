@@ -259,5 +259,8 @@ func buildTransactionsQuery(p *TransactionsParams) url.Values {
 	if p.EndDate != "" {
 		q.Set("endDate", p.EndDate)
 	}
+	if p.MainOrderID != "" {
+		q.Set("mainOrderId", p.MainOrderID)
+	}
 	return q
 }

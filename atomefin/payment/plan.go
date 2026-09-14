@@ -106,6 +106,7 @@ type PaymentPlanData struct {
 type CommerceSubOrderInstallmentPlans struct {
 	SubOrderID       string                    `json:"subOrderId,omitempty"`
 	MerchantID       string                    `json:"merchantId,omitempty"`
+	MerchantName     string                    `json:"merchantName,omitempty"`
 	OrderAmount      atomefin.Amount           `json:"orderAmount"`
 	InstallmentPlans []CommerceInstallmentPlan `json:"installmentPlans"`
 }

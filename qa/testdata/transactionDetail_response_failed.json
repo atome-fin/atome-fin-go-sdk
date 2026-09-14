@@ -5,8 +5,9 @@
     "currency": "IDR",
     "refundInfo": {
       "refundRequestId": "RFD-REQ-2026-0508-D",
-      "captureRequestId": "CAP-2026-0508-D",
+      "paymentRequestId": "CAP-2026-0508-D",
       "refundAmount": 800000,
+      "refundType": "NORMAL",
       "createTime": 1746748800000
     }
   }

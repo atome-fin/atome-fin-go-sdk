@@ -197,9 +197,9 @@ tags:
 
     | 2026-09-09 | Transaction | `GET /transactionDetail` `paymentInfo.extendInfo.agreement.agreementUrl` returns the financing agreement URL when available (same semantics as `/capture`). |
 
-    | 2026-09-14 | Bill | `GET /billDetail` `mainOrders[].periodType` type is `integer`. |
+    | 2026-09-14 | Bill / Transaction / Payment | `GET /billDetail` calibrated to live payload (`bill.currency`; integer amounts; `mainOrders[].periodType` / `createTime` int64 / `gracePeriod`; `orders` and `repaymentDetails` nullable; `repaymentDetails[].repaymentTime` int64). `GET /transactions` and `GET /transactionDetail` calibrated to Grab partner DTOs (integer IDR amounts; `createTime` int64; list payment `paymentRequestId`; detail payment `captureRequestId`; refund `paymentRequestId` + `refundType`; sub-orders return `mainOrderId` not `merchantId`; repayment list omits `lateFeeAmountChange`; repayment detail adds `lateFeeAmountChange` and does not expose `extendInfo.settlement`; `paymentInfo.extendInfo.agreement.agreementUrl` kept). `/payment-plan` adds optional header `sessionid` for `mode=get`. Discount / subsidy fields are optional this period (no subsidy). Payment objects that carry `merchantId` also accept optional `merchantName` (same merchant dimension; for later display when provided). |
 
-    | 2026-09-14 | Payment | `/payment-plan` adds optional header `sessionid` for `mode=get` cached-plan lookup (same value as `data.extendInfo.sessionId`). |'
+    | 2026-09-14 | Docs | Editorial: renamed `paymentRiskInfo` schema to `PaymentRiskInfo`; removed unused `PaymentPlanExtendInfo`; fixed `RefundResult.waivedInterestAmount` description. No wire-format change. |'
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -252,7 +252,9 @@ tags:
 - name: Bill
 - name: Transaction
   description: |
-    **`GET /transactionDetail`:** Returns one transaction by `transactionType` and `requestId`. For `transactionType = PAYMENT`, pass the **`POST /capture` `requestId`**.
+    **`GET /transactionDetail`:** Returns one transaction by `transactionType` and `requestId`. For `transactionType = PAYMENT`, pass the **`POST /capture` `requestId`**. Response `paymentInfo.captureRequestId` echoes that value.
+
+    **`GET /transactions`:** Same `transactionType` filter. List payment rows use `paymentRequestId` (same capture `requestId`); unused `paymentInfo` / `refundInfo` / `repaymentInfo` arrays are omitted.
 
     **`paymentInfo.extendInfo.agreement.agreementUrl`:** Financing agreement PDF URL (RIPLAY + FA merged when ready). Generated **asynchronously** after capture succeeds — may be `null` on first fetch; partners may **poll** this endpoint on the installment-detail page until the URL appears. Same field semantics as `/capture` / `/<captureNotifyUrl>` `extendInfo.agreement.agreementUrl`.
 - name: Callback
@@ -975,8 +977,10 @@ paths:
                   totalAmount: 130000
                   subOrders:
                   - merchantId: MCH-10001
+                    merchantName: Indomaret Kelapa Gading
                     amount: 85000
                   - merchantId: MCH-10002
+                    merchantName: Alfamart Senayan
                     amount: 45000
                   extendInfo:
                     orderType: GRAB_MART
@@ -1158,6 +1162,7 @@ paths:
                       currency: IDR
                       subOrderInstallmentPlans:
                         - merchantId: MCH-10001
+                          merchantName: Indomaret Kelapa Gading
                           orderAmount: 85000
                           installmentPlans:
                             - totalTenor: 3
@@ -1174,6 +1179,7 @@ paths:
                                   billDate: '2026-08-07'
                                   dueDate: '2026-09-07'
                         - merchantId: MCH-10002
+                          merchantName: Alfamart Senayan
                           orderAmount: 45000
                           installmentPlans:
                             - totalTenor: 3
@@ -1201,6 +1207,7 @@ paths:
                       currency: IDR
                       subOrderInstallmentPlans:
                         - merchantId: MCH-FOOD-001
+                          merchantName: Warung Nasi Padang Sederhana
                           orderAmount: 125000
                           installmentPlans:
                             - totalTenor: 3
@@ -1354,6 +1361,7 @@ paths:
                       subOrderInstallmentPlans:
                         - subOrderId: SUB-MART-001
                           merchantId: MCH-10001
+                          merchantName: Indomaret Kelapa Gading
                           orderAmount: 85000
                           installmentPlans:
                             - totalTenor: 3
@@ -1371,6 +1379,7 @@ paths:
                                   dueDate: '2026-09-07'
                         - subOrderId: SUB-MART-002
                           merchantId: MCH-10002
+                          merchantName: Alfamart Senayan
                           orderAmount: 45000
                           installmentPlans:
                             - totalTenor: 3
@@ -1401,6 +1410,7 @@ paths:
                       subOrderInstallmentPlans:
                         - subOrderId: SUB-FOOD-001
                           merchantId: MCH-FOOD-001
+                          merchantName: Warung Nasi Padang Sederhana
                           orderAmount: 125000
                           installmentPlans:
                             - totalTenor: 3
@@ -1642,6 +1652,7 @@ paths:
                       subOrderInstallmentPlans:
                         - subOrderId: SUB-MART-001
                           merchantId: MCH-10001
+                          merchantName: Indomaret Kelapa Gading
                           orderAmount: 85000
                           installmentPlans:
                             - totalTenor: 3
@@ -1659,6 +1670,7 @@ paths:
                                   dueDate: '2026-09-07'
                         - subOrderId: SUB-MART-002
                           merchantId: MCH-10002
+                          merchantName: Alfamart Senayan
                           orderAmount: 45000
                           installmentPlans:
                             - totalTenor: 3
@@ -1690,6 +1702,7 @@ paths:
                       subOrderInstallmentPlans:
                         - subOrderId: SUB-FOOD-001
                           merchantId: MCH-FOOD-001
+                          merchantName: Warung Nasi Padang Sederhana
                           orderAmount: 125000
                           installmentPlans:
                             - totalTenor: 3
@@ -2030,6 +2043,7 @@ paths:
                       subOrderInstallmentPlans:
                         - subOrderId: SUB-MART-001
                           merchantId: MCH-10001
+                          merchantName: Indomaret Kelapa Gading
                           orderAmount: 95000
                           installmentPlans:
                             - totalTenor: 3
@@ -2047,6 +2061,7 @@ paths:
                                   dueDate: '2026-09-25'
                         - subOrderId: SUB-MART-002
                           merchantId: MCH-10002
+                          merchantName: Alfamart Senayan
                           orderAmount: 50000
                           installmentPlans:
                             - totalTenor: 3
@@ -2078,6 +2093,7 @@ paths:
                       subOrderInstallmentPlans:
                         - subOrderId: SUB-FOOD-001
                           merchantId: MCH-FOOD-001
+                          merchantName: Warung Nasi Padang Sederhana
                           orderAmount: 140000
                           installmentPlans:
                             - totalTenor: 3
@@ -2228,6 +2244,7 @@ paths:
                       currency: IDR
                       subOrders:
                         - merchantId: MCH-10001
+                          merchantName: Indomaret Kelapa Gading
                           totalAmount: 30000
                 GRAB_FOOD:
                   summary: GRAB_FOOD — single sub-order
@@ -2551,6 +2568,73 @@ paths:
                     description: success or fail message
                   data:
                     $ref: '#/components/schemas/BillDetail'
+              examples:
+                unbilled-multi-merchant:
+                  summary: UNBILLED bill with merchant-dimension mainOrders
+                  description: |
+                    Live Grab shape. Amounts are integers (IDR). `periodType` / `createTime` / `gracePeriod` are integers.
+                    `orders` and `repaymentDetails` are `null` until SKU lines or repayments exist.
+                  value:
+                    code: SUCCESS
+                    message: success
+                    data:
+                      currency: IDR
+                      bill:
+                        billEndDate: '20260916'
+                        billId: '202609'
+                        billMonth: '202609'
+                        billStartDate: '20260817'
+                        billTotalAmount: 57120
+                        currency: IDR
+                        daysPastDue: 0
+                        discounts:
+                          billTotalAmountAfterDiscount: 57120
+                          discountAmount: 0
+                          interestAmountAfterDiscount: 15120
+                          repaidAmountExcludeDiscount: 0
+                        dueDate: '20261002'
+                        gracePeriod: 1
+                        interestAmount: 15120
+                        lateFeeAmount: 0
+                        outstandingAmount: 57120
+                        overdueStatus: NOT_OVERDUE
+                        principalAmount: 42000
+                        refundAmount: 0
+                        refundStatus: NOT_REFUNDED
+                        repaidAmount: 0
+                        repaymentStatus: UNPAID
+                        status: UNBILLED
+                      mainOrders:
+                        - createTime: 1789134648277
+                          currentPeriod: 1
+                          discounts:
+                            billTotalAmountAfterDiscount: 16018
+                            discountAmount: 0
+                            interestAmountAfterDiscount: 4240
+                            repaidAmountExcludeDiscount: 0
+                          dueDate: '20261002'
+                          gracePeriod: 1
+                          interestAmount: 4240
+                          merchantId: MCHM11789134642269498
+                          merchantName: Indomaret Kelapa Gading
+                          orderId: O6AA407382F46F000017D3E09
+                          outstandingAmount: 16018
+                          overdueStatus: NOT_OVERDUE
+                          periodType: 9
+                          principalAmount: 11778
+                          refundAmount: 0
+                          refundStatus: NOT_REFUNDED
+                          repaidAmount: 0
+                          repaymentStatus: UNPAID
+                          requestId: CAPTURE1789134646573522
+                          status: UNBILLED
+                          totalAmount: 16018
+                      orders: null
+                      paginator:
+                        count: 10
+                        start: 1
+                        totalCount: 3
+                      repaymentDetails: null
         '400':
           description: NOT_FOUND、PARAMS_MISSING、PARAMS_WRONG、WRONG_PARAMS_FORMAT
           content:
@@ -2656,9 +2740,13 @@ paths:
       - name: transactionType
         in: query
         required: true
-        description: Transaction Type alias PAYMENT, REFUND, REPAYMENT
+        description: Transaction type. Only the matching `*Info` array is returned; the other two are omitted.
         schema:
           type: string
+          enum:
+          - PAYMENT
+          - REFUND
+          - REPAYMENT
       - name: start
         in: query
         schema:
@@ -2711,9 +2799,9 @@ paths:
       - Transaction
       summary: Get transaction detail
       description: |
-        Returns detailed information for one transaction.
+        Returns detailed information for one transaction. Unused `paymentInfo` / `refundInfo` / `repaymentInfo` objects are omitted (Jackson `NON_NULL`).
 
-        **Payment (`transactionType = PAYMENT`):** Pass the **`POST /capture` `requestId`**. Response `paymentInfo.captureRequestId` echoes the same value.
+        **Payment (`transactionType = PAYMENT`):** Pass the **`POST /capture` `requestId`**. Response `paymentInfo.captureRequestId` echoes the same value (`@JsonProperty` on the Grab partner DTO).
 
         **Financing agreement:** When `transactionType = PAYMENT`, check `paymentInfo.extendInfo.agreement.agreementUrl`. The URL is produced asynchronously after capture; it may be `null` until agreement generation completes. Partners rendering the installment-detail page may call this endpoint repeatedly until the URL is present — no separate `/query-capture` call is required for the agreement link.
       parameters:
@@ -2731,15 +2819,25 @@ paths:
       - name: transactionType
         in: query
         required: true
-        description: Transaction Type alias PAYMENT, REFUND, REPAYMENT
+        description: Transaction type. Only the matching `*Info` object is returned.
         schema:
           type: string
+          enum:
+          - PAYMENT
+          - REFUND
+          - REPAYMENT
       - name: requestId
         in: query
         required: true
         schema:
           type: string
           description: payment｜refund｜repayment requestId
+      - name: mainOrderId
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Optional Lazada-style seller-order filter. Grab can omit.
       responses:
         '200':
           description: SUCCESS
@@ -2761,40 +2859,50 @@ paths:
               examples:
                 PAYMENT-agreement-ready:
                   summary: PAYMENT — agreement URL available
-                  description: Async agreement generation has completed; `agreementUrl` is ready to render on the installment-detail page.
+                  description: |
+                    Async agreement generation has completed; `paymentInfo.extendInfo.agreement.agreementUrl` is ready.
+                    Same semantics as `/capture`. Other fields follow the Grab partner payment-detail DTO.
                   value:
                     code: SUCCESS
                     message: success
                     data:
                       currency: IDR
                       paymentInfo:
-                        captureRequestId: CAP-FOOD-20260807001
-                        orderId: ORD-20260807002
-                        totalTenor: 3
-                        createTime: 1723027200000
-                        principalAmount: 125000
-                        interestAmount: 0
+                        captureRequestId: CAPTURE1789134646573522
+                        orderId: O6AA407382F46F000017D3E09
+                        totalTenor: 9
+                        createTime: 1789134648277
+                        principalAmount: 42000
+                        interestAmount: 15120
                         discountAmount: 0
                         subOrders:
                           - subOrderId: SUB-FOOD-001
-                            merchantId: MCH-FOOD-001
-                            principalAmount: 125000
-                            interestAmount: 0
+                            mainOrderId: MO-FOOD-001
+                            principalAmount: 42000
+                            interestAmount: 15120
                             discountAmount: 0
                             billOrderDetails:
-                              - billId: '202608'
-                                billDate: '20260807'
-                                dueDate: '20260907'
-                                billStartDate: '20260807'
-                                billEndDate: '20260906'
-                                totalAmount: 41667
-                                outstandingAmount: 41667
+                              - billId: '202609'
+                                billDate: '20260817'
+                                dueDate: '20261002'
+                                billStartDate: '20260817'
+                                billEndDate: '20260916'
+                                totalAmount: 57120
+                                outstandingAmount: 57120
                                 repaidAmount: 0
-                                principalAmount: 41667
-                                interestAmount: 0
+                                principalAmount: 42000
+                                interestAmount: 15120
+                                status: UNBILLED
+                                repaymentStatus: UNPAID
+                                overdueStatus: NOT_OVERDUE
+                                discounts:
+                                  discountAmount: 0
+                                  interestAmountAfterDiscount: 15120
+                                  billTotalAmountAfterDiscount: 57120
+                                  repaidAmountExcludeDiscount: 0
                         extendInfo:
                           agreement:
-                            agreementUrl: https://oss.example.com/agreements/ORD-20260807002.pdf?Expires=1723632000
+                            agreementUrl: https://oss.example.com/agreements/O6AA407382F46F000017D3E09.pdf?Expires=1723632000
                 PAYMENT-agreement-pending:
                   summary: PAYMENT — agreement not ready yet
                   description: Capture succeeded but async agreement is still generating. `agreementUrl` is null — poll again later.
@@ -2804,18 +2912,18 @@ paths:
                     data:
                       currency: IDR
                       paymentInfo:
-                        captureRequestId: CAP-FOOD-20260807001
-                        orderId: ORD-20260807002
-                        totalTenor: 3
-                        createTime: 1723027200000
-                        principalAmount: 125000
-                        interestAmount: 0
+                        captureRequestId: CAPTURE1789134646573522
+                        orderId: O6AA407382F46F000017D3E09
+                        totalTenor: 9
+                        createTime: 1789134648277
+                        principalAmount: 42000
+                        interestAmount: 15120
                         discountAmount: 0
                         subOrders:
                           - subOrderId: SUB-FOOD-001
-                            merchantId: MCH-FOOD-001
-                            principalAmount: 125000
-                            interestAmount: 0
+                            mainOrderId: MO-FOOD-001
+                            principalAmount: 42000
+                            interestAmount: 15120
                             discountAmount: 0
                         extendInfo:
                           agreement:
@@ -3183,6 +3291,7 @@ components:
                   orderType: GRAB_MART
                   mainOrderExtendInfos:
                     - merchantId: MCH-10001
+                      merchantName: Indomaret Kelapa Gading
                       skuInfos:
                         - skuId: SKU-MART-001
                           skuName: Indomie Goreng Original
@@ -3202,6 +3311,7 @@ components:
                           quantity: 3
                           amount: 35000
                     - merchantId: MCH-10002
+                      merchantName: Alfamart Senayan
                       skuInfos:
                         - skuId: SKU-MART-003
                           skuName: Ultra Milk 1L
@@ -3262,6 +3372,7 @@ components:
                   orderType: GRAB_FOOD
                   mainOrderExtendInfos:
                     - merchantId: MCH-FOOD-001
+                      merchantName: Warung Nasi Padang Sederhana
                       skuInfos:
                         - skuId: SKU-FOOD-001
                           quantity: 2
@@ -3381,6 +3492,7 @@ components:
                   orderType: GRAB_MART
                   mainOrderExtendInfos:
                     - merchantId: MCH-10001
+                      merchantName: Indomaret Kelapa Gading
                       skuInfos:
                         - skuId: SKU-MART-001
                           skuName: Indomie Goreng Original
@@ -3400,6 +3512,7 @@ components:
                           quantity: 3
                           amount: 35000
                     - merchantId: MCH-10002
+                      merchantName: Alfamart Senayan
                       skuInfos:
                         - skuId: SKU-MART-003
                           skuName: Ultra Milk 1L
@@ -3461,6 +3574,7 @@ components:
                   orderType: GRAB_FOOD
                   mainOrderExtendInfos:
                     - merchantId: MCH-FOOD-001
+                      merchantName: Warung Nasi Padang Sederhana
                       skuInfos:
                         - skuId: SKU-FOOD-001
                           quantity: 2
@@ -3605,6 +3719,7 @@ components:
                   orderType: GRAB_MART
                   mainOrderExtendInfos:
                     - merchantId: MCH-10001
+                      merchantName: Indomaret Kelapa Gading
                       skuInfos:
                         - skuId: SKU-MART-001
                           skuName: Indomie Goreng Original
@@ -3624,6 +3739,7 @@ components:
                           quantity: 3
                           amount: 35000
                     - merchantId: MCH-10002
+                      merchantName: Alfamart Senayan
                       skuInfos:
                         - skuId: SKU-MART-003
                           skuName: Ultra Milk 1L
@@ -3684,6 +3800,7 @@ components:
                   orderType: GRAB_FOOD
                   mainOrderExtendInfos:
                     - merchantId: MCH-FOOD-001
+                      merchantName: Warung Nasi Padang Sederhana
                       skuInfos:
                         - skuId: SKU-FOOD-001
                           quantity: 2
@@ -4098,20 +4215,24 @@ components:
             $ref: '#/components/schemas/PaymentPlanRequest'
           examples:
             GRAB_MART-full:
-              summary: GRAB_MART — full payment-plan payload
-              description: 'MART plan requires `skuId` and `amount` on each SKU. Multiple merchant sub-orders allowed.'
+              summary: GRAB_MART — ask (full payload)
+              description: '`mode=ask` new quote. MART plan requires `skuId` and `amount` on each SKU. Multiple merchant sub-orders allowed. Do not send body `sessionId` / header `sessionid`.'
               value:
                 externalReferenceUid: E897321804
+                mode: ask
                 totalAmount: 130000
                 subOrders:
                   - merchantId: MCH-10001
+                    merchantName: Indomaret Kelapa Gading
                     amount: 85000
                   - merchantId: MCH-10002
+                    merchantName: Alfamart Senayan
                     amount: 45000
                 extendInfo:
                   orderType: GRAB_MART
                   mainOrderExtendInfos:
                     - merchantId: MCH-10001
+                      merchantName: Indomaret Kelapa Gading
                       skuInfos:
                         - skuId: SKU-MART-001
                           skuName: Indomie Goreng Original
@@ -4131,6 +4252,7 @@ components:
                           quantity: 3
                           amount: 35000
                     - merchantId: MCH-10002
+                      merchantName: Alfamart Senayan
                       skuInfos:
                         - skuId: SKU-MART-003
                           skuName: Ultra Milk 1L
@@ -4141,8 +4263,8 @@ components:
                           quantity: 2
                           amount: 45000
             GRAB_FOOD-minimal:
-              summary: GRAB_FOOD — minimal payload (plan)
-              description: 'No `mainOrderExtendInfos`. **Exactly one** `subOrders[]` entry; only `amount` required on sub-order.'
+              summary: GRAB_FOOD — ask (minimal)
+              description: '`mode=ask` new quote. No `mainOrderExtendInfos`. **Exactly one** `subOrders[]` entry; only `amount` required on sub-order.'
               value:
                 externalReferenceUid: E897321804
                 mode: ask
@@ -4152,8 +4274,8 @@ components:
                 extendInfo:
                   orderType: GRAB_FOOD
             TRANSPORT-minimal:
-              summary: TRANSPORT — minimal payload (plan)
-              description: 'No `mainOrderExtendInfos`. **Exactly one** `subOrders[]` entry; **`totalAmount` must equal `subOrders[0].amount`**.'
+              summary: TRANSPORT — ask (minimal)
+              description: '`mode=ask` new quote. No `mainOrderExtendInfos`. **Exactly one** `subOrders[]` entry; **`totalAmount` must equal `subOrders[0].amount`**.'
               value:
                 externalReferenceUid: E897321804
                 mode: ask
@@ -4164,7 +4286,7 @@ components:
                   orderType: TRANSPORT
             GRAB_MART-get:
               summary: GRAB_MART — get cached plan
-              description: Same body as the prior `ask`. Pass prior `data.extendInfo.sessionId` as header `sessionid` (or body `sessionId`).
+              description: '`mode=get`. Same body as the prior `ask`. Prefer header `sessionid`; body `sessionId` is also accepted (shown here).'
               value:
                 externalReferenceUid: E897321804
                 mode: get
@@ -4172,23 +4294,27 @@ components:
                 totalAmount: 130000
                 subOrders:
                   - merchantId: MCH-10001
+                    merchantName: Indomaret Kelapa Gading
                     amount: 85000
                   - merchantId: MCH-10002
+                    merchantName: Alfamart Senayan
                     amount: 45000
                 extendInfo:
                   orderType: GRAB_MART
                   mainOrderExtendInfos:
                     - merchantId: MCH-10001
+                      merchantName: Indomaret Kelapa Gading
                       skuInfos:
                         - skuId: SKU-MART-001
                           amount: 50000
                     - merchantId: MCH-10002
+                      merchantName: Alfamart Senayan
                       skuInfos:
                         - skuId: SKU-MART-003
                           amount: 45000
             GRAB_FOOD-get:
               summary: GRAB_FOOD — get cached plan
-              description: Same body as the prior `ask`. Pass prior `data.extendInfo.sessionId` as header `sessionid` (or body `sessionId`).
+              description: '`mode=get`. Same body as the prior `ask`. Prefer header `sessionid`; body `sessionId` is also accepted (shown here).'
               value:
                 externalReferenceUid: E897321804
                 mode: get
@@ -4200,6 +4326,7 @@ components:
                   orderType: GRAB_FOOD
             TRANSPORT-get:
               summary: TRANSPORT — get cached plan
+              description: '`mode=get`. Same body as the prior `ask`. Prefer header `sessionid`; body `sessionId` is also accepted (shown here).'
               value:
                 externalReferenceUid: E897321804
                 mode: get
@@ -4225,6 +4352,7 @@ components:
                 refundAmount: 30000
                 subOrders:
                 - merchantId: MCH-10001
+                  merchantName: Indomaret Kelapa Gading
                   amount: 30000
                 extendInfo:
                   orderType: GRAB_MART
@@ -4409,6 +4537,11 @@ components:
         merchantId:
           type: string
           description: Merchant identifier; links to `subOrders[].merchantId`.
+        merchantName:
+          type: string
+          description: |
+            Optional merchant display name, same dimension as `merchantId`.
+            Send when available; Atome stores it for later display. Omit when unknown.
         skuInfos:
           type: array
           description: SKU line items for this merchant. Required when `mainOrderExtendInfos` is sent (see scenario table above).
@@ -4461,6 +4594,9 @@ components:
         merchantId:
           type: string
           description: Optional merchant identifier. When provided, it must match `subOrders[].merchantId`.
+        merchantName:
+          type: string
+          description: Optional merchant display name, same dimension as `merchantId`. Send when available for later display.
         skuInfos:
           type: array
           description: Optional SKU line items. When sent, each item may carry any subset of SKU fields.
@@ -4477,7 +4613,7 @@ components:
         | --- | --- | --- |
         | All scenarios `/payment-precheck` | **None — every field optional** | all fields |
         | GRAB_MART plan | `merchantId`, `amount` | `subOrderId`, `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
-        | GRAB_MART auth / capture | `subOrderId`, `merchantId`, `merchantName`, `merchantCategory`, `amount` | `merchantJoinedDate`, `periodType` |
+        | GRAB_MART auth / capture | `subOrderId`, `merchantId`, `amount` | `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
         | GRAB_FOOD plan | `amount` ( **exactly one** entry ) | `subOrderId`, `merchantId`, `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
         | GRAB_FOOD auth | `subOrderId`, `merchantId`, `amount` ( **exactly one** entry ) | `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
         | GRAB_FOOD capture | `subOrderId`, `merchantId`, `amount` ( **exactly one** entry ) | `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
@@ -4504,8 +4640,9 @@ components:
         merchantName:
           type: string
           description: |
-            Merchant name. Required for `GRAB_MART` and `GRAB_FOOD` on `/auth` and `/capture`.
-            Optional on `/payment-precheck` (all scenarios) and `/payment-plan`. Omit for `TRANSPORT`.
+            Optional merchant display name, same dimension as `merchantId`.
+            Send when available on `/payment-precheck`, `/payment-plan`, `/auth`, `/capture`, and `/reAuth`; used for later display.
+            Omit for `TRANSPORT` or when unknown. Never required.
         merchantCategory:
           type: string
           description: |
@@ -4568,20 +4705,6 @@ components:
           $ref: '#/components/schemas/PaymentOrderType'
       required:
         - orderType
-    PaymentPlanExtendInfo:
-      type: object
-      description: Required extension fields for payment risk routing. `mainOrderExtendInfos` is the only field added to the original `/payment-plan` `extendInfo`.
-      properties:
-        orderType:
-          $ref: '#/components/schemas/PaymentOrderType'
-        mainOrderExtendInfos:
-          type: array
-          description: Per-merchant SKU detail added by the merchant-dimension payment API. Required for GRAB_MART; optional for GRAB_FOOD (see `FoodPaymentPlanExtendInfo`); omit for TRANSPORT.
-          minItems: 1
-          items:
-            $ref: '#/components/schemas/MainOrderExtendInfo'
-      required:
-        - orderType
     AuthCaptureExtendInfoBase:
       type: object
       description: |
@@ -4625,7 +4748,7 @@ components:
             - shippingName
             - shippingPhoneNo
         riskInfo:
-          $ref: '#/components/schemas/paymentRiskInfo'
+          $ref: '#/components/schemas/PaymentRiskInfo'
       required:
         - orderType
         - creditProfile
@@ -5727,6 +5850,9 @@ components:
           type: string
           description: Merchant identifier; must match `subOrders[].merchantId` from the `/auth` or `/capture` request. Required for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
           maxLength: 128
+        merchantName:
+          type: string
+          description: Echo of request `subOrders[].merchantName` when sent. Optional; for display.
         orderAmount:
           type: integer
           description: Principal amount for this sub-order (smallest currency unit).
@@ -5980,7 +6106,7 @@ components:
             Signed URL to the financing agreement PDF (RIPLAY + FA merged for Grab ID when applicable).
             **`null` or omitted** while generation is in progress — common immediately after capture; partners may poll until present.
             Also returned on terminal `/capture`, `/<captureNotifyUrl>`, and `GET /transactionDetail` (`paymentInfo.extendInfo`).
-    paymentRiskInfo:
+    PaymentRiskInfo:
       type: object
       description: Risk payload for `/auth` and `/capture`. Sample fields are **for reference only** — partner and Atome agree the risk-control field set during integration. `driverInfo` and `tripMetadata` apply only when `extendInfo.orderType` is `TRANSPORT`.
       properties:
@@ -6880,10 +7006,10 @@ components:
           description: Actual refund amount. The minimum denomination in Indonesia is Rupiah (IDR).
         waivedInterestAmount:
           type: integer
-          description: Actual refund discount amount.
+          description: Actual refund waived interest amount. The minimum denomination in Indonesia is Rupiah (IDR).
         refundDiscountAmount:
           type: integer
-          description: Actual refund discount amount.
+          description: Actual refund discount amount. Optional this period — no subsidy (贴息).
         status:
           type: string
           description: Code `PROCESSING` occurs only in the query refund result and apply to refund; The refund callback will
@@ -7005,6 +7131,9 @@ components:
           type: string
           description: Merchant identifier; must match `subOrders[].merchantId` from the `/payment-plan` request. Required for GRAB_MART; optional for GRAB_FOOD; omit for TRANSPORT.
           maxLength: 128
+        merchantName:
+          type: string
+          description: Echo of request `subOrders[].merchantName` when sent. Optional; for display.
         orderAmount:
           type: integer
           description: Sub-order principal amount.
@@ -7170,7 +7299,7 @@ components:
           description: Order-level interest amount.
         orderDiscountAmount:
           type: integer
-          description: Order-level discount amount.
+          description: Order-level discount amount. Optional this period — no subsidy (贴息).
         installmentDetails:
           type: array
           items:
@@ -7180,7 +7309,6 @@ components:
       - installmentDetails
       - orderRepayAmount
       - orderInterestAmount
-      - orderDiscountAmount
     PaymentPlanInstallmentDetail:
       type: object
       description: Payment-plan installment detail. `subOrderId` is optional.
@@ -7206,7 +7334,7 @@ components:
           description: Sub-order interest amount before discount.
         discountAmount:
           type: integer
-          description: Sub-order discount amount.
+          description: Sub-order discount amount. Optional this period — no subsidy (贴息).
         billId:
           type: string
           description: 'format: yyyyMM'
@@ -7268,7 +7396,7 @@ components:
           description: Aggregated interest amount across sub orders (smallest currency unit).
         sumOrderDiscountAmount:
           type: integer
-          description: Aggregated discount amount across sub orders (smallest currency unit).
+          description: Aggregated discount amount across sub orders. Optional this period — no subsidy (贴息).
         installmentDetails:
           type: array
           items:
@@ -7277,7 +7405,6 @@ components:
       - totalTenor
       - sumOrderRepayAmount
       - sumOrderInterestAmount
-      - sumOrderDiscountAmount
       - installmentDetails
     SumOrderInstallmentDetail:
       type: object
@@ -7299,7 +7426,7 @@ components:
           description: SKU interest amount before discount
         discountAmount:
           type: integer
-          description: SKU discount amount
+          description: SKU discount amount. Optional this period — no subsidy (贴息).
         billId:
           type: string
           description: 'format: yyyyMM'
@@ -7456,7 +7583,7 @@ components:
 
         | Scenario | `subOrders[]` entries | Required fields | Optional fields |
         | --- | --- | --- | --- |
-        | GRAB_MART | One per merchant; multiple allowed | `merchantId`, `amount` | `subOrderId`, `quantity` |
+        | GRAB_MART | One per merchant; multiple allowed | `merchantId`, `amount` | `subOrderId`, `merchantName`, `quantity` |
         | GRAB_FOOD | **Exactly one** | `amount` | `merchantId`, `subOrderId`, `quantity` |
         | TRANSPORT | **Exactly one** | `amount` | `merchantId`, `subOrderId`, `quantity` |
 
@@ -7470,6 +7597,9 @@ components:
           type: string
           description: Merchant identifier. Required for GRAB_MART; optional for GRAB_FOOD and TRANSPORT.
           maxLength: 128
+        merchantName:
+          type: string
+          description: Optional merchant display name, same dimension as `merchantId`. Send when available for later display.
         quantity:
           type: integer
           description: quantity of goods
@@ -7493,6 +7623,9 @@ components:
           type: string
           description: Merchant identifier; must match `subOrders[].merchantId` from the refund request. Required for GRAB_MART; optional for GRAB_FOOD and TRANSPORT.
           maxLength: 128
+        merchantName:
+          type: string
+          description: Echo of request `subOrders[].merchantName` when sent. Optional; for display.
         quantity:
           type: integer
           description: quantity of goods
@@ -7507,7 +7640,7 @@ components:
           description: Refund amount of interest. The minimum denomination in Indonesia is Rupiah (IDR).
         discountAmount:
           type: integer
-          description: Refund amount of merchant discount. The minimum denomination in Indonesia is Rupiah (IDR).
+          description: Refund amount of merchant discount. Optional this period — no subsidy (贴息). Currency is IDR (Rupiah).
         overpaidAmountChange:
           type: integer
           description: change of overpaid amount
@@ -7545,7 +7678,7 @@ components:
           description: Order-level interest amount (smallest currency unit).
         orderDiscountAmount:
           type: integer
-          description: Order-level discount amount (smallest currency unit).
+          description: Order-level discount amount. Optional this period — no subsidy (贴息).
         installmentDetails:
           type: array
           items:
@@ -7555,7 +7688,6 @@ components:
       - installmentDetails
       - orderRepayAmount
       - orderInterestAmount
-      - orderDiscountAmount
     CommerceInstallmentDetail:
       type: object
       properties:
@@ -7580,7 +7712,7 @@ components:
           description: SKU interest amount before discount
         discountAmount:
           type: integer
-          description: SKU discount amount
+          description: SKU discount amount. Optional this period — no subsidy (贴息).
         billId:
           type: string
           description: 'format: yyyyMM'
@@ -7615,17 +7747,15 @@ components:
           - DISCOUNT_INTEREST_PERCENTAGE
         discountAmount:
           type: integer
-          description: Interest discount amount. The minimum denomination in Indonesia is Rupiah (IDR).
+          description: Interest discount amount. Optional this period — no subsidy (贴息). Currency is IDR (Rupiah).
         discountRate:
           type: integer
           description: interest discount rate, the meaning of value depends of discount type.
         extendInfo:
           type: object
           description: extend information
-      required:
-      - discountType
     Discount:
-      description: discount details
+      description: Discount / subsidy details. Optional this period — no 贴息. Omit the whole object when unused.
       type: object
       properties:
         funder:
@@ -7639,10 +7769,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DiscountDetail'
-      required:
-      - funder
-      - totalTenor
-      - discountDetails
     CommerceSubOrder:
       type: object
       properties:
@@ -7665,7 +7791,7 @@ components:
           description: product spu id
         hasDiscount:
           type: boolean
-          description: 'If it''s a subsidised order, then value = true; otherwise, value= false; '
+          description: Whether the SKU is subsidised. Optional this period — no 贴息; omit or `false`.
         categoryId:
           type: string
           description: goods category id
@@ -7691,6 +7817,9 @@ components:
         merchantId:
           type: string
           description: merchant id
+        merchantName:
+          type: string
+          description: Optional merchant display name, same dimension as `merchantId`.
         extendInfo:
           type: object
           description: extend information for the sub order
@@ -7740,13 +7869,16 @@ components:
           type: integer
           description: SKU / sub-order total amount in IDR (Rupiah). Minimum depends on selected installment tenor (1-month >= 1; 3-month >= 3).
         discounts:
-          description: discounts
+          description: SKU subsidy details. Optional this period — no 贴息. Omit when unused.
           type: array
           items:
             $ref: '#/components/schemas/Discount'
         merchantId:
           type: string
           description: merchant id
+        merchantName:
+          type: string
+          description: Optional merchant display name, same dimension as `merchantId`.
         extendInfo:
           type: object
           description: extend information for the sub order
@@ -7782,27 +7914,29 @@ components:
         billEndDate:
           type: string
           description: Bill end date。format：yyyyMMdd
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
         billTotalAmount:
           type: integer
-          description: Total amount of bill.The denomination in Thailand is Satang
+          description: Total amount of bill. Currency is IDR (Rupiah).
         outstandingAmount:
           type: integer
-          description: Outstanding amount of bill.The denomination in Thailand is Satang
+          description: Outstanding amount of bill. Currency is IDR (Rupiah).
         repaidAmount:
           type: integer
-          description: The amount that the bill has been repaid.The denomination in Thailand is Satang
+          description: The amount that the bill has been repaid. Currency is IDR (Rupiah).
         principalAmount:
           type: integer
-          description: The principal part of the bill.The denomination in Thailand is Satang
+          description: The principal part of the bill. Currency is IDR (Rupiah).
         interestAmount:
           type: integer
-          description: interest part of the bill.The denomination in Thailand is Satang
+          description: Interest part of the bill. Currency is IDR (Rupiah).
         lateFeeAmount:
           type: integer
           description: late fee. The minimum denomination in Indonesia is Rupiah (IDR).
         refundAmount:
           type: integer
-          description: refund principal.The denomination in Thailand is Satang
+          description: Refund principal. Currency is IDR (Rupiah).
         dueDate:
           type: string
           description: 'repayment period of bill.format: yyyyMMdd'
@@ -7868,15 +8002,25 @@ components:
           - OVERDUE
         discounts:
           $ref: '#/components/schemas/BillDiscounts'
+          description: Optional this period — no subsidy (贴息). Omit when unused.
       required:
       - billId
       - billMonth
+      - billStartDate
+      - billEndDate
       - billTotalAmount
+      - currency
       - repaidAmount
       - outstandingAmount
       - principalAmount
       - interestAmount
+      - lateFeeAmount
+      - refundAmount
+      - refundStatus
       - dueDate
+      - daysPastDue
+      - gracePeriod
+      - status
       - overdueStatus
       - repaymentStatus
     status:
@@ -7935,6 +8079,7 @@ components:
       - OVERDUE
     BillDiscounts:
       type: object
+      description: Bill-level subsidy breakdown. Optional this period — no 贴息. Omit when unused.
       properties:
         discountAmount:
           type: integer
@@ -7948,11 +8093,6 @@ components:
         repaidAmountExcludeDiscount:
           type: integer
           description: repaid amount exclude discount
-      required:
-      - discountAmount
-      - interestAmountAfterDiscount
-      - billTotalAmountAfterDiscount
-      - repaidAmountExcludeDiscount
     CreditInformationRequestBase:
       type: object
       description: Shared fields for `POST /credit-information`.
@@ -8289,8 +8429,8 @@ components:
     BillMainOrder:
       type: object
       description: |
-        One captured order as it appears on `GET /billDetail` `mainOrders[]`.
-        Aligned with lazada-id `BillMainOrder`, except Grab uses capture `merchantId` / `subOrderId` instead of `mainOrderId`.
+        One captured merchant-dimension line on `GET /billDetail` `mainOrders[]`.
+        Amounts are integers in IDR (Rupiah). `periodType` is integer (e.g. 1, 3, 9).
       properties:
         orderId:
           type: string
@@ -8304,42 +8444,49 @@ components:
             Merchant identifier from `/capture` `subOrders[].merchantId`.
             Present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
           maxLength: 128
+        merchantName:
+          type: string
+          description: Merchant display name from the originating payment request when provided.
         subOrderId:
           type: string
           description: |
-            Sub-order identifier from `/capture` `subOrders[].subOrderId`.
-            Present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
+            Sub-order identifier from `/capture` `subOrders[].subOrderId` when returned.
+            Often omitted on current Grab `billDetail` responses.
           maxLength: 64
         createTime:
           type: integer
-          description: Millisecond time stamp
+          format: int64
+          description: Unix timestamp in milliseconds.
         periodType:
           type: integer
-          description: The period type selected by the user, such as 1, 3, 6, 9, 12
+          description: Installment tenor selected by the user (e.g. 1, 3, 6, 9, 12).
         currentPeriod:
           type: integer
-          description: instalments number
+          description: Current installment number.
         totalAmount:
           type: integer
-          description: Total amount of bill. The denomination in Thailand is Satang
+          description: Line total amount. Currency is IDR (Rupiah).
         outstandingAmount:
           type: integer
-          description: Outstanding amount of bill. The denomination in Thailand is Satang
+          description: Outstanding amount. Currency is IDR (Rupiah).
         repaidAmount:
           type: integer
-          description: The amount that the bill has been repaid.The denomination in Thailand is Satang
+          description: Amount already repaid. Currency is IDR (Rupiah).
         principalAmount:
           type: integer
-          description: The principal part of the bill.The denomination in Thailand is Satang
+          description: Principal amount. Currency is IDR (Rupiah).
         interestAmount:
           type: integer
-          description: interest part of the bill.The denomination in Thailand is Satang
+          description: Interest amount. Currency is IDR (Rupiah).
         refundAmount:
           type: integer
-          description: refund principal. The denomination in Thailand is Satang
+          description: Refunded principal. Currency is IDR (Rupiah).
         dueDate:
           type: string
-          description: 'Repayment period of bill. format: yyyyMMdd'
+          description: 'Repayment due date. format: yyyyMMdd'
+        gracePeriod:
+          type: integer
+          description: Grace period in days.
         status:
           type: string
           description: 'status of bills<br/>
@@ -8396,7 +8543,6 @@ components:
           - NOT_REFUNDED
         discounts:
           $ref: '#/components/schemas/BillDiscounts'
-          description: Available from spec version 1.6 onwards.
       required:
       - orderId
       - requestId
@@ -8408,7 +8554,10 @@ components:
       - interestAmount
       - repaidAmount
       - outstandingAmount
+      - refundAmount
+      - refundStatus
       - dueDate
+      - gracePeriod
       - status
       - repaymentStatus
       - overdueStatus
@@ -8431,8 +8580,9 @@ components:
           type: integer
           description: Repay up to the lateFee amount of the bill
         repaymentTime:
-          type: string
-          description: Timestamp(unix millisecond)
+          type: integer
+          format: int64
+          description: Repayment success time in Unix milliseconds.
         event:
           type: string
           description: 'Repayment type.<br/>
@@ -8457,16 +8607,24 @@ components:
           $ref: '#/components/schemas/Bill'
         repaymentDetails:
           type: array
+          nullable: true
+          description: Repayment write-off lines for this bill. `null` when there is no repayment yet.
           items:
             $ref: '#/components/schemas/repaymentDetail'
         mainOrders:
           type: array
           description: |
-            Merchant-dimension bill lines for this billing period (aligned with lazada-id `mainOrders`).
-            Each entry corresponds to a captured order. `merchantId` and `subOrderId` echo `POST /capture` `subOrders[]`
-            when those fields were sent (required on GRAB_MART / GRAB_FOOD capture; typically omitted for TRANSPORT).
+            Merchant-dimension bill lines for this billing period.
+            Each entry is a captured order split (one row per merchant). Amounts are integers in IDR.
+            `periodType` is integer. `subOrderId` may be omitted.
           items:
             $ref: '#/components/schemas/BillMainOrder'
+        orders:
+          type: array
+          nullable: true
+          description: Legacy SKU-dimension order lines. Grab `billDetail` returns `null`; use `mainOrders`.
+          items:
+            type: object
         paginator:
           type: object
           properties:
@@ -8476,6 +8634,15 @@ components:
               type: integer
             totalCount:
               type: integer
+          required:
+          - start
+          - count
+          - totalCount
+      required:
+      - currency
+      - bill
+      - mainOrders
+      - paginator
     CommerceAccountChanges:
       description: 'account change Object<br/>
 
@@ -8573,20 +8740,25 @@ components:
       - message
     transaction:
       type: object
-      description: transaction result
+      description: |
+        `GET /transactions` body (`GrabIdTransactionResponse`).
+        Only the array matching `transactionType` is present; the other two are omitted (`NON_NULL`).
       properties:
         currency:
           $ref: '#/components/schemas/CurrencyCode'
         paymentInfo:
           type: array
+          description: Present when `transactionType=PAYMENT`.
           items:
             $ref: '#/components/schemas/tradePaymentInfo'
         refundInfo:
           type: array
+          description: Present when `transactionType=REFUND`.
           items:
             $ref: '#/components/schemas/tradeRefundInfo'
         repaymentInfo:
           type: array
+          description: Present when `transactionType=REPAYMENT`.
           items:
             $ref: '#/components/schemas/tradeRepaymentInfo'
         paginator:
@@ -8594,151 +8766,171 @@ components:
           properties:
             start:
               type: integer
+              description: 1-based page start (controller query `start` is echoed after `+1` from the 0-based store offset).
             count:
               type: integer
             totalCount:
               type: integer
+          required:
+          - start
+          - count
+          - totalCount
+      required:
+      - currency
+      - paginator
     tradePaymentInfo:
       type: object
-      description: Capture (payment) info of an order.
+      description: |
+        `GET /transactions` payment row (`GrabIdPaymentTransactionResponse`).
+        JSON key is `paymentRequestId` (the list DTO does not rename it to `captureRequestId`).
       properties:
-        captureRequestId:
+        paymentRequestId:
           type: string
-          description: '`requestId` of the original `POST /capture` call (a.k.a. payment).'
+          description: '`requestId` of the original `POST /capture` call.'
         orderId:
           type: string
-          description: Payment orderId
+          description: Payment orderId (Atome aggregate id).
         subOrders:
           type: array
           items:
             $ref: '#/components/schemas/tradeSubOrder'
         totalTenor:
           type: integer
-          description: total tenor(1/3/6/12)
+          description: Installment tenor of the first sub-order (e.g. 1, 3, 6, 9, 12).
         createTime:
           type: integer
-          description: type is timestamp; the order final payment success time
+          format: int64
+          description: Capture success time in Unix milliseconds (`finishedTime`, else `createTime`).
       required:
-      - captureRequestId
+      - paymentRequestId
       - orderId
-      - totalTenor
       - createTime
     tradeRefundInfo:
       type: object
-      description: Refund info result
+      description: |
+        `GET /transactions` refund row (`GrabIdRefundTransactionResponse`).
+        JSON key is `paymentRequestId` (not `captureRequestId`).
       properties:
         refundRequestId:
           type: string
           description: Refund requestId
-        captureRequestId:
+        paymentRequestId:
           type: string
-          description: '`requestId` of the original `POST /capture` call this refund applies to.'
+          description: '`requestId` of the original `POST /capture` this refund applies to.'
         refundAmount:
           type: integer
-          description: Refund  amount
+          description: Refunded principal. Currency is IDR (Rupiah).
         refundDiscountAmount:
           type: integer
-          description: Refund discount amount
+          description: Refunded discount. Optional this period — no subsidy (贴息). Currency is IDR (Rupiah).
         waivedInterestAmount:
           type: integer
-          description: Refund waived interest amount
+          description: Waived interest. Currency is IDR (Rupiah).
         overpaidAmountChange:
           type: integer
-          description: Overpaid amount change due to refund
+          description: Overpaid-balance change from this refund. Currency is IDR (Rupiah).
         availableCreditChange:
           type: integer
-          description: availableCredit amount change due to refund
+          description: Available-credit change from this refund. Currency is IDR (Rupiah).
         lateFeeAmountChange:
           type: integer
-          description: reactivation fee amount change due to refund
+          description: Late-fee change from this refund. Currency is IDR (Rupiah).
+        refundType:
+          type: string
+          description: Refund event name (`refundOrder.event`).
+          enum:
+          - NORMAL
+          - CHARGEBACK
+          - OVERPAID
+          - ATOME_REPAYMENT
         createTime:
           type: integer
-          description: type is timestamp; the order final payment success time
+          format: int64
+          description: Refund success time in Unix milliseconds.
         subOrders:
           type: array
           items:
             $ref: '#/components/schemas/tradeRefundSubOrder'
       required:
       - refundRequestId
-      - captureRequestId
+      - paymentRequestId
       - refundAmount
+      - refundType
       - createTime
-      - subOrders
     tradeSubOrder:
       type: object
       description: |
-        One merchant-dimension sub-order on a capture (payment) transaction.
-        Echoes `/capture` `subOrders[]`. `mainOrderId` is not used.
+        `GET /transactions` payment sub-order (`GrabIdPaymentTransactionSubOrderResponse`).
+        Partner DTO copies `subOrderId` and `mainOrderId` from the stored sub-order. It does **not** serialize `merchantId`.
       properties:
         subOrderId:
           type: string
-          description: |
-            Sub-order identifier from `/capture` `subOrders[].subOrderId`.
-            Present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
+          description: Sub-order identifier from `/capture` `subOrders[].subOrderId`. Omitted when null (e.g. TRANSPORT).
           maxLength: 64
-        merchantId:
+        mainOrderId:
           type: string
-          description: |
-            Merchant identifier from `/capture` `subOrders[].merchantId`.
-            Present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
-          maxLength: 128
+          description: Stored seller/main order id (`SubOrder.mainOrderId`). Omitted when null. Not the capture `merchantId`.
         principalAmount:
           type: integer
-          description: SubOrder principal amount
+          description: Sub-order principal. Currency is IDR (Rupiah).
         interestAmount:
           type: integer
-          description: SubOrder interest amount
+          description: Sub-order interest. Currency is IDR (Rupiah).
         discountAmount:
           type: integer
-          description: SubOrder discount amount
+          description: Sub-order discount. Optional this period — no subsidy (贴息). Currency is IDR (Rupiah).
       required:
       - principalAmount
     tradeRefundSubOrder:
       type: object
-      description: Payment the suborder that placed the order at one time
+      description: Refund sub-order (`GrabIdRefundSubOrderDetailTransactionResponse`). Used by both list and detail.
       properties:
         subOrderId:
           type: string
-          description: SubOrder id
+          description: Sub-order identifier. Omitted when null.
           maxLength: 64
+        mainOrderId:
+          type: string
+          description: Stored seller/main order id. Omitted when null.
         refundStatus:
           type: string
-          description: RefundStatus(FULL_REFUND|PARTIAL_REFUND)
+          description: Sub-refund type (`SubRefundOrder.refundType`).
+          enum:
+          - FULL_REFUND
+          - PARTIAL_REFUND
         principalAmount:
           type: integer
-          description: SubOrder principal amount
+          description: Refunded principal. Currency is IDR (Rupiah).
         waivedInterestAmount:
           type: integer
-          description: SubOrder interest amount
+          description: Waived interest. Currency is IDR (Rupiah).
         availableCreditChange:
           type: integer
-          description: availableCredit amount change due to refund
+          description: Available-credit change. Currency is IDR (Rupiah).
         discountAmount:
           type: integer
-          description: SubOrder discount amount
+          description: Refunded discount. Optional this period — no subsidy (贴息). Currency is IDR (Rupiah).
         overpaidAmountChange:
           type: integer
-          description: Overpaid amount change due to refund
+          description: Overpaid-balance change. Currency is IDR (Rupiah).
       required:
-      - subOrderId
       - principalAmount
       - refundStatus
     tradeRepaymentInfo:
       type: object
-      description: RePaymentInfo result
+      description: |
+        `GET /transactions` repayment row (`GrabIdRepaymentTransactionResponse`).
+        List DTO does **not** include `lateFeeAmountChange` (that field exists only on detail).
       properties:
         repaymentRequestId:
           type: string
-          description: RePayment requestId
+          description: Repayment requestId
         repaymentAmount:
           type: integer
-          description: repayment amount
+          description: Repayment amount. Currency is IDR (Rupiah).
         overpaidAmountChange:
           type: integer
-          description: Overpaid amount change due to repayment
-        lateFeeAmountChange:
-          type: integer
-          description: reactivation fee amount change due to repayment
+          description: Overpaid-balance change. Currency is IDR (Rupiah).
         event:
           type: string
           description: 'Repayment type.<br/>
@@ -8756,10 +8948,11 @@ components:
           - OVERPAID_REPAYMENT
         createTime:
           type: integer
-          description: type is timestamp; repayment success time
+          format: int64
+          description: Repayment success time in Unix milliseconds.
         repaymentDetails:
           type: array
-          description: Repayment write off monthly bills
+          description: Monthly write-off lines (`RepaymentBillResponse`). List lines have amount only — no principal/interest split.
           items:
             $ref: '#/components/schemas/tradeRepaymentDetail'
       required:
@@ -8793,6 +8986,9 @@ components:
       - repaymentAmount
     tradeDetail:
       type: object
+      description: |
+        `GET /transactionDetail` body (`GrabIdTransactionDetailResponse`).
+        Only the object matching `transactionType` is present; the other two are omitted.
       properties:
         currency:
           $ref: '#/components/schemas/CurrencyCode'
@@ -8802,34 +8998,41 @@ components:
           $ref: '#/components/schemas/refundInfoDetail'
         repaymentInfo:
           $ref: '#/components/schemas/tradeRepaymentInfoDetail'
+      required:
+      - currency
     tradePaymentInfoDetail:
       type: object
-      description: Capture (payment) info of an order — detailed view.
+      description: |
+        `GET /transactionDetail` payment (`GrabIdPaymentTransactionDetailResponse`).
+        JSON key `captureRequestId` is `@JsonProperty` on `paymentRequestId`.
       properties:
         captureRequestId:
           type: string
-          description: '`requestId` of the original `POST /capture` call (a.k.a. payment).'
+          description: '`requestId` of the original `POST /capture` call.'
         orderId:
           type: string
-          description: Payment orderId
+          description: Payment orderId (Atome aggregate id).
         totalTenor:
           type: integer
-          description: total tenor(1/3/6/12)
+          description: Installment tenor of the first sub-order (e.g. 1, 3, 6, 9, 12).
         createTime:
           type: integer
-          description: type is timestamp; the order final payment success time
+          format: int64
+          description: Capture success time in Unix milliseconds.
         principalAmount:
           type: integer
-          description: SubOrder principal amount
+          description: Order principal (`paymentOrder.totalAmount`). Currency is IDR (Rupiah).
         interestAmount:
           type: integer
-          description: SubOrder interest amount
+          description: Sum of sub-order interest. Currency is IDR (Rupiah).
         discountAmount:
           type: integer
-          description: SubOrder discount amount
+          description: Order discount. Optional this period — no subsidy (贴息). Currency is IDR (Rupiah).
         subOrders:
           type: array
-          description: Merchant-dimension sub-orders from the originating `/capture`. Each entry echoes `merchantId` and `subOrderId` when sent (GRAB_MART / GRAB_FOOD); typically omitted for TRANSPORT.
+          description: |
+            Sub-orders from the stored capture. Partner DTO copies `subOrderId` / `mainOrderId`; it does **not** serialize `merchantId`.
+            `mainOrderUrl` is forced to null and omitted.
           items:
             $ref: '#/components/schemas/tradeSubOrderDetail'
         extendInfo:
@@ -8838,7 +9041,6 @@ components:
       - captureRequestId
       - orderId
       - principalAmount
-      - totalTenor
       - createTime
     PaymentTransactionExtendInfo:
       type: object
@@ -8849,42 +9051,42 @@ components:
     tradeSubOrderDetail:
       type: object
       description: |
-        One merchant-dimension sub-order on `GET /transactionDetail` `paymentInfo.subOrders[]`.
-        Echoes `/capture` `subOrders[]`. `mainOrderId` is not used (Grab uses `merchantId` / `subOrderId` instead).
+        `GET /transactionDetail` payment sub-order (`GrabIdPaymentTransactionSubOrderDetailResponse`).
+        `mainOrderUrl` is always set to null and omitted.
       properties:
         subOrderId:
           type: string
-          description: |
-            Sub-order identifier from `/capture` `subOrders[].subOrderId`.
-            Present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
+          description: Sub-order identifier from `/capture`. Omitted when null (e.g. TRANSPORT).
           maxLength: 64
-        merchantId:
+        mainOrderId:
           type: string
-          description: |
-            Merchant identifier from `/capture` `subOrders[].merchantId`.
-            Present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
-          maxLength: 128
+          description: Stored seller/main order id (`SubOrder.mainOrderId`). Omitted when null. Not the capture `merchantId`.
         principalAmount:
           type: integer
-          description: SubOrder principal amount
+          description: Sub-order principal. Currency is IDR (Rupiah).
         interestAmount:
           type: integer
-          description: SubOrder interest amount
+          description: Sub-order interest. Currency is IDR (Rupiah).
         discountAmount:
           type: integer
-          description: SubOrder discount amount
+          description: Sub-order discount. Optional this period — no subsidy (贴息). Currency is IDR (Rupiah).
         billOrderDetails:
           type: array
+          description: Monthly bill lines for this sub-order's loan. Omitted when the loan has no bills yet.
           items:
             $ref: '#/components/schemas/tradeBillDetail'
         refundInfo:
           type: array
+          description: Refunds posted against this sub-order. Omitted when there are none.
           items:
             $ref: '#/components/schemas/tradeRefundInfoDetail'
       required:
       - principalAmount
     tradeBillDetail:
       type: object
+      description: |
+        Payment-detail monthly bill (`GrabIdPaymentTransactionDetailBillResponse`).
+        Assembler does not copy `gracePeriod`.
       properties:
         billId:
           type: string
@@ -8894,31 +9096,28 @@ components:
           description: 'format: yyyyMMdd'
         dueDate:
           type: string
-          description: 'Repayment period of bill. format: yyyyMMdd'
+          description: 'Repayment due date. format: yyyyMMdd'
         billStartDate:
           type: string
-          description: Bill start date。format：yyyyMMdd
+          description: 'Bill start date. format: yyyyMMdd'
         billEndDate:
           type: string
-          description: Bill end date。format：yyyyMMdd
+          description: 'Bill end date. format: yyyyMMdd'
         totalAmount:
           type: integer
-          description: Total amount of order bill. The denomination in Thailand is Satang
+          description: Bill total. Currency is IDR (Rupiah).
         outstandingAmount:
           type: integer
-          description: Outstanding amount of order bill. The denomination in Thailand is Satang
+          description: Outstanding amount. Currency is IDR (Rupiah).
         repaidAmount:
           type: integer
-          description: The amount that the order bill has been repaid.The denomination in Thailand is Satang
+          description: Amount already repaid. Currency is IDR (Rupiah).
         principalAmount:
           type: integer
-          description: The principal part of the order bill.The denomination in Thailand is Satang
+          description: Principal. Currency is IDR (Rupiah).
         interestAmount:
           type: integer
-          description: interest part of the order bill.The denomination in Thailand is Satang
-        gracePeriod:
-          type: integer
-          description: Grace period for overdue bills
+          description: Interest. Currency is IDR (Rupiah).
         status:
           type: string
           description: 'status of bills<br/>
@@ -8960,7 +9159,6 @@ components:
           - OVERDUE
         discounts:
           $ref: '#/components/schemas/BillDiscounts'
-          description: Available from spec version 1.6 onwards.
       required:
       - billId
       - billDate
@@ -8969,96 +9167,124 @@ components:
       - interestAmount
       - principalAmount
       - repaidAmount
+      - status
+      - repaymentStatus
+      - overdueStatus
     tradeRefundInfoDetail:
       type: object
-      description: Refund detail result
+      description: Payment-detail nested refund (`GrabIdPaymentTransactionSubOrderRefundDetailResponse`).
       properties:
         refundRequestId:
           type: string
-          description: Refund requestId
+          description: Parent refund `requestId`.
+        event:
+          type: string
+          description: Refund event name (`refundOrder.event`).
+          enum:
+          - NORMAL
+          - CHARGEBACK
+          - OVERPAID
+          - ATOME_REPAYMENT
         principalAmount:
           type: integer
-          description: SubOrder refund principal amount
+          description: Refunded principal. Currency is IDR (Rupiah).
         discountAmount:
           type: integer
-          description: Refund discount amount
+          description: Refunded discount. Optional this period — no subsidy (贴息). Currency is IDR (Rupiah).
         waivedInterestAmount:
           type: integer
-          description: SubOrder refund waived interest fee amount
+          description: Waived interest. Currency is IDR (Rupiah).
         availableCreditChange:
           type: integer
-          description: availableCredit amount change due to refund
+          description: Available-credit change. Currency is IDR (Rupiah).
         lateFeeAmountChange:
           type: integer
-          description: reactivation fee amount change due to refund
+          description: Late-fee change. Currency is IDR (Rupiah).
         refundStatus:
           type: string
-          description: RefundStatus(FULL_REFUND|PARTIAL_REFUND)
+          description: Sub-refund type.
+          enum:
+          - FULL_REFUND
+          - PARTIAL_REFUND
         overpaidAmountChange:
           type: integer
-          description: Overpaid amount change due to refund
+          description: Overpaid-balance change. Currency is IDR (Rupiah).
         createTime:
           type: integer
-          description: type is timestamp; the subOrder final refund success time
+          format: int64
+          description: Refund success time in Unix milliseconds.
       required:
       - refundRequestId
       - principalAmount
       - createTime
     refundInfoDetail:
       type: object
-      description: Refund info result
+      description: |
+        `GET /transactionDetail` refund (`GrabIdRefundTransactionDetailResponse`).
+        JSON key is `paymentRequestId` (not `captureRequestId`).
       properties:
         refundRequestId:
           type: string
           description: Refund requestId
-        captureRequestId:
+        paymentRequestId:
           type: string
-          description: '`requestId` of the original `POST /capture` call this refund applies to.'
+          description: '`requestId` of the original `POST /capture` this refund applies to.'
         refundAmount:
           type: integer
-          description: Refund  amount
+          description: Refunded principal. Currency is IDR (Rupiah).
         refundDiscountAmount:
           type: integer
-          description: Refund discount amount
+          description: Refunded discount. Optional this period — no subsidy (贴息). Currency is IDR (Rupiah).
         waivedInterestAmount:
           type: integer
-          description: Refund waived serviceFee amount
+          description: Waived interest. Currency is IDR (Rupiah).
         lateFeeAmountChange:
           type: integer
-          description: reactivation fee amount change due to refund
+          description: Late-fee change. Currency is IDR (Rupiah).
         availableCreditChange:
           type: integer
-          description: availableCredit amount change due to refund
+          description: Available-credit change. Currency is IDR (Rupiah).
         overpaidAmountChange:
           type: integer
-          description: Overpaid amount change due to refund
+          description: Overpaid-balance change. Currency is IDR (Rupiah).
+        refundType:
+          type: string
+          description: Refund event name (`refundOrder.event`).
+          enum:
+          - NORMAL
+          - CHARGEBACK
+          - OVERPAID
+          - ATOME_REPAYMENT
         createTime:
           type: integer
-          description: type is timestamp; the order final payment success time
+          format: int64
+          description: Refund success time in Unix milliseconds.
         subOrders:
           type: array
           items:
             $ref: '#/components/schemas/tradeRefundSubOrder'
       required:
       - refundRequestId
-      - captureRequestId
+      - paymentRequestId
       - refundAmount
+      - refundType
+      - createTime
     tradeRepaymentInfoDetail:
       type: object
-      description: RePaymentInfo result
+      description: '`GET /transactionDetail` repayment (`GrabIdRepaymentTransactionDetailResponse`).'
       properties:
         repaymentRequestId:
           type: string
-          description: RePayment requestId
+          description: Repayment requestId
         repaymentAmount:
           type: integer
-          description: repayment amount
+          description: Repayment amount. Currency is IDR (Rupiah).
         overpaidAmountChange:
           type: integer
-          description: Overpaid amount change due to repayment
+          description: Overpaid-balance change. Currency is IDR (Rupiah).
         lateFeeAmountChange:
           type: integer
-          description: reactivation fee amount change due to repayment
+          description: Late-fee change. Currency is IDR (Rupiah). Present on detail only.
         event:
           type: string
           description: 'Repayment type.<br/>
@@ -9076,10 +9302,11 @@ components:
           - OVERPAID_REPAYMENT
         createTime:
           type: integer
-          description: type is timestamp; repayment success time
+          format: int64
+          description: Repayment success time in Unix milliseconds.
         repaymentDetails:
           type: array
-          description: Repayment write off monthly bills
+          description: Monthly write-off lines (`GrabIdRepaymentDetailResponse`). Assembler does not set `repaidLateFeeAmount`.
           items:
             $ref: '#/components/schemas/tradeDetailRepaymentDetail'
       required:
@@ -9095,25 +9322,22 @@ components:
           description: 'format: yyyyMM'
         dueDate:
           type: string
-          description: 'Repayment period of bill.format: yyyyMMdd'
+          description: 'Repayment due date. format: yyyyMMdd'
         billStartDate:
           type: string
-          description: Bill start date。format：yyyyMMdd
+          description: 'Bill start date. format: yyyyMMdd'
         billEndDate:
           type: string
-          description: Bill end date。format：yyyyMMdd
+          description: 'Bill end date. format: yyyyMMdd'
         repaymentAmount:
           type: integer
-          description: Repay up to the total amount of the bill
+          description: Amount written off on this bill. Currency is IDR (Rupiah).
         repaidPrincipalAmount:
           type: integer
-          description: Repay up to the principal amount of the bill
+          description: Principal written off. Currency is IDR (Rupiah).
         repaidInterestAmount:
           type: integer
-          description: Repay up to the interest amount of the bill
-        repaidLateFeeAmount:
-          type: integer
-          description: Repay up to the lateFee amount of the bill
+          description: Interest written off. Currency is IDR (Rupiah).
       required:
       - billId
       - dueDate

@@ -7,6 +7,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.5] — 2026-09-14
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-09-14-be8ba7c8.yaml`.
+
+### Added
+
+- **`transaction.TransactionsParams.MainOrderID`** — optional
+  `GET /transactionDetail` seller-order filter.
+- Optional merchant display names on payment plans, bill lines, and
+  merchant extension entries.
+- **`bill.Bill.Currency`**, **`BillDetail.Orders`**, and integer
+  `RepaymentDetail.RepaymentTime` fields from the live bill payload.
+
+### Changed
+
+- **Pinned spec** — `swagger-2026-09-14-be8ba7c8.yaml` replaces
+  `swagger-2026-09-14-fe2f6080.yaml`.
+- **Transaction list DTOs** — payment rows use `paymentRequestId`
+  instead of `captureRequestId`; refund rows use `paymentRequestId`
+  and add `refundType`; list sub-orders use `mainOrderId` instead of
+  `merchantId`.
+- **Transaction detail DTOs** — repayment detail adds
+  `lateFeeAmountChange`; sub-orders use `mainOrderId`.
+- **Repayment DTOs** — principal/interest write-off fields replace
+  the removed late-fee write-off field.
+
 ## [0.8.4] — 2026-09-14
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

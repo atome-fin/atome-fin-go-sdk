@@ -73,7 +73,7 @@ func TestService_Transactions_Success(t *testing.T) {
 		gotQuery = r.URL.RawQuery
 		gotMethod = r.Method
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[{"captureRequestId":"CAP-1","orderId":"ORD-1","totalTenor":3,"createTime":1746084600000}],"paginator":{"start":1,"count":10,"totalCount":1}}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[{"paymentRequestId":"CAP-1","orderId":"ORD-1","createTime":1746084600000}],"paginator":{"start":1,"count":10,"totalCount":1}}}`))
 	}))
 	defer srv.Close()
 
@@ -93,8 +93,8 @@ func TestService_Transactions_Success(t *testing.T) {
 	if resp.Data == nil || len(resp.Data.PaymentInfo) != 1 {
 		t.Fatalf("Data = %#v", resp.Data)
 	}
-	if resp.Data.PaymentInfo[0].CaptureRequestID != "CAP-1" {
-		t.Errorf("CaptureRequestID = %q", resp.Data.PaymentInfo[0].CaptureRequestID)
+	if resp.Data.PaymentInfo[0].PaymentRequestID != "CAP-1" {
+		t.Errorf("PaymentRequestID = %q", resp.Data.PaymentInfo[0].PaymentRequestID)
 	}
 	if gotMethod != http.MethodGet {
 		t.Errorf("method = %q, want GET", gotMethod)
@@ -171,7 +171,7 @@ func TestService_TransactionDetail_Success(t *testing.T) {
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":{"captureRequestId":"REQ-1","orderId":"ORD-1","totalTenor":3,"createTime":1746089800000,"principalAmount":1000,"subOrders":[{"subOrderId":"so-1","principalAmount":1000,"billOrderDetails":[{"billId":"202605","billDate":"20260515","dueDate":"20260615","totalAmount":1000,"repaidAmount":0,"principalAmount":1000,"interestAmount":0}]}],"extendInfo":{"agreement":{"agreementUrl":"https://atome.example/agreements/ORD-1.pdf"}}}}}`))
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":{"captureRequestId":"REQ-1","orderId":"ORD-1","createTime":1746089800000,"principalAmount":1000,"subOrders":[{"subOrderId":"so-1","principalAmount":1000,"billOrderDetails":[{"billId":"202605","billDate":"20260515","dueDate":"20260615","totalAmount":1000,"repaidAmount":0,"principalAmount":1000,"interestAmount":0}]}],"extendInfo":{"agreement":{"agreementUrl":"https://atome.example/agreements/ORD-1.pdf"}}}}}`))
 	}))
 	defer srv.Close()
 
@@ -237,9 +237,9 @@ func TestService_TransactionsAll_AutoPaginates(t *testing.T) {
 		w.WriteHeader(200)
 		switch start {
 		case "1":
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[{"captureRequestId":"CAP-1","orderId":"ORD-1","totalTenor":3,"createTime":1},{"captureRequestId":"CAP-2","orderId":"ORD-2","totalTenor":3,"createTime":2}],"paginator":{"start":1,"count":2,"totalCount":3}}}`))
+			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[{"paymentRequestId":"CAP-1","orderId":"ORD-1","createTime":1},{"paymentRequestId":"CAP-2","orderId":"ORD-2","createTime":2}],"paginator":{"start":1,"count":2,"totalCount":3}}}`))
 		case "3":
-			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[{"captureRequestId":"CAP-3","orderId":"ORD-3","totalTenor":3,"createTime":3}],"paginator":{"start":3,"count":2,"totalCount":3}}}`))
+			_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"currency":"IDR","paymentInfo":[{"paymentRequestId":"CAP-3","orderId":"ORD-3","createTime":3}],"paginator":{"start":3,"count":2,"totalCount":3}}}`))
 		default:
 			t.Errorf("unexpected start=%q", start)
 		}

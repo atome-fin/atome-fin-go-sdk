@@ -45,25 +45,26 @@ const (
 
 // Bill is the schema returned under /bills data[] and BillDetail.bill.
 type Bill struct {
-	BillID            string          `json:"billId"`
-	BillMonth         string          `json:"billMonth"`
-	BillStartDate     string          `json:"billStartDate,omitempty"`
-	BillEndDate       string          `json:"billEndDate,omitempty"`
-	BillTotalAmount   atomefin.Amount `json:"billTotalAmount"`
-	OutstandingAmount atomefin.Amount `json:"outstandingAmount"`
-	RepaidAmount      atomefin.Amount `json:"repaidAmount"`
-	PrincipalAmount   atomefin.Amount `json:"principalAmount"`
-	InterestAmount    atomefin.Amount `json:"interestAmount"`
-	LateFeeAmount     atomefin.Amount `json:"lateFeeAmount,omitempty"`
-	RefundAmount      atomefin.Amount `json:"refundAmount,omitempty"`
-	DueDate           string          `json:"dueDate"`
-	DaysPastDue       int             `json:"daysPastDue,omitempty"`
-	GracePeriod       int             `json:"gracePeriod,omitempty"`
-	Status            BillStatus      `json:"status,omitempty"`
-	RefundStatus      RefundStatus    `json:"refundStatus,omitempty"`
-	RepaymentStatus   string          `json:"repaymentStatus"`
-	OverdueStatus     OverdueStatus   `json:"overdueStatus"`
-	Discounts         *BillDiscounts  `json:"discounts,omitempty"`
+	BillID            string            `json:"billId"`
+	BillMonth         string            `json:"billMonth"`
+	BillStartDate     string            `json:"billStartDate,omitempty"`
+	BillEndDate       string            `json:"billEndDate,omitempty"`
+	BillTotalAmount   atomefin.Amount   `json:"billTotalAmount"`
+	OutstandingAmount atomefin.Amount   `json:"outstandingAmount"`
+	RepaidAmount      atomefin.Amount   `json:"repaidAmount"`
+	PrincipalAmount   atomefin.Amount   `json:"principalAmount"`
+	InterestAmount    atomefin.Amount   `json:"interestAmount"`
+	LateFeeAmount     atomefin.Amount   `json:"lateFeeAmount"`
+	RefundAmount      atomefin.Amount   `json:"refundAmount"`
+	DueDate           string            `json:"dueDate"`
+	DaysPastDue       int               `json:"daysPastDue"`
+	GracePeriod       int               `json:"gracePeriod"`
+	Status            BillStatus        `json:"status"`
+	RefundStatus      RefundStatus      `json:"refundStatus"`
+	Currency          atomefin.Currency `json:"currency"`
+	RepaymentStatus   string            `json:"repaymentStatus"`
+	OverdueStatus     OverdueStatus     `json:"overdueStatus"`
+	Discounts         *BillDiscounts    `json:"discounts,omitempty"`
 }
 
 // BillsResponseItem is one /bills data row: Bill plus currency.
@@ -79,6 +80,7 @@ type BillDetail struct {
 	RepaymentDetails []RepaymentDetail `json:"repaymentDetails,omitempty"`
 	MainOrders       []BillMainOrder   `json:"mainOrders,omitempty"`
 	Paginator        *Paginator        `json:"paginator,omitempty"`
+	Orders           []BillMainOrder   `json:"orders,omitempty"`
 }
 
 // RepaymentDetail is one repayment write-off row under bill detail.
@@ -88,7 +90,7 @@ type RepaymentDetail struct {
 	RepaidPrincipalAmount atomefin.Amount `json:"repaidPrincipalAmount,omitempty"`
 	RepaidInterestAmount  atomefin.Amount `json:"repaidInterestAmount,omitempty"`
 	RepaidLateFeeAmount   atomefin.Amount `json:"repaidLateFeeAmount,omitempty"`
-	RepaymentTime         string          `json:"repaymentTime,omitempty"`
+	RepaymentTime         int64           `json:"repaymentTime,omitempty"`
 	Event                 string          `json:"event,omitempty"`
 }
 
@@ -107,6 +109,7 @@ type BillMainOrder struct {
 	OrderID           string          `json:"orderId"`
 	RequestID         string          `json:"requestId"`
 	MerchantID        string          `json:"merchantId,omitempty"`
+	MerchantName      string          `json:"merchantName,omitempty"`
 	SubOrderID        string          `json:"subOrderId,omitempty"`
 	CreateTime        int64           `json:"createTime"`
 	PeriodType        int             `json:"periodType"`
@@ -116,12 +119,13 @@ type BillMainOrder struct {
 	RepaidAmount      atomefin.Amount `json:"repaidAmount"`
 	PrincipalAmount   atomefin.Amount `json:"principalAmount"`
 	InterestAmount    atomefin.Amount `json:"interestAmount"`
-	RefundAmount      atomefin.Amount `json:"refundAmount,omitempty"`
+	RefundAmount      atomefin.Amount `json:"refundAmount"`
+	GracePeriod       int             `json:"gracePeriod"`
 	DueDate           string          `json:"dueDate"`
 	Status            BillStatus      `json:"status"`
 	RepaymentStatus   string          `json:"repaymentStatus"`
 	OverdueStatus     OverdueStatus   `json:"overdueStatus"`
-	RefundStatus      RefundStatus    `json:"refundStatus,omitempty"`
+	RefundStatus      RefundStatus    `json:"refundStatus"`
 	Discounts         *BillDiscounts  `json:"discounts,omitempty"`
 }
 

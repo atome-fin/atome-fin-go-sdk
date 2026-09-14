@@ -40,7 +40,8 @@ func TestR10_TradeRefundInfo_RefundAmount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[transaction.TradeRefundInfo](t, func(v int64) transaction.TradeRefundInfo {
 		return transaction.TradeRefundInfo{
 			RefundRequestID:  "rfd-1",
-			CaptureRequestID: "cap-1",
+			PaymentRequestID: "cap-1",
+			RefundType:       "NORMAL",
 			RefundAmount:     v,
 			CreateTime:       1,
 			SubOrders:        []transaction.TradeRefundSubOrder{{SubOrderID: "so-1", RefundStatus: "FULL_REFUND", PrincipalAmount: v}},
@@ -51,7 +52,7 @@ func TestR10_TradeRefundInfo_RefundAmount(t *testing.T) {
 // ---------- R11 — fractional decode rejection ----------
 
 func TestR11_RejectsFractionalAmount(t *testing.T) {
-	body := []byte(`{"refundRequestId":"rfd-1","captureRequestId":"cap-1","refundAmount":1.5,"createTime":1,"subOrders":[]}`)
+	body := []byte(`{"refundRequestId":"rfd-1","paymentRequestId":"cap-1","refundType":"NORMAL","refundAmount":1.5,"createTime":1,"subOrders":[]}`)
 	marshal.AssertRejectsFractionalAmount[transaction.TradeRefundInfo](t, body)
 }
 
@@ -61,7 +62,6 @@ func TestR12_TradePaymentInfoDetail_IntegerLiterals(t *testing.T) {
 	in := transaction.TradePaymentInfoDetail{
 		CaptureRequestID: "cap-1",
 		OrderID:          "ord-1",
-		TotalTenor:       3,
 		CreateTime:       1746084600000,
 		PrincipalAmount:  1500000,
 		InterestAmount:   50000,

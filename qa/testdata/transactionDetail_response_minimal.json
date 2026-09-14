@@ -6,7 +6,6 @@
     "paymentInfo": {
       "captureRequestId": "CAP-2026-0501-A",
       "orderId": "ORD-2026-0501-A",
-      "totalTenor": 3,
       "createTime": 1746084600000,
       "principalAmount": 1500000
     }

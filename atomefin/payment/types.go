@@ -343,6 +343,7 @@ type SubOrderInstallmentPlans struct {
 	// per MartAuthCaptureSubOrderInstallmentPlans /
 	// FoodAuthCaptureSubOrderInstallmentPlans. Optional for TRANSPORT.
 	MerchantID       string            `json:"merchantId,omitempty"`
+	MerchantName     string            `json:"merchantName,omitempty"`
 	OrderAmount      atomefin.Amount   `json:"orderAmount"`
 	InstallmentPlans []InstallmentPlan `json:"installmentPlans"`
 }
