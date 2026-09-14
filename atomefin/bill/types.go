@@ -109,7 +109,7 @@ type BillMainOrder struct {
 	MerchantID        string          `json:"merchantId,omitempty"`
 	SubOrderID        string          `json:"subOrderId,omitempty"`
 	CreateTime        int64           `json:"createTime"`
-	PeriodType        string          `json:"periodType"`
+	PeriodType        int             `json:"periodType"`
 	CurrentPeriod     int             `json:"currentPeriod"`
 	TotalAmount       atomefin.Amount `json:"totalAmount"`
 	OutstandingAmount atomefin.Amount `json:"outstandingAmount"`

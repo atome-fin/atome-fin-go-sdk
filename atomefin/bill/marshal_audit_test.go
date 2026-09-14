@@ -55,7 +55,7 @@ func TestR10_BillMainOrder_Amount(t *testing.T) {
 	marshal.AssertAmountRoundtrip[bill.BillMainOrder](t, func(v int64) bill.BillMainOrder {
 		return bill.BillMainOrder{
 			OrderID: "ORD-1", RequestID: "REQ-1", CreateTime: 1746489600000,
-			PeriodType: "3", CurrentPeriod: 1,
+			PeriodType: 3, CurrentPeriod: 1,
 			TotalAmount: v, PrincipalAmount: v, InterestAmount: 0,
 			RepaidAmount: 0, OutstandingAmount: v, DueDate: "20260615",
 			Status: bill.BillStatusBilled, RepaymentStatus: "UNPAID", OverdueStatus: bill.OverdueStatusNotOverdue,

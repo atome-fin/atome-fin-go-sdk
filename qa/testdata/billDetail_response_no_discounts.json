@@ -25,7 +25,7 @@
         "merchantId": "merchant-1",
         "subOrderId": "so-1",
         "createTime": 1743484800000,
-        "periodType": "3",
+        "periodType": 3,
         "currentPeriod": 1,
         "totalAmount": 1500000,
         "outstandingAmount": 0,

@@ -7,6 +7,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.3] — 2026-09-14
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-09-14-160032ca.yaml`.
+
+### Changed
+
+- **Pinned spec** — `swagger-2026-09-14-160032ca.yaml` replaces
+  `swagger-2026-09-07-dde88827.yaml`.
+- **`bill.BillMainOrder.PeriodType`** — changes from `string` to
+  `int` to match `GET /billDetail` `mainOrders[].periodType`.
+
 ## [0.8.2] — 2026-09-08
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

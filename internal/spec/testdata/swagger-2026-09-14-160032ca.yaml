@@ -191,7 +191,9 @@ tags:
 
     | 2026-09-07 | Payment | RIPLAY is a static file this period: Atome provides Grab a fixed URL. Removes `POST /riplay` and `/payment-plan` `data.extendInfo.riplayInfoList`. |
 
-    | 2026-09-07 | Credit | `platformInformation.latestGkysTimeStamp` renamed to `latestGkycTimeStamp`. |'
+    | 2026-09-07 | Credit | `platformInformation.latestGkysTimeStamp` renamed to `latestGkycTimeStamp`. |
+
+    | 2026-09-14 | Bill | `GET /billDetail` `mainOrders[].periodType` type is `integer`. |'
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -8165,7 +8167,7 @@ components:
           type: integer
           description: Millisecond time stamp
         periodType:
-          type: string
+          type: integer
           description: The period type selected by the user, such as 1, 3, 6, 9, 12
         currentPeriod:
           type: integer
