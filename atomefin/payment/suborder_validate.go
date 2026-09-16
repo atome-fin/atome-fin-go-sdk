@@ -71,7 +71,7 @@ func validatePlanSubOrders(orderType PaymentOrderType, orders []PlanSubOrder) er
 	return nil
 }
 
-// validateAuthCaptureSubOrders applies /auth and /capture scenario
+// validateAuthCaptureSubOrders applies /auth and /reAuth scenario
 // rules from MerchantSubOrder overlays.
 func validateAuthCaptureSubOrders(orderType PaymentOrderType, orders []SubOrder) error {
 	switch orderType {
@@ -105,6 +105,24 @@ func validateAuthCaptureSubOrders(orderType PaymentOrderType, orders []SubOrder)
 	default:
 		if len(orders) == 0 {
 			return &atomefin.ValidationError{Field: "subOrders", Message: "must be non-empty"}
+		}
+	}
+	return nil
+}
+
+func validateCaptureSubOrders(orderType PaymentOrderType, orders []SubOrder) error {
+	if err := validateAuthCaptureSubOrders(orderType, orders); err != nil {
+		return err
+	}
+	if orderType != OrderTypeGrabFood && orderType != OrderTypeGrabMart {
+		return nil
+	}
+	for _, so := range orders {
+		if so.MerchantName == "" {
+			return &atomefin.ValidationError{
+				Field:   "subOrders[].merchantName",
+				Message: "required for " + string(orderType) + " capture",
+			}
 		}
 	}
 	return nil

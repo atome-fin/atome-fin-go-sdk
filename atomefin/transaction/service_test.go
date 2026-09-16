@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -287,6 +288,33 @@ func TestService_Transactions_4xxBecomesAPIError(t *testing.T) {
 	}
 	if ae.Code != atomefin.CodeParamsWrong {
 		t.Errorf("Code = %q", ae.Code)
+	}
+}
+
+func TestService_Transactions_MerchantIDFilter(t *testing.T) {
+	var gotQuery url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{}}`))
+	}))
+	defer srv.Close()
+
+	c := mustClient(t, srv)
+	_, err := transaction.New(c).Transactions(context.Background(), &transaction.TransactionsParams{
+		ExternalReferenceUID: "user-42",
+		TransactionType:      transaction.TransactionTypePayment,
+		MerchantID:           "merchant-1",
+		StartDate:            "20260501",
+		EndDate:              "20260531",
+	})
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+	if got := gotQuery.Get("merchantId"); got != "merchant-1" {
+		t.Fatalf("merchantId = %q; want %q", got, "merchant-1")
+	}
+	if gotQuery.Has("mainOrderId") {
+		t.Fatal("mainOrderId must not be emitted")
 	}
 }
 

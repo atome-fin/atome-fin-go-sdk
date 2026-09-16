@@ -46,11 +46,10 @@ type CreditProfile string
 // request body. Per the spec's MerchantSubOrder schema (and the
 // FullMerchantSubOrder / FoodAuthMerchantSubOrder overlays):
 //
-//   - GRAB_MART auth/capture: SubOrderID + MerchantID + Amount
-//     required; MerchantName / MerchantCategory required at the wire
-//     level for Mart; we keep them non-omitempty so an empty value
-//     still serialises (the server validates scenario rules).
-//   - GRAB_FOOD auth/capture: SubOrderID + MerchantID + Amount.
+//   - GRAB_MART auth/reAuth: SubOrderID + MerchantID + Amount.
+//     GRAB_MART capture additionally requires MerchantName.
+//   - GRAB_FOOD auth/reAuth: SubOrderID + MerchantID + Amount.
+//     GRAB_FOOD capture additionally requires MerchantName.
 //   - TRANSPORT: Amount only; exactly one entry.
 //
 // On /capture the SubOrders slice MUST equal the /auth set

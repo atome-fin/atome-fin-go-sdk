@@ -208,6 +208,33 @@ func TestCapture_Validate_MissingAuthOrderID(t *testing.T) {
 	mustValidationError(t, err, "authOrderId")
 }
 
+func TestCapture_Validate_RequiresMerchantNameForFoodAndMart(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server must NOT be reached when merchantName is empty")
+	})))
+
+	for _, orderType := range []payment.PaymentOrderType{
+		payment.OrderTypeGrabFood,
+		payment.OrderTypeGrabMart,
+	} {
+		extendInfo := specSampleRequestExtendInfo()
+		extendInfo.OrderType = orderType
+		subOrder := specSampleSubOrder(1)
+		subOrder.MerchantName = ""
+		req := &payment.CaptureRequest{
+			RequestID:            "c-1",
+			ExternalReferenceUID: "user-42",
+			AuthOrderID:          "AUTH-1",
+			TotalAmount:          1,
+			PeriodType:           1,
+			SubOrders:            []payment.SubOrder{subOrder},
+			ExtendInfo:           extendInfo,
+		}
+		_, err := payment.New(c).Capture(context.Background(), req)
+		mustValidationError(t, err, "merchantName")
+	}
+}
+
 func TestCapture_Validate_SumMismatch(t *testing.T) {
 	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
 	req := &payment.CaptureRequest{

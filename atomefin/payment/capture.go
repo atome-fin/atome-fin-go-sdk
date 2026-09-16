@@ -160,7 +160,7 @@ func validateCaptureRequest(req *CaptureRequest) error {
 	if !req.ExtendInfo.OrderType.IsValid() {
 		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: validOrderTypesMsg}
 	}
-	if err := validateAuthCaptureSubOrders(req.ExtendInfo.OrderType, req.SubOrders); err != nil {
+	if err := validateCaptureSubOrders(req.ExtendInfo.OrderType, req.SubOrders); err != nil {
 		return err
 	}
 	if sumSubOrderAmount(req.SubOrders) != req.TotalAmount {

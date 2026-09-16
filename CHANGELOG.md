@@ -7,6 +7,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.6] — 2026-09-16
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-09-16-fb645bcf.yaml`.
+
+### Added
+
+- **`payment.SubOrder.MerchantName`** is now required for GRAB_MART and
+  GRAB_FOOD `/capture`; client-side validation rejects empty values.
+- **`transaction.TransactionDetail`** accepts an optional `merchantId`
+  filter (`merchantId ...string`, max 128 characters).
+- Payment and refund transaction sub-orders expose `merchantId` and
+  optional `merchantName`.
+
+### Changed
+
+- **Pinned spec** — `swagger-2026-09-16-fb645bcf.yaml` replaces
+  `swagger-2026-09-14-be8ba7c8.yaml`.
+- **`transaction.TransactionsParams.MainOrderID`** is renamed to
+  **`MerchantID`** and emits `merchantId` instead of `mainOrderId`.
+- Transaction payment/refund sub-order responses use `merchantId`
+  instead of `mainOrderId`.
+
 ## [0.8.5] — 2026-09-14
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

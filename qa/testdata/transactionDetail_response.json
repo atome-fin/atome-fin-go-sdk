@@ -17,7 +17,8 @@
       "subOrders": [
         {
           "subOrderId": "so-1",
-          "mainOrderId": "merchant-1",
+          "merchantId": "merchant-1",
+          "merchantName": "KFC Sudirman",
           "principalAmount": 1450000,
           "interestAmount": 50000,
           "billOrderDetails": [

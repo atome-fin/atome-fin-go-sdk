@@ -199,7 +199,9 @@ tags:
 
     | 2026-09-14 | Bill / Transaction / Payment | `GET /billDetail` calibrated to live payload (`bill.currency`; integer amounts; `mainOrders[].periodType` / `createTime` int64 / `gracePeriod`; `orders` and `repaymentDetails` nullable; `repaymentDetails[].repaymentTime` int64). `GET /transactions` and `GET /transactionDetail` calibrated to Grab partner DTOs (integer IDR amounts; `createTime` int64; list payment `paymentRequestId`; detail payment `captureRequestId`; refund `paymentRequestId` + `refundType`; sub-orders return `mainOrderId` not `merchantId`; repayment list omits `lateFeeAmountChange`; repayment detail adds `lateFeeAmountChange` and does not expose `extendInfo.settlement`; `paymentInfo.extendInfo.agreement.agreementUrl` kept). `/payment-plan` adds optional header `sessionid` for `mode=get`. Discount / subsidy fields are optional this period (no subsidy). Payment objects that carry `merchantId` also accept optional `merchantName` (same merchant dimension; for later display when provided). |
 
-    | 2026-09-14 | Docs | Editorial: renamed `paymentRiskInfo` schema to `PaymentRiskInfo`; removed unused `PaymentPlanExtendInfo`; fixed `RefundResult.waivedInterestAmount` description. No wire-format change. |'
+    | 2026-09-14 | Docs | Editorial: renamed `paymentRiskInfo` schema to `PaymentRiskInfo`; removed unused `PaymentPlanExtendInfo`; fixed `RefundResult.waivedInterestAmount` description. No wire-format change. |
+
+    | 2026-09-16 | Transaction / Payment | `GET /transactionDetail` optional query `mainOrderId` renamed to `merchantId` (same filter: one merchant-dimension slice of the capture). Response `paymentInfo.subOrders[]` / refund `subOrders[]` use `merchantId` instead of `mainOrderId`. `/capture` `subOrders[].merchantName` is required for GRAB_MART and GRAB_FOOD. |'
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -1587,6 +1589,7 @@ paths:
         GRAB_MART and GRAB_FOOD both require `skuId` on each SKU.
         GRAB_FOOD and TRANSPORT use exactly one sub-order. For TRANSPORT,
         `totalAmount` must equal `subOrders[0].amount`.
+        GRAB_MART and GRAB_FOOD require `subOrders[].merchantName` on `/capture` (for later display).
 
         **Minimum amounts (partner-side validation):** `totalAmount` and each `subOrders[].amount` must meet the minimums for
         `periodType` (same rules as `/auth`) — 1-month: order >= 1 IDR, sub-order >= 1 IDR; 3-month: order >= 20,000 IDR,
@@ -2801,7 +2804,7 @@ paths:
       description: |
         Returns detailed information for one transaction. Unused `paymentInfo` / `refundInfo` / `repaymentInfo` objects are omitted (Jackson `NON_NULL`).
 
-        **Payment (`transactionType = PAYMENT`):** Pass the **`POST /capture` `requestId`**. Response `paymentInfo.captureRequestId` echoes the same value (`@JsonProperty` on the Grab partner DTO).
+        **Payment (`transactionType = PAYMENT`):** Pass the **`POST /capture` `requestId`**. Response `paymentInfo.captureRequestId` echoes the same value.
 
         **Financing agreement:** When `transactionType = PAYMENT`, check `paymentInfo.extendInfo.agreement.agreementUrl`. The URL is produced asynchronously after capture; it may be `null` until agreement generation completes. Partners rendering the installment-detail page may call this endpoint repeatedly until the URL is present — no separate `/query-capture` call is required for the agreement link.
       parameters:
@@ -2832,12 +2835,16 @@ paths:
         schema:
           type: string
           description: payment｜refund｜repayment requestId
-      - name: mainOrderId
+      - name: merchantId
         in: query
         required: false
         schema:
           type: string
-        description: Optional Lazada-style seller-order filter. Grab can omit.
+          maxLength: 128
+        description: |
+          Optional merchant filter. When set, return the slice of this transaction that belongs to
+          `/capture` `subOrders[].merchantId` (same scenario as before: one merchant on a multi-merchant capture).
+          Use for GRAB_MART and GRAB_FOOD. Omit for TRANSPORT or to return the full transaction.
       responses:
         '200':
           description: SUCCESS
@@ -2877,7 +2884,8 @@ paths:
                         discountAmount: 0
                         subOrders:
                           - subOrderId: SUB-FOOD-001
-                            mainOrderId: MO-FOOD-001
+                            merchantId: MCH-FOOD-001
+                            merchantName: Warung Nasi Padang Sederhana
                             principalAmount: 42000
                             interestAmount: 15120
                             discountAmount: 0
@@ -2921,7 +2929,8 @@ paths:
                         discountAmount: 0
                         subOrders:
                           - subOrderId: SUB-FOOD-001
-                            mainOrderId: MO-FOOD-001
+                            merchantId: MCH-FOOD-001
+                            merchantName: Warung Nasi Padang Sederhana
                             principalAmount: 42000
                             interestAmount: 15120
                             discountAmount: 0
@@ -3470,7 +3479,7 @@ components:
           examples:
             GRAB_MART-full:
               summary: GRAB_MART — full payload (capture)
-              description: 'MART capture requires `skuId` and `amount` on each SKU. Multiple merchant sub-orders allowed.'
+              description: 'MART capture requires `subOrders[].merchantName`. Each SKU requires `skuId` and `amount`. Multiple merchant sub-orders allowed.'
               value:
                 requestId: CAP-MART-20260807001
                 externalReferenceUid: E897321804
@@ -3556,7 +3565,7 @@ components:
             GRAB_FOOD-full:
               summary: GRAB_FOOD — capture
               description: |
-                **Exactly one** `subOrders[]` entry. `subOrderId` is required.
+                **Exactly one** `subOrders[]` entry. `subOrderId` and `merchantName` are required.
                 Each SKU requires `skuId` and `amount`; `quantity` and `skuName` are optional.
               value:
                 requestId: CAP-FOOD-20260807001
@@ -4613,10 +4622,11 @@ components:
         | --- | --- | --- |
         | All scenarios `/payment-precheck` | **None — every field optional** | all fields |
         | GRAB_MART plan | `merchantId`, `amount` | `subOrderId`, `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
-        | GRAB_MART auth / capture | `subOrderId`, `merchantId`, `amount` | `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
+        | GRAB_MART auth | `subOrderId`, `merchantId`, `amount` | `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
+        | GRAB_MART capture | `subOrderId`, `merchantId`, `merchantName`, `amount` | `merchantCategory`, `merchantJoinedDate`, `periodType` |
         | GRAB_FOOD plan | `amount` ( **exactly one** entry ) | `subOrderId`, `merchantId`, `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
         | GRAB_FOOD auth | `subOrderId`, `merchantId`, `amount` ( **exactly one** entry ) | `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
-        | GRAB_FOOD capture | `subOrderId`, `merchantId`, `amount` ( **exactly one** entry ) | `merchantName`, `merchantCategory`, `merchantJoinedDate`, `periodType` |
+        | GRAB_FOOD capture | `subOrderId`, `merchantId`, `merchantName`, `amount` ( **exactly one** entry ) | `merchantCategory`, `merchantJoinedDate`, `periodType` |
         | TRANSPORT plan / auth / capture | `amount` ( **exactly one** entry ) | `periodType` |
 
         **GRAB_FOOD:** `subOrders[]` length **must be 1** on `/payment-plan`, `/auth`, and `/capture`. On `/payment-precheck`, `subOrders` is optional; when sent with `orderType` = `GRAB_FOOD`, at most one entry.
@@ -4640,9 +4650,9 @@ components:
         merchantName:
           type: string
           description: |
-            Optional merchant display name, same dimension as `merchantId`.
-            Send when available on `/payment-precheck`, `/payment-plan`, `/auth`, `/capture`, and `/reAuth`; used for later display.
-            Omit for `TRANSPORT` or when unknown. Never required.
+            Merchant display name, same dimension as `merchantId`. Used for later display.
+            **Required** on `/capture` for `GRAB_MART` and `GRAB_FOOD`.
+            Optional on `/payment-precheck`, `/payment-plan`, `/auth`, and `/reAuth`. Omit for `TRANSPORT`.
         merchantCategory:
           type: string
           description: |
@@ -4676,7 +4686,7 @@ components:
             - subOrderId
             - merchantId
             - amount
-      description: GRAB_FOOD `/auth` and `/capture` sub-order. Requires `subOrderId`, `merchantId`, and `amount`; `merchantName` and `merchantCategory` are optional.
+      description: GRAB_FOOD `/auth` sub-order. Requires `subOrderId`, `merchantId`, and `amount`; `merchantName` and `merchantCategory` are optional.
     PlanMerchantSubOrder:
       allOf:
         - $ref: '#/components/schemas/MerchantSubOrder'
@@ -4693,7 +4703,27 @@ components:
             - subOrderId
             - merchantId
             - amount
-      description: Full merchant sub-order used by GRAB_MART `/auth` and `/capture`. Requires `subOrderId`, `merchantId`, and `amount`; `merchantName` and `merchantCategory` are optional.
+      description: Full merchant sub-order used by GRAB_MART `/auth`. Requires `subOrderId`, `merchantId`, and `amount`; `merchantName` and `merchantCategory` are optional.
+    MartCaptureMerchantSubOrder:
+      allOf:
+        - $ref: '#/components/schemas/MerchantSubOrder'
+        - type: object
+          required:
+            - subOrderId
+            - merchantId
+            - merchantName
+            - amount
+      description: GRAB_MART `/capture` sub-order. Requires `subOrderId`, `merchantId`, `merchantName`, and `amount`.
+    FoodCaptureMerchantSubOrder:
+      allOf:
+        - $ref: '#/components/schemas/MerchantSubOrder'
+        - type: object
+          required:
+            - subOrderId
+            - merchantId
+            - merchantName
+            - amount
+      description: GRAB_FOOD `/capture` sub-order. Requires `subOrderId`, `merchantId`, `merchantName`, and `amount`. Exactly one entry.
     PaymentPlanExtendInfoBase:
       type: object
       description: |
@@ -5178,7 +5208,7 @@ components:
         - $ref: '#/components/schemas/TransportCaptureRequest'
     MartCaptureRequest:
       title: GRAB_MART capture
-      description: Multiple merchant sub-orders with full merchant fields and required `extendInfo.mainOrderExtendInfos`.
+      description: Multiple merchant sub-orders with required `merchantName` and `extendInfo.mainOrderExtendInfos`.
       allOf:
         - $ref: '#/components/schemas/BaseCaptureRequest'
         - type: object
@@ -5187,12 +5217,12 @@ components:
               type: array
               minItems: 1
               items:
-                $ref: '#/components/schemas/FullMerchantSubOrder'
+                $ref: '#/components/schemas/MartCaptureMerchantSubOrder'
             extendInfo:
               $ref: '#/components/schemas/MartAuthCaptureExtendInfo'
     FoodCaptureRequest:
       title: GRAB_FOOD capture
-      description: Exactly one sub-order with required `subOrderId`. Requires `extendInfo.mainOrderExtendInfos`.
+      description: Exactly one sub-order with required `subOrderId`, `merchantId`, and `merchantName`. Requires `extendInfo.mainOrderExtendInfos`.
       allOf:
         - $ref: '#/components/schemas/BaseCaptureRequest'
         - type: object
@@ -5202,7 +5232,7 @@ components:
               minItems: 1
               maxItems: 1
               items:
-                $ref: '#/components/schemas/FoodAuthMerchantSubOrder'
+                $ref: '#/components/schemas/FoodCaptureMerchantSubOrder'
             extendInfo:
               $ref: '#/components/schemas/FoodAuthCaptureExtendInfo'
     TransportCaptureRequest:
@@ -8741,7 +8771,7 @@ components:
     transaction:
       type: object
       description: |
-        `GET /transactions` body (`GrabIdTransactionResponse`).
+        `GET /transactions` body.
         Only the array matching `transactionType` is present; the other two are omitted (`NON_NULL`).
       properties:
         currency:
@@ -8781,7 +8811,7 @@ components:
     tradePaymentInfo:
       type: object
       description: |
-        `GET /transactions` payment row (`GrabIdPaymentTransactionResponse`).
+        `GET /transactions` payment row.
         JSON key is `paymentRequestId` (the list DTO does not rename it to `captureRequestId`).
       properties:
         paymentRequestId:
@@ -8808,7 +8838,7 @@ components:
     tradeRefundInfo:
       type: object
       description: |
-        `GET /transactions` refund row (`GrabIdRefundTransactionResponse`).
+        `GET /transactions` refund row.
         JSON key is `paymentRequestId` (not `captureRequestId`).
       properties:
         refundRequestId:
@@ -8860,16 +8890,20 @@ components:
     tradeSubOrder:
       type: object
       description: |
-        `GET /transactions` payment sub-order (`GrabIdPaymentTransactionSubOrderResponse`).
-        Partner DTO copies `subOrderId` and `mainOrderId` from the stored sub-order. It does **not** serialize `merchantId`.
+        `GET /transactions` payment sub-order.
+        Echoes `/capture` `subOrders[]`. `merchantId` / `merchantName` present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
       properties:
         subOrderId:
           type: string
           description: Sub-order identifier from `/capture` `subOrders[].subOrderId`. Omitted when null (e.g. TRANSPORT).
           maxLength: 64
-        mainOrderId:
+        merchantId:
           type: string
-          description: Stored seller/main order id (`SubOrder.mainOrderId`). Omitted when null. Not the capture `merchantId`.
+          description: Merchant identifier from `/capture` `subOrders[].merchantId`. Present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
+          maxLength: 128
+        merchantName:
+          type: string
+          description: Optional merchant display name from the originating payment request when provided.
         principalAmount:
           type: integer
           description: Sub-order principal. Currency is IDR (Rupiah).
@@ -8883,15 +8917,19 @@ components:
       - principalAmount
     tradeRefundSubOrder:
       type: object
-      description: Refund sub-order (`GrabIdRefundSubOrderDetailTransactionResponse`). Used by both list and detail.
+      description: Refund sub-order. Used by both list and detail.
       properties:
         subOrderId:
           type: string
           description: Sub-order identifier. Omitted when null.
           maxLength: 64
-        mainOrderId:
+        merchantId:
           type: string
-          description: Stored seller/main order id. Omitted when null.
+          description: Merchant identifier from the originating capture. Present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
+          maxLength: 128
+        merchantName:
+          type: string
+          description: Optional merchant display name when provided on the originating payment.
         refundStatus:
           type: string
           description: Sub-refund type (`SubRefundOrder.refundType`).
@@ -8919,7 +8957,7 @@ components:
     tradeRepaymentInfo:
       type: object
       description: |
-        `GET /transactions` repayment row (`GrabIdRepaymentTransactionResponse`).
+        `GET /transactions` repayment row.
         List DTO does **not** include `lateFeeAmountChange` (that field exists only on detail).
       properties:
         repaymentRequestId:
@@ -8987,7 +9025,7 @@ components:
     tradeDetail:
       type: object
       description: |
-        `GET /transactionDetail` body (`GrabIdTransactionDetailResponse`).
+        `GET /transactionDetail` body.
         Only the object matching `transactionType` is present; the other two are omitted.
       properties:
         currency:
@@ -9003,8 +9041,8 @@ components:
     tradePaymentInfoDetail:
       type: object
       description: |
-        `GET /transactionDetail` payment (`GrabIdPaymentTransactionDetailResponse`).
-        JSON key `captureRequestId` is `@JsonProperty` on `paymentRequestId`.
+        `GET /transactionDetail` payment.
+        JSON key is `captureRequestId` (the capture `requestId`).
       properties:
         captureRequestId:
           type: string
@@ -9031,8 +9069,8 @@ components:
         subOrders:
           type: array
           description: |
-            Sub-orders from the stored capture. Partner DTO copies `subOrderId` / `mainOrderId`; it does **not** serialize `merchantId`.
-            `mainOrderUrl` is forced to null and omitted.
+            Merchant-dimension sub-orders from the originating `/capture`.
+            Each entry echoes `subOrderId`, `merchantId`, and optional `merchantName` when sent (GRAB_MART / GRAB_FOOD); typically omitted for TRANSPORT.
           items:
             $ref: '#/components/schemas/tradeSubOrderDetail'
         extendInfo:
@@ -9051,16 +9089,20 @@ components:
     tradeSubOrderDetail:
       type: object
       description: |
-        `GET /transactionDetail` payment sub-order (`GrabIdPaymentTransactionSubOrderDetailResponse`).
-        `mainOrderUrl` is always set to null and omitted.
+        `GET /transactionDetail` payment sub-order.
+        Echoes `/capture` `subOrders[]`. `merchantId` / `merchantName` present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
       properties:
         subOrderId:
           type: string
           description: Sub-order identifier from `/capture`. Omitted when null (e.g. TRANSPORT).
           maxLength: 64
-        mainOrderId:
+        merchantId:
           type: string
-          description: Stored seller/main order id (`SubOrder.mainOrderId`). Omitted when null. Not the capture `merchantId`.
+          description: Merchant identifier from `/capture` `subOrders[].merchantId`. Present for GRAB_MART and GRAB_FOOD; omit for TRANSPORT.
+          maxLength: 128
+        merchantName:
+          type: string
+          description: Optional merchant display name from the originating payment request when provided.
         principalAmount:
           type: integer
           description: Sub-order principal. Currency is IDR (Rupiah).
@@ -9085,7 +9127,7 @@ components:
     tradeBillDetail:
       type: object
       description: |
-        Payment-detail monthly bill (`GrabIdPaymentTransactionDetailBillResponse`).
+        Payment-detail monthly bill.
         Assembler does not copy `gracePeriod`.
       properties:
         billId:
@@ -9172,7 +9214,7 @@ components:
       - overdueStatus
     tradeRefundInfoDetail:
       type: object
-      description: Payment-detail nested refund (`GrabIdPaymentTransactionSubOrderRefundDetailResponse`).
+      description: Payment-detail nested refund.
       properties:
         refundRequestId:
           type: string
@@ -9220,7 +9262,7 @@ components:
     refundInfoDetail:
       type: object
       description: |
-        `GET /transactionDetail` refund (`GrabIdRefundTransactionDetailResponse`).
+        `GET /transactionDetail` refund.
         JSON key is `paymentRequestId` (not `captureRequestId`).
       properties:
         refundRequestId:
@@ -9271,7 +9313,7 @@ components:
       - createTime
     tradeRepaymentInfoDetail:
       type: object
-      description: '`GET /transactionDetail` repayment (`GrabIdRepaymentTransactionDetailResponse`).'
+      description: '`GET /transactionDetail` repayment.'
       properties:
         repaymentRequestId:
           type: string
@@ -9306,7 +9348,7 @@ components:
           description: Repayment success time in Unix milliseconds.
         repaymentDetails:
           type: array
-          description: Monthly write-off lines (`GrabIdRepaymentDetailResponse`). Assembler does not set `repaidLateFeeAmount`.
+          description: Monthly write-off lines. `repaidLateFeeAmount` is not returned.
           items:
             $ref: '#/components/schemas/tradeDetailRepaymentDetail'
       required:

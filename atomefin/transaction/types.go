@@ -48,7 +48,7 @@ func (t TransactionType) String() string { return string(t) }
 type TransactionsParams struct {
 	ExternalReferenceUID string
 	TransactionType      TransactionType
-	MainOrderID          string
+	MerchantID           string
 	StartDate            string
 	EndDate              string
 	Start                int
@@ -121,7 +121,8 @@ type TradeRepaymentInfo struct {
 
 type TradeSubOrder struct {
 	SubOrderID      string          `json:"subOrderId,omitempty"`
-	MainOrderID     string          `json:"mainOrderId,omitempty"`
+	MerchantID      string          `json:"merchantId,omitempty"`
+	MerchantName    string          `json:"merchantName,omitempty"`
 	PrincipalAmount atomefin.Amount `json:"principalAmount"`
 	InterestAmount  atomefin.Amount `json:"interestAmount,omitempty"`
 	DiscountAmount  atomefin.Amount `json:"discountAmount,omitempty"`
@@ -129,6 +130,8 @@ type TradeSubOrder struct {
 
 type TradeRefundSubOrder struct {
 	SubOrderID            string          `json:"subOrderId"`
+	MerchantID            string          `json:"merchantId,omitempty"`
+	MerchantName          string          `json:"merchantName,omitempty"`
 	RefundStatus          string          `json:"refundStatus"`
 	PrincipalAmount       atomefin.Amount `json:"principalAmount"`
 	WaivedInterestAmount  atomefin.Amount `json:"waivedInterestAmount,omitempty"`
@@ -170,7 +173,8 @@ type PaymentTransactionExtendInfo struct {
 
 type TradeSubOrderDetail struct {
 	SubOrderID       string                  `json:"subOrderId,omitempty"`
-	MainOrderID      string                  `json:"mainOrderId,omitempty"`
+	MerchantID       string                  `json:"merchantId,omitempty"`
+	MerchantName     string                  `json:"merchantName,omitempty"`
 	PrincipalAmount  atomefin.Amount         `json:"principalAmount"`
 	InterestAmount   atomefin.Amount         `json:"interestAmount,omitempty"`
 	DiscountAmount   atomefin.Amount         `json:"discountAmount,omitempty"`
