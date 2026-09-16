@@ -16,8 +16,6 @@ Syncs the SDK to the upstream partner white-label `G` spec pinned as
 
 - **`payment.SubOrder.MerchantName`** is now required for GRAB_MART and
   GRAB_FOOD `/capture`; client-side validation rejects empty values.
-- **`transaction.TransactionDetail`** accepts an optional `merchantId`
-  filter (`merchantId ...string`, max 128 characters).
 - Payment and refund transaction sub-orders expose `merchantId` and
   optional `merchantName`.
 
@@ -25,8 +23,6 @@ Syncs the SDK to the upstream partner white-label `G` spec pinned as
 
 - **Pinned spec** — `swagger-2026-09-16-fb645bcf.yaml` replaces
   `swagger-2026-09-14-be8ba7c8.yaml`.
-- **`transaction.TransactionsParams.MainOrderID`** is renamed to
-  **`MerchantID`** and emits `merchantId` instead of `mainOrderId`.
 - Transaction payment/refund sub-order responses use `merchantId`
   instead of `mainOrderId`.
 

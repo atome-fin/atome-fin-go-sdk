@@ -201,7 +201,7 @@ tags:
 
     | 2026-09-14 | Docs | Editorial: renamed `paymentRiskInfo` schema to `PaymentRiskInfo`; removed unused `PaymentPlanExtendInfo`; fixed `RefundResult.waivedInterestAmount` description. No wire-format change. |
 
-    | 2026-09-16 | Transaction / Payment | `GET /transactionDetail` optional query `mainOrderId` renamed to `merchantId` (same filter: one merchant-dimension slice of the capture). Response `paymentInfo.subOrders[]` / refund `subOrders[]` use `merchantId` instead of `mainOrderId`. `/capture` `subOrders[].merchantName` is required for GRAB_MART and GRAB_FOOD. |'
+    | 2026-09-16 | Transaction / Payment | `GET /transactionDetail` removes the optional query parameter `merchantId`; it now returns the full transaction. Response `paymentInfo.subOrders[]` / refund `subOrders[]` use `merchantId` instead of `mainOrderId`. `/capture` `subOrders[].merchantName` is required for GRAB_MART and GRAB_FOOD. |'
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -2835,16 +2835,6 @@ paths:
         schema:
           type: string
           description: payment｜refund｜repayment requestId
-      - name: merchantId
-        in: query
-        required: false
-        schema:
-          type: string
-          maxLength: 128
-        description: |
-          Optional merchant filter. When set, return the slice of this transaction that belongs to
-          `/capture` `subOrders[].merchantId` (same scenario as before: one merchant on a multi-merchant capture).
-          Use for GRAB_MART and GRAB_FOOD. Omit for TRANSPORT or to return the full transaction.
       responses:
         '200':
           description: SUCCESS

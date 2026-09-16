@@ -48,7 +48,6 @@ func (t TransactionType) String() string { return string(t) }
 type TransactionsParams struct {
 	ExternalReferenceUID string
 	TransactionType      TransactionType
-	MerchantID           string
 	StartDate            string
 	EndDate              string
 	Start                int

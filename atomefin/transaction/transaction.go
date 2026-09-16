@@ -110,7 +110,7 @@ func (s *Service) Transactions(ctx context.Context, params *TransactionsParams) 
 // v0.2.0 — v0.2.2 callers must update both the signature and their
 // call-site bookkeeping (substitute the original payment / refund
 // / repayment requestId for the discarded tradeID).
-func (s *Service) TransactionDetail(ctx context.Context, requestID, externalReferenceUID string, transactionType TransactionType, merchantID ...string) (*TransactionDetailResponse, error) {
+func (s *Service) TransactionDetail(ctx context.Context, requestID, externalReferenceUID string, transactionType TransactionType) (*TransactionDetailResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
@@ -132,23 +132,10 @@ func (s *Service) TransactionDetail(ctx context.Context, requestID, externalRefe
 			Message: "required (PAYMENT / REFUND / REPAYMENT)",
 		}
 	}
-	filterMerchantID := ""
-	if len(merchantID) > 0 {
-		filterMerchantID = merchantID[0]
-		if len(filterMerchantID) > 128 {
-			return nil, &atomefin.ValidationError{
-				Field:   "merchantId",
-				Message: "exceeds spec maxlength 128",
-			}
-		}
-	}
 	q := url.Values{
 		"requestId":            []string{requestID},
 		"externalReferenceUid": []string{externalReferenceUID},
 		"transactionType":      []string{string(transactionType)},
-	}
-	if filterMerchantID != "" {
-		q.Set("merchantId", filterMerchantID)
 	}
 	resp, err := s.c.DoSignedGET(ctx, "/transactionDetail", q)
 	if err != nil {
@@ -271,9 +258,6 @@ func buildTransactionsQuery(p *TransactionsParams) url.Values {
 	}
 	if p.EndDate != "" {
 		q.Set("endDate", p.EndDate)
-	}
-	if p.MerchantID != "" {
-		q.Set("merchantId", p.MerchantID)
 	}
 	return q
 }
