@@ -201,7 +201,9 @@ tags:
 
     | 2026-09-14 | Docs | Editorial: renamed `paymentRiskInfo` schema to `PaymentRiskInfo`; removed unused `PaymentPlanExtendInfo`; fixed `RefundResult.waivedInterestAmount` description. No wire-format change. |
 
-    | 2026-09-16 | Transaction / Payment | `GET /transactionDetail` removes the optional query parameter `merchantId`; it now returns the full transaction. Response `paymentInfo.subOrders[]` / refund `subOrders[]` use `merchantId` instead of `mainOrderId`. `/capture` `subOrders[].merchantName` is required for GRAB_MART and GRAB_FOOD. |'
+    | 2026-09-16 | Transaction / Payment | `GET /transactionDetail` removes the optional query parameter `merchantId`; it now returns the full transaction. Response `paymentInfo.subOrders[]` / refund `subOrders[]` use `merchantId` instead of `mainOrderId`. `/capture` `subOrders[].merchantName` is required for GRAB_MART and GRAB_FOOD. |
+
+    | 2026-09-21 | Bill / Transaction | `GET /billDetail` `mainOrders[]` adds `orderType` at the same level as `merchantId`. `GET /transactions` and `GET /transactionDetail` return `orderType` on `paymentInfo` (`TRANSPORT` / `GRAB_FOOD` / `GRAB_MART`). Echo of originating `/capture` `extendInfo.orderType`; present for all scenarios including TRANSPORT. |'
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -257,6 +259,8 @@ tags:
     **`GET /transactionDetail`:** Returns one transaction by `transactionType` and `requestId`. For `transactionType = PAYMENT`, pass the **`POST /capture` `requestId`**. Response `paymentInfo.captureRequestId` echoes that value.
 
     **`GET /transactions`:** Same `transactionType` filter. List payment rows use `paymentRequestId` (same capture `requestId`); unused `paymentInfo` / `refundInfo` / `repaymentInfo` arrays are omitted.
+
+    **`orderType`:** `GET /transactions` and `GET /transactionDetail` return `orderType` on `paymentInfo` (`TRANSPORT` / `GRAB_FOOD` / `GRAB_MART`). Echo of originating `/capture` `extendInfo.orderType`. Present for all scenarios, including TRANSPORT. `GET /billDetail` `mainOrders[]` still returns `orderType` at the same level as `merchantId`.
 
     **`paymentInfo.extendInfo.agreement.agreementUrl`:** Financing agreement PDF URL (RIPLAY + FA merged when ready). Generated **asynchronously** after capture succeeds — may be `null` on first fetch; partners may **poll** this endpoint on the installment-detail page until the URL appears. Same field semantics as `/capture` / `/<captureNotifyUrl>` `extendInfo.agreement.agreementUrl`.
 - name: Callback
@@ -2620,6 +2624,7 @@ paths:
                           interestAmount: 4240
                           merchantId: MCHM11789134642269498
                           merchantName: Indomaret Kelapa Gading
+                          orderType: GRAB_MART
                           orderId: O6AA407382F46F000017D3E09
                           outstandingAmount: 16018
                           overdueStatus: NOT_OVERDUE
@@ -2867,6 +2872,7 @@ paths:
                       paymentInfo:
                         captureRequestId: CAPTURE1789134646573522
                         orderId: O6AA407382F46F000017D3E09
+                        orderType: GRAB_FOOD
                         totalTenor: 9
                         createTime: 1789134648277
                         principalAmount: 42000
@@ -2912,6 +2918,7 @@ paths:
                       paymentInfo:
                         captureRequestId: CAPTURE1789134646573522
                         orderId: O6AA407382F46F000017D3E09
+                        orderType: GRAB_FOOD
                         totalTenor: 9
                         createTime: 1789134648277
                         principalAmount: 42000
@@ -8451,6 +8458,7 @@ components:
       description: |
         One captured merchant-dimension line on `GET /billDetail` `mainOrders[]`.
         Amounts are integers in IDR (Rupiah). `periodType` is integer (e.g. 1, 3, 9).
+        Returns `orderType` at the same level as `merchantId`.
       properties:
         orderId:
           type: string
@@ -8467,6 +8475,10 @@ components:
         merchantName:
           type: string
           description: Merchant display name from the originating payment request when provided.
+        orderType:
+          allOf:
+          - $ref: '#/components/schemas/PaymentOrderType'
+          description: Echo of originating `/capture` `extendInfo.orderType`. Returned for all scenarios, including TRANSPORT where `merchantId` is omitted.
         subOrderId:
           type: string
           description: |
@@ -8566,6 +8578,7 @@ components:
       required:
       - orderId
       - requestId
+      - orderType
       - createTime
       - periodType
       - currentPeriod
@@ -8810,6 +8823,10 @@ components:
         orderId:
           type: string
           description: Payment orderId (Atome aggregate id).
+        orderType:
+          allOf:
+          - $ref: '#/components/schemas/PaymentOrderType'
+          description: Echo of originating `/capture` `extendInfo.orderType`. Returned on `paymentInfo` for all scenarios, including TRANSPORT.
         subOrders:
           type: array
           items:
@@ -8824,6 +8841,7 @@ components:
       required:
       - paymentRequestId
       - orderId
+      - orderType
       - createTime
     tradeRefundInfo:
       type: object
@@ -9040,6 +9058,10 @@ components:
         orderId:
           type: string
           description: Payment orderId (Atome aggregate id).
+        orderType:
+          allOf:
+          - $ref: '#/components/schemas/PaymentOrderType'
+          description: Echo of originating `/capture` `extendInfo.orderType`. Returned on `paymentInfo` for all scenarios, including TRANSPORT.
         totalTenor:
           type: integer
           description: Installment tenor of the first sub-order (e.g. 1, 3, 6, 9, 12).
@@ -9068,6 +9090,7 @@ components:
       required:
       - captureRequestId
       - orderId
+      - orderType
       - principalAmount
       - createTime
     PaymentTransactionExtendInfo:

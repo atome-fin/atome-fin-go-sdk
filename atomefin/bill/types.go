@@ -1,6 +1,9 @@
 package bill
 
-import "github.com/atome-fin/atome-fin-go-sdk/atomefin"
+import (
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/payment"
+)
 
 // OverdueStatus is the spec's overdue axis for bills.
 type OverdueStatus string
@@ -106,27 +109,28 @@ type Paginator struct {
 // subOrders[] when those fields were sent (GRAB_MART / GRAB_FOOD);
 // TRANSPORT typically omits both. mainOrderId is not used.
 type BillMainOrder struct {
-	OrderID           string          `json:"orderId"`
-	RequestID         string          `json:"requestId"`
-	MerchantID        string          `json:"merchantId,omitempty"`
-	MerchantName      string          `json:"merchantName,omitempty"`
-	SubOrderID        string          `json:"subOrderId,omitempty"`
-	CreateTime        int64           `json:"createTime"`
-	PeriodType        int             `json:"periodType"`
-	CurrentPeriod     int             `json:"currentPeriod"`
-	TotalAmount       atomefin.Amount `json:"totalAmount"`
-	OutstandingAmount atomefin.Amount `json:"outstandingAmount"`
-	RepaidAmount      atomefin.Amount `json:"repaidAmount"`
-	PrincipalAmount   atomefin.Amount `json:"principalAmount"`
-	InterestAmount    atomefin.Amount `json:"interestAmount"`
-	RefundAmount      atomefin.Amount `json:"refundAmount"`
-	GracePeriod       int             `json:"gracePeriod"`
-	DueDate           string          `json:"dueDate"`
-	Status            BillStatus      `json:"status"`
-	RepaymentStatus   string          `json:"repaymentStatus"`
-	OverdueStatus     OverdueStatus   `json:"overdueStatus"`
-	RefundStatus      RefundStatus    `json:"refundStatus"`
-	Discounts         *BillDiscounts  `json:"discounts,omitempty"`
+	OrderID           string                   `json:"orderId"`
+	RequestID         string                   `json:"requestId"`
+	MerchantID        string                   `json:"merchantId,omitempty"`
+	MerchantName      string                   `json:"merchantName,omitempty"`
+	OrderType         payment.PaymentOrderType `json:"orderType"`
+	SubOrderID        string                   `json:"subOrderId,omitempty"`
+	CreateTime        int64                    `json:"createTime"`
+	PeriodType        int                      `json:"periodType"`
+	CurrentPeriod     int                      `json:"currentPeriod"`
+	TotalAmount       atomefin.Amount          `json:"totalAmount"`
+	OutstandingAmount atomefin.Amount          `json:"outstandingAmount"`
+	RepaidAmount      atomefin.Amount          `json:"repaidAmount"`
+	PrincipalAmount   atomefin.Amount          `json:"principalAmount"`
+	InterestAmount    atomefin.Amount          `json:"interestAmount"`
+	RefundAmount      atomefin.Amount          `json:"refundAmount"`
+	GracePeriod       int                      `json:"gracePeriod"`
+	DueDate           string                   `json:"dueDate"`
+	Status            BillStatus               `json:"status"`
+	RepaymentStatus   string                   `json:"repaymentStatus"`
+	OverdueStatus     OverdueStatus            `json:"overdueStatus"`
+	RefundStatus      RefundStatus             `json:"refundStatus"`
+	Discounts         *BillDiscounts           `json:"discounts,omitempty"`
 }
 
 // BillDiscounts groups the discount lines applied to a bill.

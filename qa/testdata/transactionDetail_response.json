@@ -6,6 +6,7 @@
     "paymentInfo": {
       "captureRequestId": "CAP-2026-0501-A",
       "orderId": "ORD-2026-0501-A",
+      "orderType": "GRAB_MART",
       "createTime": 1746089800000,
       "principalAmount": 1450000,
       "interestAmount": 50000,

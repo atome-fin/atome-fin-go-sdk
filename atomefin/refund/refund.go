@@ -226,14 +226,14 @@ func validateRefund(req *RefundParam) error {
 		return &atomefin.ValidationError{Field: "extendInfo.orderType", Message: "required"}
 	}
 	switch req.ExtendInfo.OrderType {
-	case "TRANSPORT", "GRAB_FOOD":
+	case OrderTypeTransport, OrderTypeGrabFood:
 		if len(req.SubOrders) != 1 {
 			return &atomefin.ValidationError{
 				Field:   "subOrders",
-				Message: "must contain exactly one entry for " + req.ExtendInfo.OrderType,
+				Message: "must contain exactly one entry for " + string(req.ExtendInfo.OrderType),
 			}
 		}
-	case "GRAB_MART":
+	case OrderTypeGrabMart:
 		for _, so := range req.SubOrders {
 			if so.MerchantID == "" {
 				return &atomefin.ValidationError{Field: "subOrders[].merchantId", Message: "required for GRAB_MART"}

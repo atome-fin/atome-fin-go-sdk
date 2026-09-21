@@ -87,10 +87,11 @@ type Paginator struct {
 }
 
 type TradePaymentInfo struct {
-	PaymentRequestID string          `json:"paymentRequestId"`
-	OrderID          string          `json:"orderId"`
-	CreateTime       int64           `json:"createTime"`
-	SubOrders        []TradeSubOrder `json:"subOrders,omitempty"`
+	PaymentRequestID string                   `json:"paymentRequestId"`
+	OrderID          string                   `json:"orderId"`
+	OrderType        payment.PaymentOrderType `json:"orderType"`
+	CreateTime       int64                    `json:"createTime"`
+	SubOrders        []TradeSubOrder          `json:"subOrders,omitempty"`
 }
 
 type TradeRefundInfo struct {
@@ -157,6 +158,7 @@ type TradeDetail struct {
 type TradePaymentInfoDetail struct {
 	CaptureRequestID string                        `json:"captureRequestId"`
 	OrderID          string                        `json:"orderId"`
+	OrderType        payment.PaymentOrderType      `json:"orderType"`
 	CreateTime       int64                         `json:"createTime"`
 	PrincipalAmount  atomefin.Amount               `json:"principalAmount"`
 	InterestAmount   atomefin.Amount               `json:"interestAmount,omitempty"`

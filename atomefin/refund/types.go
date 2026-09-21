@@ -2,7 +2,17 @@ package refund
 
 import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/payment"
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/repayment"
+)
+
+// OrderType is the Grab order business line accepted by /refund.
+type OrderType = payment.PaymentOrderType
+
+const (
+	OrderTypeTransport = payment.OrderTypeTransport
+	OrderTypeGrabFood  = payment.OrderTypeGrabFood
+	OrderTypeGrabMart  = payment.OrderTypeGrabMart
 )
 
 // RefundParam is the POST /refund request body. v0.2.
@@ -48,7 +58,7 @@ type RefundParam struct {
 // RefundExtendInfo). OrderType is required.
 type RefundExtendInfo struct {
 	// OrderType is the Grab order business line. Required per spec.
-	OrderType string `json:"orderType"`
+	OrderType OrderType `json:"orderType"`
 }
 
 // SubOrderRefundRequest is one line in RefundParam.SubOrders.
