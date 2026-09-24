@@ -117,6 +117,7 @@ type PaymentPlanDataExtendInfo struct {
 	// back on POST /auth via the `sessionid` header (max 64 chars,
 	// valid 2 hours).
 	SessionID                string                    `json:"sessionId,omitempty"`
+	RecommendedTenor         int                       `json:"recommendedTenor,omitempty"`
 	SumOrderInstallmentPlans *SumOrderInstallmentPlans `json:"sumOrderInstallmentPlans,omitempty"`
 }
 

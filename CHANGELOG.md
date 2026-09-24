@@ -7,6 +7,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.8] — 2026-09-24
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-09-24-efd93c9c.yaml`.
+
+### Added
+
+- **`payment.PaymentPlanDataExtendInfo.RecommendedTenor`** —
+  recommended installment tenor returned on both `mode=ask` and
+  `mode=get`.
+
 ## [0.8.7] — 2026-09-21
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

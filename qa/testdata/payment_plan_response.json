@@ -14,9 +14,39 @@
             "orderInterestAmount": 45000,
             "orderDiscountAmount": 0,
             "installmentDetails": [
-              {"subOrderId": "so-1", "totalTenor": 3, "currentTenor": 1, "repayAmount": 515000, "principalAmount": 500000, "interestAmount": 15000, "billId": "202606", "billDate": "2026-06-15", "dueDate": "2026-06-15"},
-              {"subOrderId": "so-1", "totalTenor": 3, "currentTenor": 2, "repayAmount": 515000, "principalAmount": 500000, "interestAmount": 15000, "billId": "202607", "billDate": "2026-07-15", "dueDate": "2026-07-15"},
-              {"subOrderId": "so-1", "totalTenor": 3, "currentTenor": 3, "repayAmount": 515000, "principalAmount": 500000, "interestAmount": 15000, "billId": "202608", "billDate": "2026-08-15", "dueDate": "2026-08-15"}
+              {
+                "subOrderId": "so-1",
+                "totalTenor": 3,
+                "currentTenor": 1,
+                "repayAmount": 515000,
+                "principalAmount": 500000,
+                "interestAmount": 15000,
+                "billId": "202606",
+                "billDate": "2026-06-15",
+                "dueDate": "2026-06-15"
+              },
+              {
+                "subOrderId": "so-1",
+                "totalTenor": 3,
+                "currentTenor": 2,
+                "repayAmount": 515000,
+                "principalAmount": 500000,
+                "interestAmount": 15000,
+                "billId": "202607",
+                "billDate": "2026-07-15",
+                "dueDate": "2026-07-15"
+              },
+              {
+                "subOrderId": "so-1",
+                "totalTenor": 3,
+                "currentTenor": 3,
+                "repayAmount": 515000,
+                "principalAmount": 500000,
+                "interestAmount": 15000,
+                "billId": "202608",
+                "billDate": "2026-08-15",
+                "dueDate": "2026-08-15"
+              }
             ]
           },
           {
@@ -25,13 +55,25 @@
             "orderInterestAmount": 90000,
             "orderDiscountAmount": 0,
             "installmentDetails": [
-              {"subOrderId": "so-1", "totalTenor": 6, "currentTenor": 1, "repayAmount": 265000, "principalAmount": 250000, "interestAmount": 15000, "billId": "202606", "billDate": "2026-06-15", "dueDate": "2026-06-15"}
+              {
+                "subOrderId": "so-1",
+                "totalTenor": 6,
+                "currentTenor": 1,
+                "repayAmount": 265000,
+                "principalAmount": 250000,
+                "interestAmount": 15000,
+                "billId": "202606",
+                "billDate": "2026-06-15",
+                "dueDate": "2026-06-15"
+              }
             ]
           }
         ]
       }
     ],
     "extendInfo": {
+      "sessionId": "SES-20260924001",
+      "recommendedTenor": 3,
       "sumOrderInstallmentPlans": {
         "sumOrderAmount": 1500000,
         "installmentPlans": [
@@ -41,7 +83,16 @@
             "sumOrderInterestAmount": 45000,
             "sumOrderDiscountAmount": 0,
             "installmentDetails": [
-              {"totalTenor": 3, "currentTenor": 1, "repayAmount": 515000, "principalAmount": 500000, "interestAmount": 15000, "billId": "202606", "billDate": "2026-06-15", "dueDate": "2026-06-15"}
+              {
+                "totalTenor": 3,
+                "currentTenor": 1,
+                "repayAmount": 515000,
+                "principalAmount": 500000,
+                "interestAmount": 15000,
+                "billId": "202606",
+                "billDate": "2026-06-15",
+                "dueDate": "2026-06-15"
+              }
             ]
           }
         ]
