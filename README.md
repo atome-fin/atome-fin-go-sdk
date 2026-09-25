@@ -99,6 +99,11 @@ For the async `PROCESSING` path on `/auth` and friends, use
 `RequestID` until terminal or `PollOptions.MaxWait` / parent
 `ctx` deadline expires.
 
+If an HTTP 200 envelope is a synchronous business rejection
+(non-`SUCCESS` `code` with `data: null`), polling stops immediately and
+returns `*atomefin.BusinessRejectionError` — for example,
+`USER_CREDIT_LIMIT_INSUFFICIENT` before an authorization is created.
+
 Two runnable examples ship in [`examples/`](examples/):
 
 - [`examples/auth_capture/`](examples/auth_capture/) — outbound

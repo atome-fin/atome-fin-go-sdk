@@ -7,6 +7,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.9] — 2026-09-25
+
+### Added
+
+- **`atomefin.BusinessRejectionError`** — identifies HTTP 200 envelopes
+  that synchronously reject a request with a non-`SUCCESS` business code
+  and no `data` object, such as `USER_CREDIT_LIMIT_INSUFFICIENT`.
+
+### Changed
+
+- **`payment.AuthPollUntilTerminal`** and
+  **`payment.CapturePollUntilTerminal`** stop immediately on synchronous
+  business rejections instead of treating them as async `PROCESSING`
+  outcomes and polling until `MaxWait`.
+
 ## [0.8.8] — 2026-09-24
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

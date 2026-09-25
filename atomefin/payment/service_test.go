@@ -320,6 +320,44 @@ func TestService_AuthPollUntilTerminal_RespectsMaxWait(t *testing.T) {
 	}
 }
 
+func TestService_AuthPollUntilTerminal_StopsOnSynchronousRejection(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"USER_CREDIT_LIMIT_INSUFFICIENT","message":"User's credit account limit is insufficient","data":null}`))
+	}))
+	defer srv.Close()
+
+	svc := payment.New(mustClient(t, srv))
+	resp, err := svc.AuthPollUntilTerminal(context.Background(), &payment.AuthRequest{
+		RequestID:            "r-1",
+		ExternalReferenceUID: "u-1",
+		TotalAmount:          1,
+		PeriodType:           1,
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
+		Sessionid:            "s",
+	}, payment.PollOptions{MaxWait: time.Second})
+
+	if resp != nil {
+		t.Fatalf("resp = %+v; want nil", resp)
+	}
+	var rejection *atomefin.BusinessRejectionError
+	if !errors.As(err, &rejection) {
+		t.Fatalf("err = %v; want *BusinessRejectionError", err)
+	}
+	if rejection.Code != atomefin.CodeUserCreditLimitInsufficient {
+		t.Errorf("Code = %q; want %q", rejection.Code, atomefin.CodeUserCreditLimitInsufficient)
+	}
+	if got := atomic.LoadInt32(&hits); got != 1 {
+		t.Errorf("hits = %d; want 1", got)
+	}
+	if rejection.Temporary() {
+		t.Error("synchronous business rejection should not be temporary")
+	}
+}
+
 // ---------- CapturePollUntilTerminal mirrors Auth's poll wrapper ----------
 
 func TestService_CapturePollUntilTerminal_PollsUntilSuccess(t *testing.T) {

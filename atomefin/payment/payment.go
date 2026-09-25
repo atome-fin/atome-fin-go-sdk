@@ -178,6 +178,16 @@ func PollUntilTerminal[T any](
 	getStatus func(*T) atomefin.Status,
 	once func(context.Context) (*T, error),
 ) (*T, error) {
+	return pollUntilTerminal(ctx, opts, getStatus, nil, once)
+}
+
+func pollUntilTerminal[T any](
+	ctx context.Context,
+	opts PollOptions,
+	getStatus func(*T) atomefin.Status,
+	getRejection func(*T) (atomefin.Code, string, bool),
+	once func(context.Context) (*T, error),
+) (*T, error) {
 	o := opts.withDefaults()
 
 	deadline := time.Now().Add(o.MaxWait)
@@ -190,6 +200,11 @@ func PollUntilTerminal[T any](
 		}
 		if resp != nil && getStatus(resp).IsTerminal() {
 			return resp, nil
+		}
+		if getRejection != nil {
+			if code, message, rejected := getRejection(resp); rejected {
+				return nil, &atomefin.BusinessRejectionError{Code: code, Message: message}
+			}
 		}
 
 		// Compute remaining budget against both the parent ctx and the

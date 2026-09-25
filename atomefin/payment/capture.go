@@ -122,12 +122,18 @@ func (s *Service) CapturePollUntilTerminal(ctx context.Context, req *CaptureRequ
 	if req.RequestID == "" {
 		req.RequestID = s.c.NewRequestID()
 	}
-	return PollUntilTerminal(ctx, opts,
+	return pollUntilTerminal(ctx, opts,
 		func(r *CaptureResponse) atomefin.Status {
 			if r == nil || r.Data == nil {
 				return atomefin.Status("")
 			}
 			return r.Data.Status
+		},
+		func(r *CaptureResponse) (atomefin.Code, string, bool) {
+			if r != nil && r.Data == nil && !r.Code.IsSuccess() {
+				return r.Code, r.Message, true
+			}
+			return "", "", false
 		},
 		func(c context.Context) (*CaptureResponse, error) {
 			return s.Capture(c, req)

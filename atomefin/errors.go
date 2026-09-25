@@ -202,6 +202,29 @@ func (e *ValidationError) Error() string {
 // retryable.
 func (e *ValidationError) Temporary() bool { return false }
 
+// BusinessRejectionError is returned when an HTTP 200 envelope carries a
+// non-SUCCESS business code and no `data` object. This is a synchronous
+// rejection — for example, /auth refusing a request before creating an
+// authorization — and must not be treated as an async PROCESSING outcome.
+type BusinessRejectionError struct {
+	Code    Code
+	Message string
+}
+
+func (e *BusinessRejectionError) Error() string {
+	if e == nil {
+		return "atomefin: business rejection"
+	}
+	if e.Message == "" {
+		return fmt.Sprintf("atomefin: business rejected with code %s", e.Code)
+	}
+	return fmt.Sprintf("atomefin: business rejected with code %s: %s", e.Code, e.Message)
+}
+
+// Temporary is always false: the request was synchronously rejected and the
+// same business outcome should be expected on an idempotent retry.
+func (e *BusinessRejectionError) Temporary() bool { return false }
+
 // errorEnvelope is the union of fields extracted from any of the spec's
 // error envelopes. Decoding is lenient — fields the body doesn't carry stay
 // at their zero value.
@@ -237,4 +260,5 @@ var (
 	_ Error = (*TransportError)(nil)
 	_ Error = (*SignatureError)(nil)
 	_ Error = (*ValidationError)(nil)
+	_ Error = (*BusinessRejectionError)(nil)
 )
