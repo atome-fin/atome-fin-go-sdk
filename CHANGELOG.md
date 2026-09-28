@@ -7,6 +7,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.10] — 2026-09-28
+
+### Fixed
+
+- **`atomefin.WithTimeout`** now applies its deadline independently to
+  every HTTP retry attempt. It previously created one context around the
+  entire retry loop, so a timeout or other retriable failure on the first
+  attempt could leave no budget for later attempts and surface as
+  `transport sleep: context deadline exceeded`.
+- **`atomefin.WithRetry`** fills omitted status and transport-error
+  callbacks with their defaults, avoiding a panic when configuring only
+  `MaxAttempts` or backoff values. Explicit callbacks remain unchanged.
+- **Polling helpers** now enforce `PollOptions.MaxWait` during in-flight
+  requests and backoff sleeps, stop before another call after expiry, and
+  return an error wrapping `context.DeadlineExceeded` on polling timeout.
+- **Response-body read retries** now cover transient failures such as
+  unexpected EOF and per-attempt timeouts. Response size limits, caller
+  cancellation, and non-retryable HTTP statuses still stop immediately.
+  Each attempt's timeout context is released before the next backoff.
+- **`atomefin.WithKeyID`** now works regardless of its position relative
+  to `WithPrivateKeyPEM` or `WithSigner`. The last explicit value wins,
+  including an empty value, without mutating a caller-owned signer.
+- **SDK version metadata** now reports `0.8.10` in `Version()` and the
+  default User-Agent instead of the stale `0.8.2` value.
+
 ## [0.8.9] — 2026-09-25
 
 ### Added
@@ -2211,7 +2236,8 @@ Auth-Capture-Void spec end-to-end.
 | `qa/marshal` | 76.4% |
 | `atomefin/payment` | 73.8% |
 
-[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.10...HEAD
+[0.8.10]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.9...v0.8.10
 [0.8.2]: https://github.com/atome-fin/atome-fin-go-sdk/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.8.1
 [0.8.0]: https://github.com/atome-fin/atome-fin-go-sdk/releases/tag/v0.8.0

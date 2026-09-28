@@ -308,12 +308,13 @@ func TestService_AuthPollUntilTerminal_RespectsMaxWait(t *testing.T) {
 		TotalAmount:          1,
 		PeriodType:           1,
 		SubOrders:            []payment.SubOrder{specSampleSubOrder(1)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
 		Sessionid:            "s",
 	}, payment.PollOptions{MaxWait: 100 * time.Millisecond, InitialDelay: 1 * time.Millisecond, MaxDelay: 5 * time.Millisecond, Multiplier: 1.1})
 	dur := time.Since(start)
 
-	if err == nil {
-		t.Fatal("expected MaxWait to expire")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected MaxWait to expire, got %v", err)
 	}
 	if dur > 1*time.Second {
 		t.Errorf("MaxWait not honoured; ran for %v", dur)

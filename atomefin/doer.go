@@ -278,89 +278,19 @@ func (c *Client) signAndDispatch(
 	}
 	authValue := c.authScheme(sig, c.signer.KeyID())
 
-	reqCtx := ctx
-	if c.timeout > 0 {
-		var cancel context.CancelFunc
-		reqCtx, cancel = context.WithTimeout(ctx, c.timeout)
-		defer cancel()
-	}
-
 	var lastErr error
 	for attempt := 1; attempt <= c.retry.MaxAttempts; attempt++ {
-		c.safeObsRequest(reqCtx, op, attempt)
-
-		req, err := buildReq(reqCtx)
-		if err != nil {
-			return nil, &TransportError{Op: "build", URL: urlStr, Err: err}
+		resp, retryable, attemptErr := c.dispatchAttempt(ctx, op, urlStr, authValue, attempt, cfg, buildReq)
+		if attemptErr == nil {
+			return resp, nil
 		}
-		c.populateHeaders(req.Header, authValue)
-		// Partner-supplied per-request headers are applied AFTER the
-		// SDK-controlled ones, but the SDK rejects collisions on
-		// reserved headers so callers cannot override Authorization /
-		// Content-Type / User-Agent / Accept.
-		for k, vs := range cfg.extraHeaders {
-			if isReservedHeader(k) {
-				continue
-			}
-			req.Header[http.CanonicalHeaderKey(k)] = append([]string(nil), vs...)
+		lastErr = attemptErr
+		if !retryable || attempt == c.retry.MaxAttempts {
+			return nil, attemptErr
 		}
-
-		start := c.clock()
-		resp, err := c.httpClient.Do(req)
-		dur := c.clock().Sub(start)
-
-		if err != nil {
-			retryable := c.retry.RetryOnTransportError(err) && IsRetryableTransport(err)
-			te := &TransportError{Op: "do", URL: urlStr, Err: err, Retry: retryable}
-			c.safeObsRetry(reqCtx, op, attempt, te)
-			c.logger.Warn("atomefin: request failed",
-				"op", op, "attempt", attempt, "err", err, "dur", dur)
-			lastErr = te
-			if !retryable || attempt == c.retry.MaxAttempts {
-				return nil, te
-			}
-			if sleepErr := c.retry.Sleep(reqCtx, attempt); sleepErr != nil {
-				return nil, &TransportError{Op: "sleep", URL: urlStr, Err: sleepErr}
-			}
-			continue
+		if sleepErr := c.retry.Sleep(ctx, attempt); sleepErr != nil {
+			return nil, &TransportError{Op: "sleep", URL: urlStr, Err: sleepErr}
 		}
-
-		respBody, readErr := readAndClose(resp.Body, c.maxRespBytes)
-		c.safeObsResponse(reqCtx, op, resp.StatusCode, dur)
-		if readErr != nil {
-			te := &TransportError{Op: "read", URL: urlStr, Err: readErr, Retry: false}
-			c.logger.Error("atomefin: response body read failed",
-				"op", op, "attempt", attempt, "err", readErr)
-			return nil, te
-		}
-
-		if c.debugBodyLog {
-			c.logger.Debug("atomefin: response",
-				"op", op, "attempt", attempt, "status", resp.StatusCode,
-				"body_size", len(respBody))
-		}
-
-		if c.retry.RetryOnStatus(resp.StatusCode) && attempt < c.retry.MaxAttempts {
-			apiErr := decodeAPIError(resp.StatusCode, op, respBody)
-			c.safeObsRetry(reqCtx, op, attempt, apiErr)
-			c.logger.Warn("atomefin: retrying after non-2xx",
-				"op", op, "attempt", attempt, "status", resp.StatusCode, "code", string(apiErr.Code))
-			lastErr = apiErr
-			if sleepErr := c.retry.Sleep(reqCtx, attempt); sleepErr != nil {
-				return nil, &TransportError{Op: "sleep", URL: urlStr, Err: sleepErr}
-			}
-			continue
-		}
-
-		if resp.StatusCode >= 400 {
-			return nil, decodeAPIError(resp.StatusCode, op, respBody)
-		}
-
-		return &RawResponse{
-			StatusCode: resp.StatusCode,
-			Header:     cloneHeader(resp.Header),
-			Body:       respBody,
-		}, nil
 	}
 
 	// Defensive: loop exited without returning. Shouldn't happen because
@@ -370,6 +300,87 @@ func (c *Client) signAndDispatch(
 		lastErr = &TransportError{Op: "do", URL: urlStr, Err: errors.New("retry loop exhausted with no error captured")}
 	}
 	return nil, lastErr
+}
+
+// dispatchAttempt scopes the timeout to one HTTP attempt, including body
+// reads and observer hooks. Its deferred cancellation runs before backoff.
+func (c *Client) dispatchAttempt(
+	ctx context.Context,
+	op, urlStr, authValue string,
+	attempt int,
+	cfg doSignedConfig,
+	buildReq func(context.Context) (*http.Request, error),
+) (*RawResponse, bool, error) {
+	reqCtx := ctx
+	if c.timeout > 0 {
+		var cancel context.CancelFunc
+		reqCtx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+	c.safeObsRequest(reqCtx, op, attempt)
+
+	req, err := buildReq(reqCtx)
+	if err != nil {
+		return nil, false, &TransportError{Op: "build", URL: urlStr, Err: err}
+	}
+	c.populateHeaders(req.Header, authValue)
+	for k, vs := range cfg.extraHeaders {
+		if isReservedHeader(k) {
+			continue
+		}
+		req.Header[http.CanonicalHeaderKey(k)] = append([]string(nil), vs...)
+	}
+
+	start := c.clock()
+	resp, err := c.httpClient.Do(req)
+	dur := c.clock().Sub(start)
+	if err != nil {
+		retryable := ctx.Err() == nil && c.retry.RetryOnTransportError(err) && IsRetryableTransport(err)
+		te := &TransportError{Op: "do", URL: urlStr, Err: err, Retry: retryable}
+		c.safeObsRetry(reqCtx, op, attempt, te)
+		c.logger.Warn("atomefin: request failed",
+			"op", op, "attempt", attempt, "err", err, "dur", dur)
+		return nil, retryable, te
+	}
+
+	respBody, readErr := readAndClose(resp.Body, c.maxRespBytes)
+	c.safeObsResponse(reqCtx, op, resp.StatusCode, dur)
+	if readErr != nil {
+		// Size violations and known non-retryable HTTP statuses will not
+		// recover by sending the same request again. Transient read errors
+		// otherwise follow the transport policy, including per-attempt timeouts.
+		retryable := ctx.Err() == nil && !errors.Is(readErr, errResponseTooLarge) &&
+			(resp.StatusCode < 400 || c.retry.RetryOnStatus(resp.StatusCode)) &&
+			c.retry.RetryOnTransportError(readErr) && IsRetryableTransport(readErr)
+		te := &TransportError{Op: "read", URL: urlStr, Err: readErr, Retry: retryable}
+		c.logger.Error("atomefin: response body read failed",
+			"op", op, "attempt", attempt, "err", readErr)
+		if retryable && attempt < c.retry.MaxAttempts {
+			c.safeObsRetry(reqCtx, op, attempt, te)
+		}
+		return nil, retryable, te
+	}
+
+	if c.debugBodyLog {
+		c.logger.Debug("atomefin: response",
+			"op", op, "attempt", attempt, "status", resp.StatusCode,
+			"body_size", len(respBody))
+	}
+	if c.retry.RetryOnStatus(resp.StatusCode) && attempt < c.retry.MaxAttempts {
+		apiErr := decodeAPIError(resp.StatusCode, op, respBody)
+		c.safeObsRetry(reqCtx, op, attempt, apiErr)
+		c.logger.Warn("atomefin: retrying after non-2xx",
+			"op", op, "attempt", attempt, "status", resp.StatusCode, "code", string(apiErr.Code))
+		return nil, true, apiErr
+	}
+	if resp.StatusCode >= 400 {
+		return nil, false, decodeAPIError(resp.StatusCode, op, respBody)
+	}
+	return &RawResponse{
+		StatusCode: resp.StatusCode,
+		Header:     cloneHeader(resp.Header),
+		Body:       respBody,
+	}, false, nil
 }
 
 // isReservedHeader reports whether the partner is forbidden from
@@ -398,6 +409,8 @@ func (c *Client) populateHeaders(h http.Header, authValue string) {
 	h.Set("User-Agent", c.userAgent)
 }
 
+var errResponseTooLarge = errors.New("response body exceeds max size; consider WithMaxResponseBytes")
+
 // readAndClose reads up to max+1 bytes from r (so we can detect overruns)
 // and always closes r. Returns the body bytes (truncated to max) and an
 // error if the body exceeded max.
@@ -411,7 +424,7 @@ func readAndClose(r io.ReadCloser, max int64) ([]byte, error) {
 		return nil, err
 	}
 	if int64(len(buf)) > max {
-		return buf[:max], errors.New("response body exceeds max size; consider WithMaxResponseBytes")
+		return buf[:max], errResponseTooLarge
 	}
 	return buf, nil
 }

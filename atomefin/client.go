@@ -105,6 +105,10 @@ func finalizeConfig(cfg *config) error {
 	if cfg.signer == nil {
 		return errors.New("atomefin: New: a Signer is required (use WithSigner or WithPrivateKeyPEM)")
 	}
+	if cfg.keyIDSet {
+		// Apply after all options, without modifying a caller-owned signer.
+		cfg.signer = signerWithKeyID{Signer: cfg.signer, keyID: cfg.keyID}
+	}
 	// PartnerID is no longer required — Q7 RESOLVED. Partner identity
 	// is the dedicated API URL + cert exchange, not a header.
 	if cfg.baseURL == "" {
@@ -125,11 +129,24 @@ func finalizeConfig(cfg *config) error {
 		// Defensive: should be set by defaultConfig.
 		cfg.retry = transport.DefaultRetryPolicy()
 	}
+	if cfg.retry.RetryOnStatus == nil {
+		cfg.retry.RetryOnStatus = transport.DefaultRetryOnStatus
+	}
+	if cfg.retry.RetryOnTransportError == nil {
+		cfg.retry.RetryOnTransportError = transport.DefaultRetryOnTransportError
+	}
 	if err := cfg.retry.Validate(); err != nil {
 		return err
 	}
 	return nil
 }
+
+type signerWithKeyID struct {
+	sign.Signer
+	keyID string
+}
+
+func (s signerWithKeyID) KeyID() string { return s.keyID }
 
 // optionIndexLabel produces a human-readable index ("option 0", "option 1")
 // without dragging fmt into a tiny helper.

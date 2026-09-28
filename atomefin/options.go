@@ -62,6 +62,7 @@ type config struct {
 	signer       sign.Signer
 	verifier     sign.Verifier // for atome-side signature checks (callbacks, optional sync)
 	keyID        string
+	keyIDSet     bool
 	authScheme   AuthorizationScheme
 	partnerID    string
 	merchantID   string
@@ -175,9 +176,10 @@ func WithEnvironment(env Environment) Option {
 	}
 }
 
-// WithTimeout caps how long a single HTTP request (including retries' own
-// per-attempt deadline) is allowed to take. Composes with the parent
-// context: whichever expires first wins.
+// WithTimeout caps how long a single HTTP attempt is allowed to take,
+// including response-body reads and the observer callback for that attempt.
+// It applies independently to every retry attempt and composes with the
+// parent context: whichever expires first wins.
 func WithTimeout(d time.Duration) Option {
 	return func(c *config) error {
 		if d <= 0 {
@@ -190,6 +192,7 @@ func WithTimeout(d time.Duration) Option {
 
 // WithRetry replaces the default RetryPolicy. The policy is validated; an
 // invalid one (negative MaxAttempts, etc.) fails Client construction.
+// Nil RetryOnStatus and RetryOnTransportError callbacks use their defaults.
 func WithRetry(p transport.RetryPolicy) Option {
 	return func(c *config) error {
 		if err := p.Validate(); err != nil {
@@ -240,11 +243,7 @@ func WithPrivateKeyPEM(pem []byte, password ...[]byte) Option {
 		if err != nil {
 			return fmt.Errorf("atomefin: WithPrivateKeyPEM: %w", err)
 		}
-		var opts []sign.SignerOption
-		if c.keyID != "" {
-			opts = append(opts, sign.WithKeyID(c.keyID))
-		}
-		s, err := sign.NewRSA2Signer(key, opts...)
+		s, err := sign.NewRSA2Signer(key)
 		if err != nil {
 			return fmt.Errorf("atomefin: WithPrivateKeyPEM: %w", err)
 		}
@@ -421,15 +420,14 @@ func WithAtomeCerts(signing, encrypting AtomeCertSource) Option {
 	}
 }
 
-// WithKeyID sets the keyId returned by Signer.KeyID(). Sent through the
-// AuthorizationScheme function so partners can swap the wire format
-// without recompiling. May be set before or after WithSigner: setting it
-// after a signer is configured rebuilds the signer with the keyID applied
-// where supported. For the default RSA2 signer constructed via
-// WithPrivateKeyPEM the keyID is wired during PEM loading.
+// WithKeyID overrides the keyId passed to AuthorizationScheme. It works
+// before or after WithSigner / WithPrivateKeyPEM, without mutating a
+// caller-owned Signer. The last WithKeyID wins, including an empty id.
+// Without this option, the Signer's own KeyID is used.
 func WithKeyID(id string) Option {
 	return func(c *config) error {
 		c.keyID = id
+		c.keyIDSet = true
 		return nil
 	}
 }

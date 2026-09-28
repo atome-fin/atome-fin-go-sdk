@@ -162,6 +162,8 @@ func (p PollOptions) withDefaults() PollOptions {
 // bytes — and therefore the same requestId, which is why we use the
 // caller's pre-built request) until the response Status is terminal
 // (SUCCESS / FAILED), the parent ctx expires, or MaxWait elapses.
+// once receives a context bounded by MaxWait and must honor its cancellation.
+// MaxWait expiry returns a TransportError wrapping context.DeadlineExceeded.
 //
 // Generic over T to share one implementation across Auth, Capture,
 // and Void responses. Use the typed wrappers AuthPollUntilTerminal /
@@ -190,14 +192,36 @@ func pollUntilTerminal[T any](
 ) (*T, error) {
 	o := opts.withDefaults()
 
-	deadline := time.Now().Add(o.MaxWait)
+	pollCtx, cancel := context.WithTimeout(ctx, o.MaxWait)
+	defer cancel()
 	delay := o.InitialDelay
+	var lastResp *T
+	pollError := func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return &atomefin.TransportError{
+			Op:  "poll",
+			URL: "payment.PollUntilTerminal",
+			Err: fmt.Errorf("max wait %v exceeded: %w", o.MaxWait, pollCtx.Err()),
+		}
+	}
 
 	for {
-		resp, err := once(ctx)
+		if pollCtx.Err() != nil {
+			return lastResp, pollError()
+		}
+		resp, err := once(pollCtx)
+		if pollCtx.Err() != nil {
+			if resp != nil {
+				lastResp = resp
+			}
+			return lastResp, pollError()
+		}
 		if err != nil {
 			return nil, err
 		}
+		lastResp = resp
 		if resp != nil && getStatus(resp).IsTerminal() {
 			return resp, nil
 		}
@@ -207,19 +231,9 @@ func pollUntilTerminal[T any](
 			}
 		}
 
-		// Compute remaining budget against both the parent ctx and the
-		// PollOptions ceiling.
-		now := time.Now()
-		if !now.Before(deadline) {
-			return resp, &atomefin.TransportError{
-				Op:  "poll",
-				URL: "payment.PollUntilTerminal",
-				Err: fmt.Errorf("max wait %v exceeded without terminal status", o.MaxWait),
-			}
-		}
-		// Sleep, but never longer than ctx allows.
-		if err := sleepWithCtx(ctx, delay); err != nil {
-			return resp, err
+		// The same deadline bounds both in-flight calls and backoff sleeps.
+		if err := sleepWithCtx(pollCtx, delay); err != nil {
+			return resp, pollError()
 		}
 		// Exponential backoff with cap.
 		next := time.Duration(float64(delay) * o.Multiplier)

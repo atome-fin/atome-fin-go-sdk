@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rsa"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -319,6 +321,48 @@ func TestWithTimeoutShortensRequest(t *testing.T) {
 	}
 	if dur > 500*time.Millisecond {
 		t.Errorf("request took %v; WithTimeout(50ms) should have fired", dur)
+	}
+}
+
+// Regression: retry attempts must not share one WithTimeout deadline.
+// Previously, the timeout context was created once around the entire retry
+// loop, so a failed first attempt consumed budget that later attempts needed.
+func TestWithTimeoutAppliesPerAttempt(t *testing.T) {
+	var requests int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&requests, 1) == 1 {
+			// Exceed the client's 50ms budget, then close without responding.
+			time.Sleep(100 * time.Millisecond)
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				http.Error(w, "hijack failed", http.StatusInternalServerError)
+				return
+			}
+			_ = conn.Close()
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok"}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	key := mustGenKey(t)
+	c, err := New(
+		WithPrivateKeyPEM(mustPEM(t, key)),
+		WithBaseURL(srv.URL),
+		WithPartnerID("p"),
+		WithTimeout(50*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.DoSigned(context.Background(), "POST", "/auth", []byte(`{}`))
+	if got := atomic.LoadInt32(&requests); got != 2 {
+		t.Errorf("requests = %d; want 2", got)
+	}
+	if err != nil {
+		t.Fatalf("err = %v; want nil after first attempt timed out and second succeeded", err)
 	}
 }
 

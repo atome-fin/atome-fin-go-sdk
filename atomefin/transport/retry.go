@@ -35,12 +35,14 @@ type RetryPolicy struct {
 	// RetryOnStatus reports whether an HTTP status code should be retried.
 	// Default retries 500/502/503/504. Override to add 408 / 429 etc. once
 	// rate-limit semantics are documented (DESIGN.md §13/Q9).
+	// A nil callback uses the default when passed to atomefin.WithRetry.
 	RetryOnStatus func(status int) bool
 
 	// RetryOnTransportError reports whether a transport-level error
 	// (network, TLS, body-read) should be retried. Default uses
 	// IsRetryableTransport from the atomefin package; transport defines
 	// its own minimal version below to keep the dependency one-way.
+	// A nil callback uses the default when passed to atomefin.WithRetry.
 	RetryOnTransportError func(err error) bool
 }
 
