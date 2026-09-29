@@ -7,6 +7,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.11] — 2026-09-29
+
+### Added
+
+- **Polling logs** — `AuthPollUntilTerminal`, `CapturePollUntilTerminal`,
+  `RefundPollUntilTerminal` and `RepaymentPollUntilTerminal` now log
+  through the client's `WithLogger` logger. Each non-terminal round logs
+  `atomefin: poll round` at Debug (`op`, `request_id`, `round`, `code`,
+  `message`, `status`, `next_delay`, `elapsed`); the loop exit logs once
+  with `reason`: `terminal` (Info), or `business_rejection`,
+  `max_wait_exceeded`, `parent_context_done`, `request_error` (Warn).
+- **`payment.PollTrace`**, **`payment.PollUntilTerminalOrRejected`** and
+  **`payment.IsSyncRejection`** — partner-driven polling loops get the
+  same log lines, and stop on synchronous business rejections the same
+  way the built-in helpers do (pass a nil rejection probe to only log).
+- **`docs/POLLING.md`** — polling configuration, log fields, and a
+  troubleshooting table keyed by the exit `reason`.
+
+### Fixed
+
+- **`refund.RefundPollUntilTerminal`** and
+  **`repayment.RepaymentPollUntilTerminal`** stop immediately with
+  `*atomefin.BusinessRejectionError` on synchronous rejections such as
+  `REFUNDABLE_AMOUNT_INSUFFICIENT`, `NON_REFUNDABLE_STATUS` or
+  `ACCOUNT_CLOSED`. They previously treated the missing `data.status` as
+  in-progress and re-submitted until `PollOptions.MaxWait`. Callers that
+  treated a polling timeout as "still processing" should add a
+  `BusinessRejectionError` branch.
+- **Synchronous rejection detection** (all four poll helpers) now also
+  covers envelopes whose `data` is absent or an empty object `{}`, not
+  only `data: null`.
+- **SDK version metadata** reports `0.8.11`.
+
 ## [0.8.10] — 2026-09-28
 
 ### Fixed

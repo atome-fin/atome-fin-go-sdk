@@ -100,9 +100,14 @@ For the async `PROCESSING` path on `/auth` and friends, use
 `ctx` deadline expires.
 
 If an HTTP 200 envelope is a synchronous business rejection
-(non-`SUCCESS` `code` with `data: null`), polling stops immediately and
-returns `*atomefin.BusinessRejectionError` — for example,
-`USER_CREDIT_LIMIT_INSUFFICIENT` before an authorization is created.
+(non-`SUCCESS` `code` with no `data.status` — `data` null, absent, or
+`{}`), polling stops immediately and returns
+`*atomefin.BusinessRejectionError` — for example,
+`USER_CREDIT_LIMIT_INSUFFICIENT` before an authorization is created, or
+`REFUNDABLE_AMOUNT_INSUFFICIENT` on `/refund`. This applies to the Auth,
+Capture, Refund and Repayment poll helpers. See
+[docs/POLLING.md](docs/POLLING.md) for configuration, polling logs, and
+troubleshooting.
 
 Two runnable examples ship in [`examples/`](examples/):
 

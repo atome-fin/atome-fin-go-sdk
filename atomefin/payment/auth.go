@@ -139,15 +139,19 @@ func (s *Service) AuthPollUntilTerminal(ctx context.Context, req *AuthRequest, o
 	if req.RequestID == "" {
 		req.RequestID = s.c.NewRequestID()
 	}
-	return pollUntilTerminal(ctx, opts,
-		func(r *AuthResponse) atomefin.Status {
-			if r == nil || r.Data == nil {
-				return atomefin.Status("")
-			}
-			return r.Data.Status
-		},
+	trace := PollTrace[AuthResponse]{
+		Logger: s.c.Logger(), Op: "/auth", RequestID: req.RequestID,
+		Code: func(r *AuthResponse) (atomefin.Code, string) { return r.Code, r.Message },
+	}
+	status := func(r *AuthResponse) atomefin.Status {
+		if r == nil || r.Data == nil {
+			return atomefin.Status("")
+		}
+		return r.Data.Status
+	}
+	return pollUntilTerminal(ctx, opts, trace, status,
 		func(r *AuthResponse) (atomefin.Code, string, bool) {
-			if r != nil && r.Data == nil && !r.Code.IsSuccess() {
+			if r != nil && IsSyncRejection(r.Code, status(r)) {
 				return r.Code, r.Message, true
 			}
 			return "", "", false

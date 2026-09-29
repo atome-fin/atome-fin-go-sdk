@@ -100,6 +100,106 @@ func TestPollParentCancellation(t *testing.T) {
 	}
 }
 
+type logLine struct {
+	level, msg string
+	kv         map[string]any
+}
+
+type recLogger struct{ lines []logLine }
+
+func (l *recLogger) add(level, msg string, kv []any) {
+	m := map[string]any{}
+	for i := 0; i+1 < len(kv); i += 2 {
+		m[kv[i].(string)] = kv[i+1]
+	}
+	l.lines = append(l.lines, logLine{level, msg, m})
+}
+func (l *recLogger) Debug(msg string, kv ...any) { l.add("debug", msg, kv) }
+func (l *recLogger) Info(msg string, kv ...any)  { l.add("info", msg, kv) }
+func (l *recLogger) Warn(msg string, kv ...any)  { l.add("warn", msg, kv) }
+func (l *recLogger) Error(msg string, kv ...any) { l.add("error", msg, kv) }
+
+func TestPollTracedLogsRoundsAndTerminalExit(t *testing.T) {
+	log := &recLogger{}
+	statuses := []atomefin.Status{atomefin.StatusProcessing, atomefin.StatusProcessing, atomefin.StatusSuccess}
+	calls := 0
+	trace := payment.PollTrace[atomefin.Status]{
+		Logger: log, Op: "/refund", RequestID: "req-1",
+		Code: func(*atomefin.Status) (atomefin.Code, string) { return atomefin.CodeSuccess, "ok" },
+	}
+	_, err := payment.PollUntilTerminalOrRejected(context.Background(), payment.PollOptions{InitialDelay: time.Millisecond},
+		trace, pollStatus, nil, func(context.Context) (*atomefin.Status, error) {
+			s := statuses[calls]
+			calls++
+			return &s, nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(log.lines) != 3 {
+		t.Fatalf("got %d log lines; want 2 rounds + 1 exit: %+v", len(log.lines), log.lines)
+	}
+	for i, l := range log.lines[:2] {
+		if l.level != "debug" || l.msg != "atomefin: poll round" || l.kv["round"] != i+1 ||
+			l.kv["status"] != "PROCESSING" || l.kv["next_delay"] == nil {
+			t.Errorf("round line %d = %+v", i, l)
+		}
+	}
+	exit := log.lines[2]
+	if exit.level != "info" || exit.kv["reason"] != "terminal" || exit.kv["status"] != "SUCCESS" ||
+		exit.kv["round"] != 3 || exit.kv["request_id"] != "req-1" || exit.kv["op"] != "/refund" ||
+		exit.kv["code"] != "SUCCESS" || exit.kv["message"] != "ok" {
+		t.Errorf("exit line = %+v", exit)
+	}
+}
+
+func TestPollTracedLogsStopReasons(t *testing.T) {
+	processing := atomefin.StatusProcessing
+	empty := atomefin.Status("")
+	cases := []struct {
+		name   string
+		ctx    func() (context.Context, context.CancelFunc)
+		opts   payment.PollOptions
+		reject func(*atomefin.Status) (atomefin.Code, string, bool)
+		once   func(context.Context) (*atomefin.Status, error)
+		reason string
+	}{
+		{"max wait", func() (context.Context, context.CancelFunc) { return context.WithCancel(context.Background()) },
+			payment.PollOptions{MaxWait: 20 * time.Millisecond, InitialDelay: time.Second}, nil,
+			func(context.Context) (*atomefin.Status, error) { return &processing, nil }, "max_wait_exceeded"},
+		{"parent deadline", func() (context.Context, context.CancelFunc) {
+			return context.WithTimeout(context.Background(), 20*time.Millisecond)
+		}, payment.PollOptions{MaxWait: time.Second, InitialDelay: time.Second}, nil,
+			func(context.Context) (*atomefin.Status, error) { return &processing, nil }, "parent_context_done"},
+		{"request error", func() (context.Context, context.CancelFunc) { return context.WithCancel(context.Background()) },
+			payment.PollOptions{}, nil,
+			func(context.Context) (*atomefin.Status, error) { return nil, errors.New("boom") }, "request_error"},
+		{"business rejection", func() (context.Context, context.CancelFunc) { return context.WithCancel(context.Background()) },
+			payment.PollOptions{},
+			func(s *atomefin.Status) (atomefin.Code, string, bool) {
+				return atomefin.CodeRiskReject, "rejected", payment.IsSyncRejection(atomefin.CodeRiskReject, *s)
+			},
+			func(context.Context) (*atomefin.Status, error) { return &empty, nil }, "business_rejection"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := tc.ctx()
+			defer cancel()
+			log := &recLogger{}
+			_, err := payment.PollUntilTerminalOrRejected(ctx, tc.opts,
+				payment.PollTrace[atomefin.Status]{Logger: log, Op: "/auth", RequestID: "req-2"}, pollStatus, tc.reject, tc.once)
+			if err == nil {
+				t.Fatal("want error")
+			}
+			exit := log.lines[len(log.lines)-1]
+			if exit.level != "warn" || exit.msg != "atomefin: poll stopped" || exit.kv["reason"] != tc.reason ||
+				exit.kv["request_id"] != "req-2" {
+				t.Errorf("exit line = %+v; want warn reason=%s", exit, tc.reason)
+			}
+		})
+	}
+}
+
 func TestPollParentDeadlineWins(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()

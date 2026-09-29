@@ -310,6 +310,41 @@ func TestService_RepaymentPollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 	}
 }
 
+func TestService_RepaymentPollUntilTerminal_StopsOnSynchronousRejection(t *testing.T) {
+	for name, body := range map[string]string{
+		"data null":   `{"code":"ACCOUNT_CLOSED","message":"closed","data":null}`,
+		"data absent": `{"code":"ACCOUNT_CLOSED","message":"closed"}`,
+		"data empty":  `{"code":"ACCOUNT_CLOSED","message":"closed","data":{}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var hits int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				atomic.AddInt32(&hits, 1)
+				_, _ = w.Write([]byte(body))
+			}))
+			defer srv.Close()
+
+			resp, err := repayment.New(mustClient(t, srv)).RepaymentPollUntilTerminal(context.Background(), &repayment.RepaymentParam{
+				RequestID:            "r-1",
+				ExternalReferenceUID: "u-1",
+				RepaymentAmount:      1,
+				RepaymentApplyTime:   1746662400000,
+			}, payment.PollOptions{MaxWait: 2 * time.Second, InitialDelay: time.Millisecond})
+
+			var rejection *atomefin.BusinessRejectionError
+			if resp != nil || !errors.As(err, &rejection) {
+				t.Fatalf("resp=%+v err=%v; want nil resp and *BusinessRejectionError", resp, err)
+			}
+			if rejection.Code != "ACCOUNT_CLOSED" {
+				t.Errorf("Code = %q; want ACCOUNT_CLOSED", rejection.Code)
+			}
+			if got := atomic.LoadInt32(&hits); got != 1 {
+				t.Errorf("hits = %d; want 1", got)
+			}
+		})
+	}
+}
+
 // ---------- Constructor ----------
 
 func TestNew_NilClient_ReturnsNil(t *testing.T) {

@@ -359,6 +359,45 @@ func TestService_AuthPollUntilTerminal_StopsOnSynchronousRejection(t *testing.T)
 	}
 }
 
+func TestService_CapturePollUntilTerminal_StopsOnEmptyDataRejection(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		_, _ = w.Write([]byte(`{"code":"ACCOUNT_BLOCKED","message":"blocked","data":{}}`))
+	}))
+	defer srv.Close()
+
+	resp, err := payment.New(mustClient(t, srv)).CapturePollUntilTerminal(context.Background(),
+		specSampleCaptureRequest(), payment.PollOptions{MaxWait: 2 * time.Second, InitialDelay: time.Millisecond})
+
+	var rejection *atomefin.BusinessRejectionError
+	if resp != nil || !errors.As(err, &rejection) || rejection.Code != atomefin.CodeAccountBlocked {
+		t.Fatalf("resp=%+v err=%v; want ACCOUNT_BLOCKED *BusinessRejectionError", resp, err)
+	}
+	if got := atomic.LoadInt32(&hits); got != 1 {
+		t.Errorf("hits = %d; want 1", got)
+	}
+}
+
+func TestIsSyncRejection(t *testing.T) {
+	cases := []struct {
+		code   atomefin.Code
+		status atomefin.Status
+		want   bool
+	}{
+		{atomefin.CodeRiskReject, "", true},
+		{atomefin.CodeSuccess, "", false},
+		{atomefin.CodeSuccess, atomefin.StatusProcessing, false},
+		{atomefin.CodeRiskReject, atomefin.StatusProcessing, false},
+		{"", "", false},
+	}
+	for _, tc := range cases {
+		if got := payment.IsSyncRejection(tc.code, tc.status); got != tc.want {
+			t.Errorf("IsSyncRejection(%q, %q) = %v; want %v", tc.code, tc.status, got, tc.want)
+		}
+	}
+}
+
 // ---------- CapturePollUntilTerminal mirrors Auth's poll wrapper ----------
 
 func TestService_CapturePollUntilTerminal_PollsUntilSuccess(t *testing.T) {

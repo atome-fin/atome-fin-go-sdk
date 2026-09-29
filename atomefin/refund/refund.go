@@ -150,9 +150,11 @@ func (s *Service) QueryRefund(ctx context.Context, requestID, externalReferenceU
 
 // RefundPollUntilTerminal calls Refund with the same RequestID until
 // the response Status is terminal (SUCCESS / FAILED), the parent
-// ctx expires, or PollOptions.MaxWait elapses.
+// ctx expires, or PollOptions.MaxWait elapses. A synchronous rejection
+// (non-SUCCESS code such as REFUNDABLE_AMOUNT_INSUFFICIENT with no
+// data.status) stops immediately with *atomefin.BusinessRejectionError.
 //
-// Reuses payment.PollUntilTerminal so the backoff semantics are
+// Reuses payment.PollUntilTerminalOrRejected so the backoff semantics are
 // identical to AuthPollUntilTerminal / CapturePollUntilTerminal —
 // partners using more than one Service get one consistent polling
 // shape.
@@ -166,12 +168,22 @@ func (s *Service) RefundPollUntilTerminal(ctx context.Context, req *RefundParam,
 	if req.RequestID == "" {
 		req.RequestID = s.c.NewRequestID()
 	}
-	return payment.PollUntilTerminal(ctx, opts,
-		func(r *RefundResponse) atomefin.Status {
-			if r == nil || r.Data == nil {
-				return atomefin.Status("")
+	trace := payment.PollTrace[RefundResponse]{
+		Logger: s.c.Logger(), Op: "/refund", RequestID: req.RequestID,
+		Code: func(r *RefundResponse) (atomefin.Code, string) { return r.Code, r.Message },
+	}
+	status := func(r *RefundResponse) atomefin.Status {
+		if r == nil || r.Data == nil {
+			return atomefin.Status("")
+		}
+		return r.Data.Status
+	}
+	return payment.PollUntilTerminalOrRejected(ctx, opts, trace, status,
+		func(r *RefundResponse) (atomefin.Code, string, bool) {
+			if r != nil && payment.IsSyncRejection(r.Code, status(r)) {
+				return r.Code, r.Message, true
 			}
-			return r.Data.Status
+			return "", "", false
 		},
 		func(c context.Context) (*RefundResponse, error) {
 			return s.Refund(c, req)

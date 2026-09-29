@@ -180,17 +180,73 @@ func PollUntilTerminal[T any](
 	getStatus func(*T) atomefin.Status,
 	once func(context.Context) (*T, error),
 ) (*T, error) {
-	return pollUntilTerminal(ctx, opts, getStatus, nil, once)
+	return pollUntilTerminal(ctx, opts, PollTrace[T]{}, getStatus, nil, once)
+}
+
+// PollTrace identifies a polling loop in log lines. Every round is logged
+// at Debug (round, code, status, next delay); the loop exit is logged once
+// with its reason — Info for a terminal status, Warn otherwise. A nil
+// Logger disables logging.
+type PollTrace[T any] struct {
+	Logger    transport.Logger
+	Op        string
+	RequestID string
+	// Code extracts the envelope code and message; optional.
+	Code func(*T) (atomefin.Code, string)
+}
+
+// PollUntilTerminalOrRejected is PollUntilTerminal with per-round and
+// exit log lines described by trace, plus a synchronous-rejection probe:
+// when getRejection reports true for a non-terminal response, polling
+// stops immediately with *atomefin.BusinessRejectionError instead of
+// re-submitting until MaxWait. Build getRejection with IsSyncRejection
+// for the spec rule; a nil getRejection disables the probe.
+func PollUntilTerminalOrRejected[T any](
+	ctx context.Context,
+	opts PollOptions,
+	trace PollTrace[T],
+	getStatus func(*T) atomefin.Status,
+	getRejection func(*T) (atomefin.Code, string, bool),
+	once func(context.Context) (*T, error),
+) (*T, error) {
+	return pollUntilTerminal(ctx, opts, trace, getStatus, getRejection, once)
+}
+
+// IsSyncRejection reports whether an HTTP 200 envelope is a synchronous
+// business rejection: a non-SUCCESS code with no data.status (data null,
+// absent, or `{}`). An idempotent re-submit returns the same rejection, so
+// polling on it only burns MaxWait.
+func IsSyncRejection(code atomefin.Code, status atomefin.Status) bool {
+	return code != "" && !code.IsSuccess() && status == ""
 }
 
 func pollUntilTerminal[T any](
 	ctx context.Context,
 	opts PollOptions,
+	trace PollTrace[T],
 	getStatus func(*T) atomefin.Status,
 	getRejection func(*T) (atomefin.Code, string, bool),
 	once func(context.Context) (*T, error),
 ) (*T, error) {
 	o := opts.withDefaults()
+	var log transport.Logger = transport.NopLogger{}
+	if trace.Logger != nil {
+		log = trace.Logger
+	}
+	start := time.Now()
+	round := 0
+	fields := func(resp *T, extra ...any) []any {
+		kv := []any{"op", trace.Op, "request_id", trace.RequestID,
+			"round", round, "elapsed", time.Since(start)}
+		if resp != nil {
+			kv = append(kv, "status", string(getStatus(resp)))
+			if trace.Code != nil {
+				code, message := trace.Code(resp)
+				kv = append(kv, "code", string(code), "message", message)
+			}
+		}
+		return append(kv, extra...)
+	}
 
 	pollCtx, cancel := context.WithTimeout(ctx, o.MaxWait)
 	defer cancel()
@@ -198,8 +254,10 @@ func pollUntilTerminal[T any](
 	var lastResp *T
 	pollError := func() error {
 		if err := ctx.Err(); err != nil {
+			log.Warn("atomefin: poll stopped", fields(lastResp, "reason", "parent_context_done", "err", err)...)
 			return err
 		}
+		log.Warn("atomefin: poll stopped", fields(lastResp, "reason", "max_wait_exceeded", "max_wait", o.MaxWait)...)
 		return &atomefin.TransportError{
 			Op:  "poll",
 			URL: "payment.PollUntilTerminal",
@@ -211,6 +269,7 @@ func pollUntilTerminal[T any](
 		if pollCtx.Err() != nil {
 			return lastResp, pollError()
 		}
+		round++
 		resp, err := once(pollCtx)
 		if pollCtx.Err() != nil {
 			if resp != nil {
@@ -219,18 +278,22 @@ func pollUntilTerminal[T any](
 			return lastResp, pollError()
 		}
 		if err != nil {
+			log.Warn("atomefin: poll stopped", fields(nil, "reason", "request_error", "err", err)...)
 			return nil, err
 		}
 		lastResp = resp
 		if resp != nil && getStatus(resp).IsTerminal() {
+			log.Info("atomefin: poll finished", fields(resp, "reason", "terminal")...)
 			return resp, nil
 		}
 		if getRejection != nil {
 			if code, message, rejected := getRejection(resp); rejected {
+				log.Warn("atomefin: poll stopped", fields(resp, "reason", "business_rejection")...)
 				return nil, &atomefin.BusinessRejectionError{Code: code, Message: message}
 			}
 		}
 
+		log.Debug("atomefin: poll round", fields(resp, "next_delay", delay)...)
 		// The same deadline bounds both in-flight calls and backoff sleeps.
 		if err := sleepWithCtx(pollCtx, delay); err != nil {
 			return resp, pollError()

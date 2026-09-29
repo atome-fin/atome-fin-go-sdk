@@ -158,9 +158,11 @@ func (s *Service) QueryRepayment(ctx context.Context, requestID, externalReferen
 
 // RepaymentPollUntilTerminal calls Repayment with the same RequestID
 // until the response Status is terminal (SUCCESS / FAILED), the
-// parent ctx expires, or PollOptions.MaxWait elapses.
+// parent ctx expires, or PollOptions.MaxWait elapses. A synchronous
+// rejection (non-SUCCESS code with no data.status) stops immediately
+// with *atomefin.BusinessRejectionError.
 //
-// Reuses payment.PollUntilTerminal so the backoff semantics are
+// Reuses payment.PollUntilTerminalOrRejected so the backoff semantics are
 // identical to AuthPollUntilTerminal / CapturePollUntilTerminal /
 // RefundPollUntilTerminal — partners using more than one Service get
 // one consistent polling shape.
@@ -179,12 +181,22 @@ func (s *Service) RepaymentPollUntilTerminal(ctx context.Context, req *Repayment
 	if req.RequestID == "" {
 		req.RequestID = s.c.NewRequestID()
 	}
-	return payment.PollUntilTerminal(ctx, opts,
-		func(r *RepaymentResponse) atomefin.Status {
-			if r == nil || r.Data == nil {
-				return atomefin.Status("")
+	trace := payment.PollTrace[RepaymentResponse]{
+		Logger: s.c.Logger(), Op: "/repayment-request", RequestID: req.RequestID,
+		Code: func(r *RepaymentResponse) (atomefin.Code, string) { return r.Code, r.Message },
+	}
+	status := func(r *RepaymentResponse) atomefin.Status {
+		if r == nil || r.Data == nil {
+			return atomefin.Status("")
+		}
+		return r.Data.Status
+	}
+	return payment.PollUntilTerminalOrRejected(ctx, opts, trace, status,
+		func(r *RepaymentResponse) (atomefin.Code, string, bool) {
+			if r != nil && payment.IsSyncRejection(r.Code, status(r)) {
+				return r.Code, r.Message, true
 			}
-			return r.Data.Status
+			return "", "", false
 		},
 		func(c context.Context) (*RepaymentResponse, error) {
 			return s.Repayment(c, req)

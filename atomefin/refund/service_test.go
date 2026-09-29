@@ -259,6 +259,43 @@ func TestService_RefundPollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 	}
 }
 
+func TestService_RefundPollUntilTerminal_StopsOnSynchronousRejection(t *testing.T) {
+	for name, body := range map[string]string{
+		"data null":   `{"code":"REFUNDABLE_AMOUNT_INSUFFICIENT","message":"insufficient","data":null}`,
+		"data absent": `{"code":"REFUNDABLE_AMOUNT_INSUFFICIENT","message":"insufficient"}`,
+		"data empty":  `{"code":"REFUNDABLE_AMOUNT_INSUFFICIENT","message":"insufficient","data":{}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var hits int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				atomic.AddInt32(&hits, 1)
+				_, _ = w.Write([]byte(body))
+			}))
+			defer srv.Close()
+
+			resp, err := refund.New(mustClient(t, srv)).RefundPollUntilTerminal(context.Background(), &refund.RefundParam{
+				RequestID:            "r-1",
+				ExternalReferenceUID: "u-1",
+				CaptureRequestID:     "CAP-1",
+				RefundAmount:         1,
+				SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "so-1", Amount: 1}},
+				ExtendInfo:           &refund.RefundExtendInfo{OrderType: "GRAB_FOOD"},
+			}, payment.PollOptions{MaxWait: 2 * time.Second, InitialDelay: time.Millisecond})
+
+			var rejection *atomefin.BusinessRejectionError
+			if resp != nil || !errors.As(err, &rejection) {
+				t.Fatalf("resp=%+v err=%v; want nil resp and *BusinessRejectionError", resp, err)
+			}
+			if rejection.Code != "REFUNDABLE_AMOUNT_INSUFFICIENT" || rejection.Message != "insufficient" {
+				t.Errorf("rejection = %+v", rejection)
+			}
+			if got := atomic.LoadInt32(&hits); got != 1 {
+				t.Errorf("hits = %d; want 1", got)
+			}
+		})
+	}
+}
+
 // ---------- Constructor ----------
 
 func TestNew_NilClient_ReturnsNil(t *testing.T) {
