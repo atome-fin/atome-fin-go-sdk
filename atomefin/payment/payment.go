@@ -164,6 +164,9 @@ func (p PollOptions) withDefaults() PollOptions {
 // (SUCCESS / FAILED), the parent ctx expires, or MaxWait elapses.
 // once receives a context bounded by MaxWait and must honor its cancellation.
 // MaxWait expiry returns a TransportError wrapping context.DeadlineExceeded.
+// If the caller's ctx ends first, the TransportError instead reads "caller
+// context done after N round(s)" and wraps ctx.Err() (and context.Cause),
+// so errors.Is(err, context.Canceled) still holds.
 //
 // Generic over T to share one implementation across Auth, Capture,
 // and Void responses. Use the typed wrappers AuthPollUntilTerminal /
@@ -252,15 +255,27 @@ func pollUntilTerminal[T any](
 	defer cancel()
 	delay := o.InitialDelay
 	var lastResp *T
+	target := trace.Op
+	if target == "" {
+		target = "payment.PollUntilTerminal"
+	}
 	pollError := func() error {
 		if err := ctx.Err(); err != nil {
 			log.Warn("atomefin: poll stopped", fields(lastResp, "reason", "parent_context_done", "err", err)...)
-			return err
+			// Wrap so a bare "context canceled" is not mistaken for an SDK
+			// failure; errors.Is(err, context.Canceled / DeadlineExceeded)
+			// still holds.
+			wrapped := fmt.Errorf("caller context done after %d round(s), %v elapsed (cancelled or deadlined outside the SDK): %w",
+				round, time.Since(start).Round(time.Millisecond), err)
+			if cause := context.Cause(ctx); cause != nil && cause != err {
+				wrapped = fmt.Errorf("%w (cause: %w)", wrapped, cause)
+			}
+			return &atomefin.TransportError{Op: "poll", URL: target, Err: wrapped}
 		}
 		log.Warn("atomefin: poll stopped", fields(lastResp, "reason", "max_wait_exceeded", "max_wait", o.MaxWait)...)
 		return &atomefin.TransportError{
 			Op:  "poll",
-			URL: "payment.PollUntilTerminal",
+			URL: target,
 			Err: fmt.Errorf("max wait %v exceeded: %w", o.MaxWait, pollCtx.Err()),
 		}
 	}

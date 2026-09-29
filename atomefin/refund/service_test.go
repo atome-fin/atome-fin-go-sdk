@@ -86,7 +86,7 @@ func TestService_Refund_Success(t *testing.T) {
 	resp, err := refund.New(c).Refund(context.Background(), &refund.RefundParam{
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
-		CaptureRequestID:     "CAP-1",
+		OrderID:              "CAP-1",
 		RefundAmount:         1000,
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1000},
@@ -120,7 +120,7 @@ func TestService_Refund_AutoMintsRequestID(t *testing.T) {
 	c := mustClient(t, srv)
 	req := &refund.RefundParam{
 		ExternalReferenceUID: "u-1",
-		CaptureRequestID:     "CAP-1",
+		OrderID:              "CAP-1",
 		RefundAmount:         1,
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1},
@@ -150,7 +150,7 @@ func TestService_Refund_4xxBecomesAPIError(t *testing.T) {
 	_, err := refund.New(c).Refund(context.Background(), &refund.RefundParam{
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
-		CaptureRequestID:     "CAP-1",
+		OrderID:              "CAP-1",
 		RefundAmount:         1,
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1},
@@ -236,7 +236,7 @@ func TestService_RefundPollUntilTerminal_PollsUntilSuccess(t *testing.T) {
 	resp, err := refund.New(c).RefundPollUntilTerminal(context.Background(), &refund.RefundParam{
 		RequestID:            "r-1",
 		ExternalReferenceUID: "u-1",
-		CaptureRequestID:     "CAP-1",
+		OrderID:              "CAP-1",
 		RefundAmount:         1,
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1},
@@ -276,7 +276,7 @@ func TestService_RefundPollUntilTerminal_StopsOnSynchronousRejection(t *testing.
 			resp, err := refund.New(mustClient(t, srv)).RefundPollUntilTerminal(context.Background(), &refund.RefundParam{
 				RequestID:            "r-1",
 				ExternalReferenceUID: "u-1",
-				CaptureRequestID:     "CAP-1",
+				OrderID:              "CAP-1",
 				RefundAmount:         1,
 				SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "so-1", Amount: 1}},
 				ExtendInfo:           &refund.RefundExtendInfo{OrderType: "GRAB_FOOD"},
@@ -346,54 +346,54 @@ func TestRefund_Validate_TableDriven(t *testing.T) {
 		{"long-requestId", &refund.RefundParam{
 			RequestID:            strings.Repeat("a", 65),
 			ExternalReferenceUID: "u",
-			CaptureRequestID:     "C",
+			OrderID:              "C",
 			RefundAmount:         1,
 			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
 		}, "requestId"},
 		{"missing-externalReferenceUid", &refund.RefundParam{
-			RequestID:        "r",
-			CaptureRequestID: "C",
-			RefundAmount:     1,
-			SubOrders:        []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
+			RequestID:    "r",
+			OrderID:      "C",
+			RefundAmount: 1,
+			SubOrders:    []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
 		}, "externalReferenceUid"},
-		{"missing-captureRequestId", &refund.RefundParam{
+		{"missing-orderId", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
 			RefundAmount:         1,
 			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
-		}, "captureRequestId"},
+		}, "orderId"},
 		{"zero-refundAmount", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			CaptureRequestID:     "C",
+			OrderID:              "C",
 			RefundAmount:         0,
 			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
 		}, "refundAmount"},
 		{"empty-subOrders", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			CaptureRequestID:     "C",
+			OrderID:              "C",
 			RefundAmount:         1,
 			SubOrders:            []refund.SubOrderRefundRequest{},
 		}, "subOrders"},
 		{"missing-extendInfo", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			CaptureRequestID:     "C",
+			OrderID:              "C",
 			RefundAmount:         1,
 			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 1}},
 		}, "extendInfo.orderType"},
 		{"zero-sub-amount", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			CaptureRequestID:     "C",
+			OrderID:              "C",
 			RefundAmount:         1,
 			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 0}},
 		}, "subOrders[].amount"},
 		{"sum-mismatch-Q25", &refund.RefundParam{
 			RequestID:            "r",
 			ExternalReferenceUID: "u",
-			CaptureRequestID:     "C",
+			OrderID:              "C",
 			RefundAmount:         1000,
 			SubOrders:            []refund.SubOrderRefundRequest{{SubOrderID: "s", Amount: 999}},
 		}, "refundAmount"},

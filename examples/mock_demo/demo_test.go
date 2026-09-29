@@ -40,7 +40,7 @@ func TestDemo_MockSurface(t *testing.T) {
 		mock.WithScenario(mock.PerEndpoint(map[string]mock.Scenario{
 			"POST /auth":    mock.AlwaysSuccess(),
 			"POST /capture": mock.AlwaysProcessing(),
-			"POST /refund":  mock.AlwaysAPIError(http.StatusBadRequest, atomefin.CodeParamsMissing, "captureRequestId required"),
+			"POST /refund":  mock.AlwaysAPIError(http.StatusBadRequest, atomefin.CodeParamsMissing, "orderId required"),
 		}, mock.AlwaysSuccess())),
 	)
 

@@ -1,7 +1,7 @@
 {
   "requestId": "01HRFD1234567890ABCDEFGHJK",
   "externalReferenceUid": "user-42",
-  "captureRequestId": "CAP-2026-0501-0001",
+  "orderId": "ORD-2026-0501-0001",
   "refundAmount": 1500000,
   "subOrders": [
     {"subOrderId": "so-1", "amount": 1500000}

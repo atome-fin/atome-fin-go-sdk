@@ -18,27 +18,19 @@ const (
 // RefundParam is the POST /refund request body. v0.2.
 //
 // The shape mirrors capture's idempotency + sub-order-list pattern:
-// `requestId` is the partner's idempotency key; `authOrderId`
-// identifies the prior /auth that produced the credit being
-// refunded; `subOrderRefunds` enumerates which lines (and how much
-// of each) to refund.
+// `requestId` is the partner's idempotency key; `orderId` identifies
+// the captured order being refunded; `subOrders` enumerates which
+// lines (and how much of each) to refund.
 type RefundParam struct {
 	// RequestID is partner-generated; max 64 chars. Idempotency key.
 	RequestID string `json:"requestId"` // max 64
 	// ExternalReferenceUID is the partner's user identifier; matches
-	// the /capture that originated CaptureRequestID.
+	// the /capture that originated OrderID.
 	ExternalReferenceUID string `json:"externalReferenceUid"`
-	// CaptureRequestID is the requestId of the original POST /capture
-	// call that created the loan being refunded. Per spec: refund is
-	// always issued against a captured order.
-	//
-	// Renamed v0.2.3 from `AuthOrderID` (`json:"authOrderId"`) to
-	// match the 2026-05-06 spec snapshot's RefundParam schema. v0.2.0
-	// / v0.2.1 / v0.2.2 callers must update to the new name; the
-	// underlying value semantics also shift from "the authOrderId
-	// returned by /auth" to "the requestId sent on the prior
-	// /capture" — partner-side capture-id bookkeeping is required.
-	CaptureRequestID string `json:"captureRequestId"`
+	// OrderID is the Atome order identifier from the original POST
+	// /capture response (`data.orderId`). Per spec: refund is always
+	// issued against a captured order.
+	OrderID string `json:"orderId"`
 	// RefundAmount is the total refund value in minor units.
 	// Q25 (partner-pending): the SDK's validator currently enforces
 	// RefundAmount == Σ SubOrders[].Amount. Relax once the spec

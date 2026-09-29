@@ -7,6 +7,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.12] — 2026-09-30
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-09-29-5adb11c6.yaml`.
+
+### Changed
+
+- **`refund.RefundParam.CaptureRequestID`** is renamed to
+  **`OrderID`** and serialized as `orderId` (the Atome order ID from
+  the original `/capture` response) instead of `captureRequestId`.
+- **Poll helpers no longer return a bare `context.Canceled` /
+  `context.DeadlineExceeded`** when the caller's `ctx` ends first. The
+  error is now `*atomefin.TransportError{Op: "poll"}` reading e.g.
+  `atomefin: transport poll /capture: caller context done after 0
+  round(s), 0s elapsed (cancelled or deadlined outside the SDK): context
+  canceled`, plus the `context.Cause` when one was set.
+  `errors.Is(err, context.Canceled)` / `errors.Is(err,
+  context.DeadlineExceeded)` still hold; only `err == context.Canceled`
+  style comparisons need updating to `errors.Is`.
+- Poll `TransportError.URL` is now the polled endpoint (`/auth`,
+  `/capture`, `/refund`, `/repayment-request`) instead of the fixed
+  `payment.PollUntilTerminal`, which remains the value for the plain
+  `payment.PollUntilTerminal` helper.
+- **SDK version metadata** reports `0.8.12`.
+
 ## [0.8.11] — 2026-09-29
 
 ### Added

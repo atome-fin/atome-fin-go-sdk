@@ -68,6 +68,9 @@ case err == nil:
 case errors.As(err, &rej):
     // Synchronous business rejection. Retrying will not help.
     // Handle rej.Code, e.g. REFUNDABLE_AMOUNT_INSUFFICIENT.
+case errors.Is(err, context.Canceled):
+    // Your ctx was cancelled (not by the SDK). The message reads
+    // "caller context done after N round(s) ...".
 case errors.Is(err, context.DeadlineExceeded):
     // MaxWait (or your ctx deadline) elapsed before a terminal status.
     // resp is the last response received, usually PROCESSING.
@@ -149,7 +152,7 @@ Look up the exit line for the affected `request_id` and read `reason`:
 | `business_rejection` | Synchronous rejection. See `code` | Handle as a business error; do not retry with the same request |
 | `max_wait_exceeded` with `status=PROCESSING` | The server reported in-progress for the whole budget | Send the `request_id` to Atome for investigation; rely on the callback for the final result |
 | `max_wait_exceeded` with empty `status` | Responses were neither terminal nor a recognised rejection | Send us the raw response body for that `request_id` |
-| `parent_context_done` | Your `ctx` was cancelled or hit its deadline before `MaxWait` | Check the timeout of the calling code (HTTP handler, job runner, ...) |
+| `parent_context_done` | Your `ctx` was cancelled or hit its deadline before `MaxWait`. The returned error reads `caller context done after N round(s) ...` | Check where `ctx` comes from. A request-scoped context (`r.Context()`) ends when the handler returns; an outer `defer cancel()` ends it when that function returns. To poll beyond the request, use `context.WithoutCancel(r.Context())` (Go 1.21+) with your own `context.WithTimeout` |
 | `request_error` | An HTTP / network error survived the retry policy. See `err` | Check network, gateway reachability, and signing configuration |
 
 When reporting a polling issue to Atome, please include:

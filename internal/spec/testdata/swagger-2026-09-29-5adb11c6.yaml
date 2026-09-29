@@ -205,7 +205,9 @@ tags:
 
     | 2026-09-21 | Bill / Transaction | `GET /billDetail` `mainOrders[]` adds `orderType` at the same level as `merchantId`. `GET /transactions` and `GET /transactionDetail` return `orderType` on `paymentInfo` (`TRANSPORT` / `GRAB_FOOD` / `GRAB_MART`). Echo of originating `/capture` `extendInfo.orderType`; present for all scenarios including TRANSPORT. |
 
-    | 2026-09-24 | Payment | `/payment-plan` response `data.extendInfo` adds `recommendedTenor` at the same level as `sessionId`. Suggested Grab UI: show `recommendedTenor` underneath OPL, and allow the user to set OPL as the default payment method. |'
+    | 2026-09-24 | Payment | `/payment-plan` response `data.extendInfo` adds `recommendedTenor` at the same level as `sessionId`. Suggested Grab UI: show `recommendedTenor` underneath OPL, and allow the user to set OPL as the default payment method. |
+
+    | 2026-09-29 | Refund | `/refund` request replaces required `captureRequestId` with required `orderId` (Atome `orderId` from the original `POST /capture` response). |'
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -4361,7 +4363,7 @@ components:
               value:
                 requestId: REFUND-MART-20260807001
                 externalReferenceUid: E897321804
-                captureRequestId: CAP-MART-20260807001
+                orderId: ORD-20260807001
                 refundAmount: 30000
                 subOrders:
                 - merchantId: MCH-10001
@@ -4374,7 +4376,7 @@ components:
               value:
                 requestId: REFUND-FOOD-20260807001
                 externalReferenceUid: E897321804
-                captureRequestId: CAP-FOOD-20260807001
+                orderId: ORD-20260807002
                 refundAmount: 25000
                 subOrders:
                 - amount: 25000
@@ -4385,7 +4387,7 @@ components:
               value:
                 requestId: REFUND-TRANSPORT-20260807001
                 externalReferenceUid: E897321804
-                captureRequestId: CAP-TRANSPORT-20260807001
+                orderId: ORD-20260807003
                 refundAmount: 10000
                 subOrders:
                 - amount: 10000
@@ -7029,8 +7031,7 @@ components:
           type: string
           maxLength: 64
           description: |
-            `requestId` of the original `POST /capture` call this refund applies to;
-            mirrors the value sent in `RefundParam.captureRequestId`.
+            `requestId` of the original `POST /capture` call this refund applies to.
         refundId:
           type: string
           maxLength: 32
@@ -7502,12 +7503,12 @@ components:
           type: string
           description: Partner-side stable identifier for the end user.
           maxLength: 64
-        captureRequestId:
+        orderId:
           type: string
           description: |
-            `requestId` of the original `POST /capture` call that created the loan being refunded.
-            Use the same value the partner sent on capture; refund is always issued against a captured order.
-          maxLength: 64
+            Atome order identifier from the original `POST /capture` response (`data.orderId`).
+            Refund is always issued against a captured order.
+          maxLength: 32
         refundAmount:
           type: integer
           description: Total refund amount for the order. The minimum denomination in Indonesia is Rupiah (IDR).
@@ -7527,7 +7528,7 @@ components:
       required:
       - requestId
       - externalReferenceUid
-      - captureRequestId
+      - orderId
       - refundAmount
       - subOrders
       - extendInfo

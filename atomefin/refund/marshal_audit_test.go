@@ -46,7 +46,7 @@ func TestR10_RefundParam_RefundAmount(t *testing.T) {
 		return refund.RefundParam{
 			RequestID:            "r-1",
 			ExternalReferenceUID: "u-1",
-			CaptureRequestID:     "CAP-1",
+			OrderID:              "CAP-1",
 			RefundAmount:         v,
 			SubOrders: []refund.SubOrderRefundRequest{
 				{SubOrderID: "so-1", Amount: v},
@@ -64,7 +64,7 @@ func TestR10_SubOrderRefundRequest_RefundAmount(t *testing.T) {
 // ---------- R11 — fractional decode of an amount field fails loudly ----------
 
 func TestR11_RejectsFractionalRefundAmount(t *testing.T) {
-	body := []byte(`{"requestId":"r","externalReferenceUid":"u","captureRequestId":"C","refundAmount":1.5,"subOrders":[]}`)
+	body := []byte(`{"requestId":"r","externalReferenceUid":"u","orderId":"C","refundAmount":1.5,"subOrders":[]}`)
 	marshal.AssertRejectsFractionalAmount[refund.RefundParam](t, body)
 }
 
@@ -79,7 +79,7 @@ func TestR12_RefundParam_IntegerLiterals(t *testing.T) {
 	in := refund.RefundParam{
 		RequestID:            "r",
 		ExternalReferenceUID: "u",
-		CaptureRequestID:     "C",
+		OrderID:              "C",
 		RefundAmount:         1500000,
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1000000},
@@ -101,7 +101,7 @@ func TestR3_RefundParam_OmitsNothingExtra(t *testing.T) {
 
 func TestR4_RefundParam_RequiredEmitsAtZero(t *testing.T) {
 	marshal.AssertRequiredEmits[refund.RefundParam](t,
-		"requestId", "externalReferenceUid", "captureRequestId", "refundAmount", "subOrders", "extendInfo",
+		"requestId", "externalReferenceUid", "orderId", "refundAmount", "subOrders", "extendInfo",
 	)
 }
 
@@ -109,7 +109,7 @@ func TestRefundParam_ExtendInfo_Roundtrip(t *testing.T) {
 	marshal.DeepEqualRoundTrip[refund.RefundParam](t, refund.RefundParam{
 		RequestID:            "r",
 		ExternalReferenceUID: "u",
-		CaptureRequestID:     "C",
+		OrderID:              "C",
 		RefundAmount:         1000000,
 		SubOrders: []refund.SubOrderRefundRequest{
 			{SubOrderID: "so-1", Amount: 1000000},

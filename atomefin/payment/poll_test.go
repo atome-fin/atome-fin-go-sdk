@@ -3,6 +3,7 @@ package payment_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -208,7 +209,34 @@ func TestPollParentDeadlineWins(t *testing.T) {
 			<-ctx.Done()
 			return nil, ctx.Err()
 		})
-	if err != context.DeadlineExceeded {
+	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("err=%v; want parent DeadlineExceeded", err)
+	}
+}
+
+func TestPollCallerCancelIsWrapped(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cause := errors.New("http handler returned")
+	cancel(cause)
+	_, err := payment.PollUntilTerminalOrRejected(ctx, payment.PollOptions{},
+		payment.PollTrace[atomefin.Status]{Op: "/capture"}, pollStatus, nil,
+		func(context.Context) (*atomefin.Status, error) {
+			t.Fatal("once must not run on a cancelled ctx")
+			return nil, nil
+		})
+	var te *atomefin.TransportError
+	if !errors.As(err, &te) || te.Op != "poll" || te.URL != "/capture" {
+		t.Fatalf("err=%v; want *TransportError{Op: poll, URL: /capture}", err)
+	}
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, cause) {
+		t.Errorf("err=%v; want to wrap context.Canceled and the cancel cause", err)
+	}
+	if te.Temporary() {
+		t.Error("caller cancellation should not be temporary")
+	}
+	for _, want := range []string{"caller context done", "0 round(s)", "http handler returned"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("err=%q; want it to mention %q", err, want)
+		}
 	}
 }

@@ -212,8 +212,8 @@ func validateRefund(req *RefundParam) error {
 	if req.ExternalReferenceUID == "" {
 		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "required"}
 	}
-	if req.CaptureRequestID == "" {
-		return &atomefin.ValidationError{Field: "captureRequestId", Message: "required (the requestId of the prior /capture call)"}
+	if req.OrderID == "" {
+		return &atomefin.ValidationError{Field: "orderId", Message: "required (the orderId returned by the prior /capture call)"}
 	}
 	if req.RefundAmount <= 0 {
 		return &atomefin.ValidationError{Field: "refundAmount", Message: "must be > 0 (minor units)"}
