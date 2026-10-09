@@ -253,6 +253,84 @@ func TestCapture_Validate_SumMismatch(t *testing.T) {
 	mustValidationError(t, err, "totalAmount")
 }
 
+func TestCapture_Validate_SubOrderBelowTenorMinimum(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server must NOT be reached on validation failure")
+	})))
+	req := &payment.CaptureRequest{
+		RequestID:            "c-1",
+		ExternalReferenceUID: "user-42",
+		AuthOrderID:          "AUTH-1",
+		TotalAmount:          2,
+		PeriodType:           3,
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(2)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
+	}
+	_, err := payment.New(c).Capture(context.Background(), req)
+	mustValidationError(t, err, "subOrders[].amount")
+}
+
+func TestCapture_Validate_AllowsSubOrderAtTenorBelowOrderFloor(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":"SUCCESS"}`))
+	})))
+	req := &payment.CaptureRequest{
+		RequestID:            "c-1",
+		ExternalReferenceUID: "user-42",
+		AuthOrderID:          "AUTH-1",
+		TotalAmount:          5,
+		PeriodType:           3,
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(5)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
+	}
+	resp, err := payment.New(c).Capture(context.Background(), req)
+	if err != nil {
+		t.Fatalf("valid capture at tenor minimum: %v", err)
+	}
+	if resp == nil || resp.Code != atomefin.CodeSuccess {
+		t.Fatalf("capture response = %#v; want SUCCESS", resp)
+	}
+}
+
+func TestReAuth_Validate_SubOrderBelowTenorMinimum(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server must NOT be reached on validation failure")
+	})))
+	req := &payment.ReAuthRequest{
+		RequestID:            "r-1",
+		ExternalReferenceUID: "user-42",
+		AuthOrderID:          "AUTH-1",
+		TotalAmount:          2,
+		PeriodType:           3,
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(2)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
+	}
+	_, err := payment.New(c).ReAuth(context.Background(), req)
+	mustValidationError(t, err, "subOrders[].amount")
+}
+
+func TestReAuth_Validate_AllowsSubOrderAtTenorBelowOrderFloor(t *testing.T) {
+	c := mustClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":"SUCCESS"}`))
+	})))
+	req := &payment.ReAuthRequest{
+		RequestID:            "r-1",
+		ExternalReferenceUID: "user-42",
+		AuthOrderID:          "AUTH-1",
+		TotalAmount:          5,
+		PeriodType:           3,
+		SubOrders:            []payment.SubOrder{specSampleSubOrder(5)},
+		ExtendInfo:           specSampleRequestExtendInfo(),
+	}
+	resp, err := payment.New(c).ReAuth(context.Background(), req)
+	if err != nil {
+		t.Fatalf("valid reAuth at tenor minimum: %v", err)
+	}
+	if resp == nil || resp.Code != atomefin.CodeSuccess {
+		t.Fatalf("reAuth response = %#v; want SUCCESS", resp)
+	}
+}
+
 // ---------- VoidAuth rejections ----------
 
 func TestVoidAuth_Validate_NilRequest(t *testing.T) {

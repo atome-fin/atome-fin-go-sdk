@@ -8,9 +8,10 @@ import (
 
 const validOrderTypesMsg = "must be one of TRANSPORT | GRAB_FOOD | GRAB_MART"
 
-// validateCheckoutAmounts applies the IDR partner-side minimums in the
-// 2026-09-07 spec: periodType 1 requires order/sub-order amounts >= 1;
-// periodType 3 requires order >= 20,000 and each sub-order >= 3.
+// validateCheckoutAmounts applies the IDR partner-side minimums for
+// /payment-precheck, /payment-plan and /auth in the current spec:
+// periodType 1 requires order/sub-order amounts >= 1; periodType 3
+// requires order >= 20,000 and each sub-order >= 3.
 func validateCheckoutAmounts(periodType int, totalAmount atomefin.Amount, subOrderAmounts []atomefin.Amount) error {
 	minimumTotal := atomefin.Amount(1)
 	minimumSubOrder := atomefin.Amount(1)
@@ -30,6 +31,26 @@ func validateCheckoutAmounts(periodType int, totalAmount atomefin.Amount, subOrd
 			return &atomefin.ValidationError{
 				Field:   "subOrders[].amount",
 				Message: fmt.Sprintf("below IDR %d minimum for periodType %d", minimumSubOrder, periodType),
+			}
+		}
+	}
+	return nil
+}
+
+// validateCaptureReAuthAmounts applies the 2026-10-07 spec rule for
+// /capture and /reAuth: each subOrders[].amount must be >= 1 × tenor
+// (periodType). These two endpoints no longer enforce the order-level
+// 20,000 IDR floor that /payment-precheck, /payment-plan and /auth keep.
+func validateCaptureReAuthAmounts(periodType int, subOrderAmounts []atomefin.Amount) error {
+	minimum := atomefin.Amount(periodType)
+	if minimum < 1 {
+		minimum = 1
+	}
+	for _, amount := range subOrderAmounts {
+		if amount < minimum {
+			return &atomefin.ValidationError{
+				Field:   "subOrders[].amount",
+				Message: fmt.Sprintf("below IDR %d minimum (1 × tenor) for periodType %d", minimum, periodType),
 			}
 		}
 	}

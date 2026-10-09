@@ -32,6 +32,12 @@ type CreditApplicationHandlerFunc func(ctx context.Context, event *CreditApplica
 // duplicate deliveries. Typical pattern: dedupe on
 // event.Data.ExternalReferenceUID (plus a per-application
 // fingerprint) at the application layer.
+//
+// Note: the 2026-10-07 spec moves this callback's signature from RSA2
+// (`Authorization`) to OVO.HMAC (HMAC-SHA256) headers `client-id` /
+// `time` / `signature`, verified at the gateway boundary. The handler
+// still verifies RSA2 until the OVO.HMAC signing canonical is
+// confirmed; see CHANGELOG.md §0.8.13.
 func CreditApplicationHandler(v *Verifier, fn CreditApplicationHandlerFunc) http.Handler {
 	if fn == nil {
 		// Surface the nil user-fn before we wrap it; otherwise the

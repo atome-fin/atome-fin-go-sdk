@@ -63,19 +63,21 @@ info:
 
     ## Minimum order / sub-order amounts
 
-    For `POST /payment-precheck`, `POST /payment-plan`, `POST /auth`, and `POST /capture`, **one merchant = one sub-order**. SKU details are grouped by
+    For `POST /payment-precheck`, `POST /payment-plan`, `POST /auth`, `POST /reAuth`, and `POST /capture`, **one merchant = one sub-order**. SKU details are grouped by
     `merchantId` under `extendInfo.mainOrderExtendInfos[].skuInfos[]`.
 
-    Minimum amounts by installment tenor (`periodType`), in IDR (Rupiah):
+    Minimum amounts by installment tenor (`periodType`), in IDR (Rupiah), for `POST /payment-precheck`, `POST /payment-plan`, and `POST /auth`:
 
     | Tenor | Order (`totalAmount`) | Per sub-order (`subOrders[].amount`) |
     | --- | --- | --- |
     | 1-month (`periodType` = 1) | >= 1 | >= 1 |
     | 3-month (`periodType` = 3) | >= 20,000 | >= 3 |
 
-    **Partner-side validation:** Before calling `POST /payment-precheck`, `POST /payment-plan`, `POST /auth`, or `POST /capture`,
+    **Partner-side validation:** Before calling `POST /payment-precheck`, `POST /payment-plan`, or `POST /auth`,
     validate that `totalAmount` and each sub-order amount meet the minimums for the selected `periodType`. Requests below these
     limits may be rejected with `INVALID_ORDER_AMOUNT`.
+
+    **`POST /reAuth` and `POST /capture`:** Each `subOrders[].amount` must be **>= 1 × tenor** (`periodType`). Examples: `periodType` = 1 → >= 1 IDR; `periodType` = 3 → >= 3 IDR. Requests below this limit may be rejected with `INVALID_ORDER_AMOUNT`.
 
     ## Other modules (same specification file)
 
@@ -207,7 +209,13 @@ tags:
 
     | 2026-09-24 | Payment | `/payment-plan` response `data.extendInfo` adds `recommendedTenor` at the same level as `sessionId`. Suggested Grab UI: show `recommendedTenor` underneath OPL, and allow the user to set OPL as the default payment method. |
 
-    | 2026-09-29 | Refund | `/refund` request replaces required `captureRequestId` with required `orderId` (Atome `orderId` from the original `POST /capture` response). |'
+    | 2026-09-29 | Refund | `/refund` request replaces required `captureRequestId` with required `orderId` (Atome `orderId` from the original `POST /capture` response). |
+
+    | 2026-10-07 | Payment | `/reAuth` and `/capture` partner-side minimum: each `subOrders[].amount` >= 1 × tenor (`periodType`). Order-level >= 20,000 IDR remains on `/payment-precheck`, `/payment-plan`, and `/auth`. |
+
+    | 2026-10-07 | Credit | `/<creditApplicationNotifyUrl>` callback signature changes from RSA2 (`Authorization` header) to **OVO.HMAC (HMAC-SHA256)** — headers `client-id` / `time` / `signature`. |
+
+    | 2026-10-08 | Payment & Credit | `PlatformDeviceInfo` on `/credit-application`, `/auth`, and `/capture`: `device.googleAdvertisingId`, `device.build` (and `board` / `brand` / `device` / `manufacturer` / `model` / `product`), and `ipAddress` (and `ethIp` / `trueIp`) are optional. `gps.time` may be null when both `longitude` and `latitude` are omitted. |' 
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -234,9 +242,9 @@ tags:
     and `/query-reAuth` use the same
     `Payment` tag; treat `requestId` as idempotent per integration rules for those paths.
 
-    **Minimum order / sub-order amounts:** For payment-precheck, payment-plan, auth, reAuth, and capture, one merchant = one sub-order. For `periodType` = 1: order >= 1 IDR, each sub-order >= 1
+    **Minimum order / sub-order amounts:** For payment-precheck, payment-plan, and auth, one merchant = one sub-order. For `periodType` = 1: order >= 1 IDR, each sub-order >= 1
     IDR; for `periodType` = 3: order >= 20,000 IDR, each sub-order >= 3 IDR. Partners must validate `totalAmount` and
-    `subOrders[].amount` before `POST /payment-precheck`, `POST /payment-plan`, `POST /auth`, `POST /reAuth`, and `POST /capture`.
+    `subOrders[].amount` before `POST /payment-precheck`, `POST /payment-plan`, and `POST /auth`. For `POST /reAuth` and `POST /capture`, each `subOrders[].amount` must be **>= 1 × tenor** (`periodType`).
 
     **Checkout session (Ask/Get):** `POST /payment-plan` requires top-level `mode` — `ask` or `get`.
     - **`ask`:** New installment quote. Header `sessionid` / body `sessionId` are optional and **ignored**. On `code = SUCCESS`, Atome returns `data.extendInfo.sessionId` (valid **2 hours**).
@@ -672,15 +680,28 @@ paths:
       - Credit
       - Callback
       summary: Submit credit application result callback
+      description: |
+        Atome → partner (Grab/OVO gateway) server-to-server callback. Signed with **OVO.HMAC
+        (HMAC-SHA256)** instead of RSA2; the signature is verified at the gateway boundary.
       parameters:
       - in: header
-        name: Authorization
+        name: client-id
         required: true
         schema:
           type: string
-        description: |
-          RSA2 signature over the POST JSON body; same rules as **signature** for inbound
-          partner calls.
+        description: The client ID assigned to the partner.
+      - in: header
+        name: time
+        required: true
+        schema:
+          type: string
+        description: Unix epoch milliseconds (UTC), decimal string; included in the HMAC-signed message.
+      - in: header
+        name: signature
+        required: true
+        schema:
+          type: string
+        description: HMAC-SHA256 signature, hex-encoded lowercase.
       requestBody:
         $ref: '#/components/requestBodies/CreditResult'
       responses:
@@ -1604,9 +1625,9 @@ paths:
         `totalAmount` must equal `subOrders[0].amount`.
         GRAB_MART and GRAB_FOOD require `subOrders[].merchantName` on `/capture` (for later display).
 
-        **Minimum amounts (partner-side validation):** `totalAmount` and each `subOrders[].amount` must meet the minimums for
-        `periodType` (same rules as `/auth`) — 1-month: order >= 1 IDR, sub-order >= 1 IDR; 3-month: order >= 20,000 IDR,
-        sub-order >= 3 IDR. See **Minimum order / sub-order amounts** in Overview.
+        **Minimum amounts (partner-side validation):** Each `subOrders[].amount` must be **>= 1 × tenor** (`periodType`).
+        Examples: 1-month (`periodType` = 1) >= 1 IDR; 3-month (`periodType` = 3) >= 3 IDR.
+        See **Minimum order / sub-order amounts** in Overview.
 
         **Auth–capture window:** `/capture` must be submitted within **7 days** of the original `/payment-plan`. After
         `/voidAuth` → `/reAuth`, pass the **new** `authOrderId` (OA2). Requests beyond this window may be rejected
@@ -2017,8 +2038,8 @@ paths:
         SKU details are grouped under `extendInfo.mainOrderExtendInfos[].skuInfos[]` for GRAB_MART and GRAB_FOOD only —
         **TRANSPORT omits `mainOrderExtendInfos` entirely**.
 
-        **Minimum amounts (partner-side validation):** Same as `/auth` — 1-month (`periodType` = 1): order >= 1 IDR,
-        sub-order >= 1 IDR; 3-month (`periodType` = 3): order >= 20,000 IDR, sub-order >= 3 IDR.
+        **Minimum amounts (partner-side validation):** Each `subOrders[].amount` must be **>= 1 × tenor** (`periodType`).
+        Examples: 1-month (`periodType` = 1) >= 1 IDR; 3-month (`periodType` = 3) >= 3 IDR.
 
         **Synchronous response:** HTTP `200` carries the **terminal** result on the first submission (`data.status` =
         `SUCCESS` or `FAILED`). There is no `PROCESSING` and **no callback**. Treat `requestId` as idempotent — a retry
@@ -5485,7 +5506,7 @@ components:
           type: string
           description: '`SUCCESS`: Request accepted; see `data.status` for business outcome (`PROCESSING` on first submission; terminal states via callback or idempotent retry).<br/>
 
-            `INVALID_ORDER_AMOUNT`: `totalAmount` or a sub-order `amount` is below the minimum for `periodType`, or above the
+            `INVALID_ORDER_AMOUNT`: a sub-order `amount` is below **1 × tenor** (`periodType`), or `totalAmount` / a sub-order `amount` is above the
             maximum installable amount.<br/>
 
             `CREDIT_APPLICATION_NOT_APPROVED`: Credit application is not approved.<br/>
@@ -5606,7 +5627,7 @@ components:
           description: '`SUCCESS`: Request completed. Business outcome lives in `data.status` (`SUCCESS` or `FAILED`) on this
             HTTP `200` — `/reAuth` is synchronous and does not return `PROCESSING` or send a callback.<br/>
 
-            `INVALID_ORDER_AMOUNT`: `totalAmount` or a sub-order `amount` is below the minimum for `periodType`, or above the
+            `INVALID_ORDER_AMOUNT`: a sub-order `amount` is below **1 × tenor** (`periodType`), or `totalAmount` / a sub-order `amount` is above the
             maximum installable amount.<br/>
 
             `CREDIT_APPLICATION_NOT_APPROVED`: User''s application for credit was not approved<br/>
@@ -6172,17 +6193,16 @@ components:
       type: object
       description: |-
         User device information at submission time. Same structure as `applicationEssentialInfo.platformInformation.deviceInfo`
-        in `POST /credit-application`. Required fields are aligned with the risk-control field mapping (`platform`,
-        `device.deviceId`, `device.isRoot`, `device.googleAdvertisingId`, `device.build.*`, `wifiList[].ssid`, `ipAddress.*`).
-        `gps` and `gps.longitude` / `gps.latitude` / `gps.time` are optional. `device.androidId`, `device.utdid`, `device.idfa`,
-        `device.idfv`, and `device.build.cpuAbi` are optional. The Android
-        `build` block and `googleAdvertisingId` (GAID) are risk-required; iOS integrations supply platform-equivalent values as
-        agreed during onboarding.
+        in `POST /credit-application` (also used on `/auth` and `/capture`). Required: `platform`, `device`, `device.deviceId`,
+        `device.isRoot`, `wifiList` (at least one entry), and `wifiList[].ssid`.
+        Optional: `gps` and `gps.longitude` / `gps.latitude` / `gps.time` (`time` may be null when both longitude and latitude
+        are omitted), `device.googleAdvertisingId`, `device.idfa`, `device.idfv`, `device.androidId`, `device.utdid`,
+        `device.build` and its fields (`board` / `brand` / `device` / `manufacturer` / `model` / `product` / `cpuAbi`),
+        and `ipAddress` and `ipAddress.ethIp` / `trueIp`.
       required:
       - platform
       - device
       - wifiList
-      - ipAddress
       properties:
         platform:
           type: string
@@ -6210,8 +6230,10 @@ components:
               pattern: '^-?(90(\.0{1,6})?|([0-8]?\d)(\.\d{1,6})?)$'
             time:
               type: string
+              nullable: true
               description: |-
                 GPS sample time. 13-digit Unix millisecond timestamp. Optional.
+                May be `null` when both `longitude` and `latitude` are omitted.
               minLength: 13
               maxLength: 13
               pattern: '^\d{13}$'
@@ -6220,15 +6242,13 @@ components:
           required:
           - deviceId
           - isRoot
-          - googleAdvertisingId
-          - build
           properties:
             deviceId:
               type: string
               description: Partner-side device identifier. Required.
             googleAdvertisingId:
               type: string
-              description: Google Advertising ID (GAID); Android clients. Required.
+              description: Google Advertising ID (GAID); Android clients. Optional.
             idfa:
               type: string
               description: Identifier for Advertisers (IDFA); iOS clients. Optional.
@@ -6246,30 +6266,29 @@ components:
               description: Android ID. Optional.
             build:
               type: object
-              description: Android `Build.*` fields. Required.
-              required:
-              - board
-              - brand
-              - device
-              - manufacturer
-              - model
-              - product
+              description: Android `Build.*` fields. Optional; every nested field is optional.
               properties:
                 board:
                   type: string
+                  description: Optional.
                 brand:
                   type: string
+                  description: Optional.
                 cpuAbi:
                   type: string
                   description: Optional.
                 device:
                   type: string
+                  description: Optional.
                 manufacturer:
                   type: string
+                  description: Optional.
                 model:
                   type: string
+                  description: Optional.
                 product:
                   type: string
+                  description: Optional.
         wifiList:
           type: array
           description: Visible Wi-Fi networks at submission time. Required — at least one entry.
@@ -6283,15 +6302,14 @@ components:
                 type: string
         ipAddress:
           type: object
-          description: IP address information. Required.
-          required:
-          - ethIp
-          - trueIp
+          description: IP address information. Optional; `ethIp` and `trueIp` are optional.
           properties:
             ethIp:
               type: string
+              description: Optional.
             trueIp:
               type: string
+              description: Optional.
     PaymentPlanMode:
       type: string
       description: |

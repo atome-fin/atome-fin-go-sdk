@@ -466,7 +466,7 @@ type DeviceInfo struct {
 	// WifiList is the visible Wi-Fi networks at submission time.
 	WifiList []WifiAP `json:"wifiList"`
 	// IPAddress carries ethIp / trueIp.
-	IPAddress *IPAddress `json:"ipAddress"`
+	IPAddress *IPAddress `json:"ipAddress,omitempty"`
 }
 
 // GPSSample is the GPS sample on a device snapshot. Spec types
@@ -482,24 +482,25 @@ type GPSSample struct {
 // Device is the device-build snapshot.
 type Device struct {
 	DeviceID            string       `json:"deviceId"`
-	GoogleAdvertisingID string       `json:"googleAdvertisingId"`
+	GoogleAdvertisingID string       `json:"googleAdvertisingId,omitempty"`
 	IDFA                string       `json:"idfa,omitempty"`
 	IDFV                string       `json:"idfv,omitempty"`
 	UTDID               string       `json:"utdid,omitempty"`
 	IsRoot              bool         `json:"isRoot"`
 	AndroidID           string       `json:"androidId,omitempty"`
-	Build               *DeviceBuild `json:"build"`
+	Build               *DeviceBuild `json:"build,omitempty"`
 }
 
-// DeviceBuild mirrors the Android Build.* fields.
+// DeviceBuild mirrors the Android Build.* fields. Every field is optional
+// per the 2026-10-08 spec change to PlatformDeviceInfo.
 type DeviceBuild struct {
-	Board        string `json:"board"`
-	Brand        string `json:"brand"`
+	Board        string `json:"board,omitempty"`
+	Brand        string `json:"brand,omitempty"`
 	CPUAbi       string `json:"cpuAbi,omitempty"`
-	Device       string `json:"device"`
-	Manufacturer string `json:"manufacturer"`
-	Model        string `json:"model"`
-	Product      string `json:"product"`
+	Device       string `json:"device,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
+	Model        string `json:"model,omitempty"`
+	Product      string `json:"product,omitempty"`
 }
 
 // WifiAP is one visible Wi-Fi network.
@@ -507,10 +508,11 @@ type WifiAP struct {
 	SSID string `json:"ssid"`
 }
 
-// IPAddress is the IP-address bag (ethIp / trueIp).
+// IPAddress is the IP-address bag (ethIp / trueIp). Both fields are
+// optional per the 2026-10-08 spec change to PlatformDeviceInfo.
 type IPAddress struct {
-	EthIP  string `json:"ethIp"`
-	TrueIP string `json:"trueIp"`
+	EthIP  string `json:"ethIp,omitempty"`
+	TrueIP string `json:"trueIp,omitempty"`
 }
 
 // ---------- Response envelopes & data types ----------

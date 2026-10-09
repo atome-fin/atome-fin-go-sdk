@@ -136,36 +136,10 @@ func validatePlatformInformation(pi *PlatformInformation) error {
 			Message: "required",
 		}
 	}
-	if pi.DeviceInfo.Device.GoogleAdvertisingID == "" {
+	if pi.DeviceInfo.Device.DeviceID == "" {
 		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.device.googleAdvertisingId",
+			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.device.deviceId",
 			Message: "required",
-		}
-	}
-	if pi.DeviceInfo.Device.Build == nil {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.device.build",
-			Message: "required",
-		}
-	}
-	for _, field := range []struct {
-		name  string
-		value string
-	}{
-		{"deviceId", pi.DeviceInfo.Device.DeviceID},
-		{"googleAdvertisingId", pi.DeviceInfo.Device.GoogleAdvertisingID},
-		{"build.board", pi.DeviceInfo.Device.Build.Board},
-		{"build.brand", pi.DeviceInfo.Device.Build.Brand},
-		{"build.device", pi.DeviceInfo.Device.Build.Device},
-		{"build.manufacturer", pi.DeviceInfo.Device.Build.Manufacturer},
-		{"build.model", pi.DeviceInfo.Device.Build.Model},
-		{"build.product", pi.DeviceInfo.Device.Build.Product},
-	} {
-		if field.value == "" {
-			return &atomefin.ValidationError{
-				Field:   "applicationEssentialInfo.platformInformation.deviceInfo.device." + field.name,
-				Message: "required",
-			}
 		}
 	}
 	if pi.DeviceInfo.WifiList == nil {
@@ -180,18 +154,6 @@ func validatePlatformInformation(pi *PlatformInformation) error {
 				Field:   "applicationEssentialInfo.platformInformation.deviceInfo.wifiList[].ssid",
 				Message: "required",
 			}
-		}
-	}
-	if pi.DeviceInfo.IPAddress == nil {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.ipAddress",
-			Message: "required",
-		}
-	}
-	if pi.DeviceInfo.IPAddress.EthIP == "" || pi.DeviceInfo.IPAddress.TrueIP == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.ipAddress.ethIp/trueIp",
-			Message: "both fields are required",
 		}
 	}
 	return nil

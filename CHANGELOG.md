@@ -7,6 +7,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.13] — 2026-10-09
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-10-09-3e49968b.yaml`.
+
+### Changed
+
+- **`/reAuth` and `/capture` minimum amounts** now enforce each
+  `subOrders[].amount >= 1 × tenor` (`periodType`), and no longer
+  enforce the `/payment-precheck` / `/payment-plan` / `/auth`
+  order-level `>= 20,000 IDR` floor for `periodType = 3`.
+- **`PlatformDeviceInfo` optional fields** on `/credit-application`,
+  `/auth`, and `/capture`: `device.googleAdvertisingId`,
+  `device.build` (and each `build.*` field), and `ipAddress` (and
+  `ethIp` / `trueIp`) are now optional. The credit client-side
+  validator no longer requires them, and the Go structs serialize
+  them with `omitempty`. `device.deviceId` remains required.
+
+### Known drift
+
+- **`/<creditApplicationNotifyUrl>` callback signature** moves from
+  RSA2 (`Authorization`) to **OVO.HMAC (HMAC-SHA256)** headers
+  `client-id` / `time` / `signature`, and the swagger notes the
+  signature is verified at the gateway boundary.
+  `callback.CreditApplicationHandler` still verifies the RSA2
+  `Authorization` header; HMAC verification support is pending the
+  upstream signing-canonical definition and secret provisioning.
+
 ## [0.8.12] — 2026-09-30
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

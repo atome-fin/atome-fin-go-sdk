@@ -237,3 +237,24 @@ func TestValidateCreditApplication_Internal(t *testing.T) {
 		t.Errorf("valid base request: validateCreditInformation = %v; want nil", err)
 	}
 }
+
+func TestValidatePlatformInformation_OptionalDeviceFields(t *testing.T) {
+	base := internalValidInformationParam()
+	pi := base.ApplicationEssentialInfo.PlatformInformation
+
+	// 2026-10-08 spec: googleAdvertisingId, build (and each build field),
+	// and ipAddress (and ethIp/trueIp) are optional on PlatformDeviceInfo.
+	pi.DeviceInfo.Device.GoogleAdvertisingID = ""
+	pi.DeviceInfo.Device.Build = nil
+	pi.DeviceInfo.IPAddress = nil
+	if err := validateCreditInformation(base); err != nil {
+		t.Fatalf("optional device fields must not be required: %v", err)
+	}
+}
+
+func TestValidatePlatformInformation_DeviceIDStillRequired(t *testing.T) {
+	base := internalValidInformationParam()
+	base.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.Device.DeviceID = ""
+	err := validateCreditInformation(base)
+	mustValidateError(t, err, "deviceInfo.device.deviceId")
+}

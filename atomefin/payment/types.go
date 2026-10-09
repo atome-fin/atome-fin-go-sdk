@@ -160,7 +160,7 @@ type DeviceInfo struct {
 	GPS       *GeoPoint      `json:"gps,omitempty"`
 	Device    *DeviceProfile `json:"device"`
 	WifiList  []WifiAP       `json:"wifiList"`
-	IPAddress *IPAddress     `json:"ipAddress"`
+	IPAddress *IPAddress     `json:"ipAddress,omitempty"`
 }
 
 // GeoPoint is a (longitude, latitude, time) triple. The spec models
@@ -175,24 +175,25 @@ type GeoPoint struct {
 // Most fields are PII — DESIGN.md §10 redaction list.
 type DeviceProfile struct {
 	DeviceID            string     `json:"deviceId"`
-	GoogleAdvertisingID string     `json:"googleAdvertisingId"`
+	GoogleAdvertisingID string     `json:"googleAdvertisingId,omitempty"`
 	IDFA                string     `json:"idfa,omitempty"`
 	IDFV                string     `json:"idfv,omitempty"`
 	UTDID               string     `json:"utdid,omitempty"` // PII; optional per spec
 	IsRoot              *bool      `json:"isRoot"`
 	AndroidID           string     `json:"androidId,omitempty"` // PII
-	Build               *BuildInfo `json:"build"`
+	Build               *BuildInfo `json:"build,omitempty"`
 }
 
-// BuildInfo is the device's android.os.Build snapshot.
+// BuildInfo is the device's android.os.Build snapshot. Every field is
+// optional per the 2026-10-08 spec change to PlatformDeviceInfo.
 type BuildInfo struct {
-	Board        string `json:"board"`
-	Brand        string `json:"brand"`
+	Board        string `json:"board,omitempty"`
+	Brand        string `json:"brand,omitempty"`
 	CPUABI       string `json:"cpuAbi,omitempty"`
-	Device       string `json:"device"`
-	Manufacturer string `json:"manufacturer"`
-	Model        string `json:"model"`
-	Product      string `json:"product"`
+	Device       string `json:"device,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
+	Model        string `json:"model,omitempty"`
+	Product      string `json:"product,omitempty"`
 }
 
 // WifiAP is one Wi-Fi access point seen by the device.
@@ -201,11 +202,12 @@ type WifiAP struct {
 	SSID string `json:"ssid"` // PII
 }
 
-// IPAddress carries the device's reported IPs.
+// IPAddress carries the device's reported IPs. Both fields are optional
+// per the 2026-10-08 spec change to PlatformDeviceInfo.
 // Strings are not parsed; partner responsibility to pass valid values.
 type IPAddress struct {
-	EthIP  string `json:"ethIp"`
-	TrueIP string `json:"trueIp"`
+	EthIP  string `json:"ethIp,omitempty"`
+	TrueIP string `json:"trueIp,omitempty"`
 }
 
 // Address is the user's shipping address.

@@ -102,7 +102,7 @@ func validateReAuthRequest(req *ReAuthRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
-	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, subOrderAmounts(req.SubOrders)); err != nil {
+	if err := validateCaptureReAuthAmounts(req.PeriodType, subOrderAmounts(req.SubOrders)); err != nil {
 		return err
 	}
 	if req.ExtendInfo == nil {
