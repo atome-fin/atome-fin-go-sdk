@@ -215,7 +215,9 @@ tags:
 
     | 2026-10-07 | Credit | `/<creditApplicationNotifyUrl>` callback signature changes from RSA2 (`Authorization` header) to **OVO.HMAC (HMAC-SHA256)** — headers `client-id` / `time` / `signature`. |
 
-    | 2026-10-08 | Payment & Credit | `PlatformDeviceInfo` on `/credit-application`, `/auth`, and `/capture`: `device.googleAdvertisingId`, `device.build` (and `board` / `brand` / `device` / `manufacturer` / `model` / `product`), and `ipAddress` (and `ethIp` / `trueIp`) are optional. `gps.time` may be null when both `longitude` and `latitude` are omitted. |' 
+    | 2026-10-08 | Payment & Credit | `PlatformDeviceInfo` on `/credit-information`, `/auth`, `/capture`, and `/reAuth`: `device.googleAdvertisingId`, `device.build` (and `board` / `brand` / `device` / `manufacturer` / `model` / `product`), and `ipAddress` (and `ethIp` / `trueIp`) are optional. `gps.time` may be null when both `longitude` and `latitude` are omitted. |
+
+    | 2026-10-09 | Payment & Credit | `PlatformDeviceInfo.device.deviceId` is optional on `/credit-information`, `/auth`, `/capture`, and `/reAuth`. |' 
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -6192,11 +6194,12 @@ components:
     PlatformDeviceInfo:
       type: object
       description: |-
-        User device information at submission time. Same structure as `applicationEssentialInfo.platformInformation.deviceInfo`
-        in `POST /credit-application` (also used on `/auth` and `/capture`). Required: `platform`, `device`, `device.deviceId`,
+        User device information at submission time. Shared by `POST /credit-information`
+        (`applicationEssentialInfo.platformInformation.deviceInfo`) and by `/auth`, `/capture`, and `/reAuth`
+        (`extendInfo.deviceInfo`). Required: `platform`, `device`,
         `device.isRoot`, `wifiList` (at least one entry), and `wifiList[].ssid`.
         Optional: `gps` and `gps.longitude` / `gps.latitude` / `gps.time` (`time` may be null when both longitude and latitude
-        are omitted), `device.googleAdvertisingId`, `device.idfa`, `device.idfv`, `device.androidId`, `device.utdid`,
+        are omitted), `device.deviceId`, `device.googleAdvertisingId`, `device.idfa`, `device.idfv`, `device.androidId`, `device.utdid`,
         `device.build` and its fields (`board` / `brand` / `device` / `manufacturer` / `model` / `product` / `cpuAbi`),
         and `ipAddress` and `ipAddress.ethIp` / `trueIp`.
       required:
@@ -6240,12 +6243,11 @@ components:
         device:
           type: object
           required:
-          - deviceId
           - isRoot
           properties:
             deviceId:
               type: string
-              description: Partner-side device identifier. Required.
+              description: Partner-side device identifier. Optional.
             googleAdvertisingId:
               type: string
               description: Google Advertising ID (GAID); Android clients. Optional.

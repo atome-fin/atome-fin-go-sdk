@@ -174,7 +174,7 @@ type GeoPoint struct {
 // DeviceProfile holds device fingerprint fields.
 // Most fields are PII — DESIGN.md §10 redaction list.
 type DeviceProfile struct {
-	DeviceID            string     `json:"deviceId"`
+	DeviceID            string     `json:"deviceId,omitempty"`
 	GoogleAdvertisingID string     `json:"googleAdvertisingId,omitempty"`
 	IDFA                string     `json:"idfa,omitempty"`
 	IDFV                string     `json:"idfv,omitempty"`

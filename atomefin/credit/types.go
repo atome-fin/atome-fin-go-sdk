@@ -481,7 +481,7 @@ type GPSSample struct {
 
 // Device is the device-build snapshot.
 type Device struct {
-	DeviceID            string       `json:"deviceId"`
+	DeviceID            string       `json:"deviceId,omitempty"`
 	GoogleAdvertisingID string       `json:"googleAdvertisingId,omitempty"`
 	IDFA                string       `json:"idfa,omitempty"`
 	IDFV                string       `json:"idfv,omitempty"`

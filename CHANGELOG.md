@@ -7,6 +7,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.8.14] — 2026-10-10
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-10-10-26390c3f.yaml`.
+
+### Changed
+
+- **`PlatformDeviceInfo.device.deviceId` is now optional** on
+  `/credit-information`, `/auth`, `/capture`, and `/reAuth`. The
+  credit client-side validator no longer requires it, and `DeviceID`
+  serializes with `omitempty` in the credit and payment device
+  structs. `device.isRoot` remains required.
+- The optional-field set introduced in `0.8.13` is confirmed to apply
+  to `/credit-information` and `/reAuth`, not `/credit-application`.
+
 ## [0.8.13] — 2026-10-09
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

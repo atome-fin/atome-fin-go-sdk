@@ -244,6 +244,8 @@ func TestValidatePlatformInformation_OptionalDeviceFields(t *testing.T) {
 
 	// 2026-10-08 spec: googleAdvertisingId, build (and each build field),
 	// and ipAddress (and ethIp/trueIp) are optional on PlatformDeviceInfo.
+	// 2026-10-09 spec: deviceId is optional too.
+	pi.DeviceInfo.Device.DeviceID = ""
 	pi.DeviceInfo.Device.GoogleAdvertisingID = ""
 	pi.DeviceInfo.Device.Build = nil
 	pi.DeviceInfo.IPAddress = nil
@@ -252,9 +254,9 @@ func TestValidatePlatformInformation_OptionalDeviceFields(t *testing.T) {
 	}
 }
 
-func TestValidatePlatformInformation_DeviceIDStillRequired(t *testing.T) {
+func TestValidatePlatformInformation_DeviceStillRequired(t *testing.T) {
 	base := internalValidInformationParam()
-	base.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.Device.DeviceID = ""
+	base.ApplicationEssentialInfo.PlatformInformation.DeviceInfo.Device = nil
 	err := validateCreditInformation(base)
-	mustValidateError(t, err, "deviceInfo.device.deviceId")
+	mustValidateError(t, err, "deviceInfo.device")
 }

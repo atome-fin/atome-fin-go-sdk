@@ -136,12 +136,6 @@ func validatePlatformInformation(pi *PlatformInformation) error {
 			Message: "required",
 		}
 	}
-	if pi.DeviceInfo.Device.DeviceID == "" {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.device.deviceId",
-			Message: "required",
-		}
-	}
 	if pi.DeviceInfo.WifiList == nil {
 		return &atomefin.ValidationError{
 			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.wifiList",
