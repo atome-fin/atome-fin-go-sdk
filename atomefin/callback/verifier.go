@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
@@ -38,6 +39,10 @@ type Verifier struct {
 	// holds sign.NewOVOHMACVerifier instances and the handler builds
 	// the OVO.HMAC canonical from the inbound request.
 	hmacClientID string
+	// hmacClockSkew is the optional replay window applied to the
+	// OVO.HMAC `time` header. Zero disables the check (the default,
+	// matching the pre-window behaviour).
+	hmacClockSkew time.Duration
 }
 
 // VerifierOption configures a Verifier at construction time.
@@ -61,6 +66,21 @@ func WithClock(now func() time.Time) VerifierOption {
 	return func(v *Verifier) {
 		if now != nil {
 			v.clock = now
+		}
+	}
+}
+
+// WithHMACTimeWindow enables an optional replay window for OVO.HMAC
+// mode. When n > 0 the handler rejects callbacks whose `time`
+// header (Unix epoch milliseconds) lies further than n from the
+// Verifier clock, in either direction. The HMAC canonical still uses
+// the header verbatim, so verification and the replay check are
+// independent. n <= 0 disables the check (the default). The spec
+// recommends partners keep `time` within ±5 minutes.
+func WithHMACTimeWindow(n time.Duration) VerifierOption {
+	return func(v *Verifier) {
+		if n > 0 {
+			v.hmacClockSkew = n
 		}
 	}
 }
@@ -211,6 +231,34 @@ func (v *Verifier) Verify(ctx context.Context, body []byte, signature string) er
 		last = sign.ErrSignature
 	}
 	return last
+}
+
+// verifyHMACTime enforces the configured replay window on the
+// OVO.HMAC `time` header. It returns nil when no window is
+// configured so existing deployments keep the previous behaviour.
+// The value is compared as epoch milliseconds; a non-numeric header
+// is rejected only when a window is configured.
+func (v *Verifier) verifyHMACTime(timeMillis string) error {
+	if v == nil || v.hmacClockSkew <= 0 {
+		return nil
+	}
+	t, err := strconv.ParseInt(timeMillis, 10, 64)
+	if err != nil {
+		return fmt.Errorf("atomefin/callback: OVO.HMAC time header is not epoch milliseconds: %q", timeMillis)
+	}
+	now := time.Now()
+	if v.clock != nil {
+		now = v.clock()
+	}
+	nowMs := now.UnixMilli()
+	skewMs := v.hmacClockSkew.Milliseconds()
+	if skewMs < 0 {
+		skewMs = 0
+	}
+	if t > nowMs+skewMs || t < nowMs-skewMs {
+		return fmt.Errorf("atomefin/callback: OVO.HMAC time header outside replay window: header=%dms now=%dms window=%dms", t, nowMs, skewMs)
+	}
+	return nil
 }
 
 // BodyLimit returns the configured maximum body size in bytes.

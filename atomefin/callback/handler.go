@@ -134,6 +134,10 @@ func handle[T any](v *Verifier, fn func(context.Context, *T) error) http.Handler
 				writeAck(w, http.StatusUnauthorized, AckBadSignature())
 				return
 			}
+			if vErr := v.verifyHMACTime(timeMs); vErr != nil {
+				writeAck(w, http.StatusUnauthorized, AckBadSignature())
+				return
+			}
 			canonical = sign.OVOHMACCanonical(clientID, timeMs, r.Method, r.URL.RequestURI(), body)
 		} else {
 			sig = r.Header.Get(AuthorizationHeader)

@@ -29,6 +29,10 @@ Syncs the SDK to the upstream partner white-label `G` spec pinned as
     in HMAC mode (multiple secrets supported for rotation); every
     callback handler then reads the three HMAC headers and rejects
     a mismatched `client-id`. RSA2 Verifiers keep working unchanged.
+  - `callback.WithHMACTimeWindow` — opt-in replay window for
+    OVO.HMAC callbacks (rejects a `time` header outside the
+    configured tolerance, past or future, and non-epoch-millis
+    values). Default is unchanged: no freshness check.
 - **`Client.HeartBeatStatus`** returns the typed GET /heart-beat
   envelope (`code` / `message` / `data`) the spec defines;
   `HeartBeat` keeps its error-only signature.
@@ -115,6 +119,13 @@ Syncs the SDK to the upstream partner white-label `G` spec pinned as
 - `callback.CreditInformationHandler` — the G spec defines no
   credit-information callback path; results arrive via GET
   /credit-information-result polling.
+
+### Fixed
+
+- **`Client.HeartBeatStatus`** now decodes its `data` object with
+  `json.Decoder.UseNumber`, so numeric values in the free-form
+  `/heart-beat` payload are preserved as `json.Number` instead of
+  losing precision through `float64`.
 
 ## [0.8.14] — 2026-10-10
 

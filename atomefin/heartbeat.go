@@ -1,10 +1,12 @@
 package atomefin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 )
 
 // HeartBeatResponse is the GET /heart-beat 200 payload per spec:
@@ -59,11 +61,20 @@ func (c *Client) HeartBeatStatus(ctx context.Context) (*HeartBeatResponse, error
 		return nil, err
 	}
 	var out HeartBeatResponse
-	if uerr := json.Unmarshal(raw.Body, &out); uerr != nil {
+	dec := json.NewDecoder(bytes.NewReader(raw.Body))
+	dec.UseNumber()
+	if uerr := dec.Decode(&out); uerr != nil {
 		return nil, &TransportError{
 			Op:  "decode",
 			URL: "/heart-beat",
 			Err: fmt.Errorf("decode /heart-beat response: %w", uerr),
+		}
+	}
+	if uerr := dec.Decode(new(json.RawMessage)); !errors.Is(uerr, io.EOF) {
+		return nil, &TransportError{
+			Op:  "decode",
+			URL: "/heart-beat",
+			Err: fmt.Errorf("decode /heart-beat response: trailing data after JSON value"),
 		}
 	}
 	return &out, nil

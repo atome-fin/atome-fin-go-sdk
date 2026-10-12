@@ -2,6 +2,7 @@ package atomefin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -41,6 +42,28 @@ func TestHeartBeat_Success(t *testing.T) {
 	// transparently.
 	if gotQuery != "" {
 		t.Errorf("RawQuery = %q, want empty", gotQuery)
+	}
+}
+
+func TestHeartBeatStatus_DecodesWithUseNumber(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"amount":9007199254740993}}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	resp, err := c.HeartBeatStatus(context.Background())
+	if err != nil {
+		t.Fatalf("HeartBeatStatus: %v", err)
+	}
+	num, ok := resp.Data["amount"].(json.Number)
+	if !ok {
+		t.Fatalf("Data[\"amount\"] = %#v (%T), want json.Number", resp.Data["amount"], resp.Data["amount"])
+	}
+	if num.String() != "9007199254740993" {
+		t.Fatalf("amount = %q, want exact 9007199254740993", num.String())
 	}
 }
 
