@@ -184,6 +184,7 @@ func TestFireCreditApplicationCallback_HappyPath(t *testing.T) {
 func TestFireCreditInformationCallback_HappyPath(t *testing.T) {
 	v := mustVerifier(t)
 	var hit bool
+	//nolint:staticcheck // legacy deprecated callback handler is intentionally covered until the path is removed
 	h := callback.CreditInformationHandler(v, func(_ context.Context, e *callback.CreditInformationEvent) error {
 		hit = true
 		return nil

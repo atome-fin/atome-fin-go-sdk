@@ -52,16 +52,16 @@ func TestOVOHMAC_VerifyRejects(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	if err := v.Verify(ctx, canonical, ""); err == nil {
+	if vErr := v.Verify(ctx, canonical, ""); vErr == nil {
 		t.Fatal("empty signature accepted")
 	}
 	// Correct MAC but uppercase hex must be rejected (spec mandates lowercase).
-	if err := v.Verify(ctx, canonical, "1BBE847A37EFF8B004F607672F7A6747D1FF32F7DB47748FC7C27F9EE84C71DF"); err == nil {
+	if vErr := v.Verify(ctx, canonical, "1BBE847A37EFF8B004F607672F7A6747D1FF32F7DB47748FC7C27F9EE84C71DF"); vErr == nil {
 		t.Fatal("uppercase hex signature accepted")
 	}
 	// Tampered body.
 	tampered := OVOHMACCanonical("test", "1717671690611", "POST", "/path/abc", []byte("request_body2"))
-	if err := v.Verify(ctx, tampered, "1bbe847a37eff8b004f607672f7a6747d1ff32f7db47748fc7c27f9ee84c71df"); err == nil {
+	if vErr := v.Verify(ctx, tampered, "1bbe847a37eff8b004f607672f7a6747d1ff32f7db47748fc7c27f9ee84c71df"); vErr == nil {
 		t.Fatal("tampered canonical accepted")
 	}
 	// Wrong secret.
@@ -69,7 +69,7 @@ func TestOVOHMAC_VerifyRejects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewOVOHMACVerifier: %v", err)
 	}
-	if err := v2.Verify(ctx, canonical, "1bbe847a37eff8b004f607672f7a6747d1ff32f7db47748fc7c27f9ee84c71df"); err == nil {
+	if vErr := v2.Verify(ctx, canonical, "1bbe847a37eff8b004f607672f7a6747d1ff32f7db47748fc7c27f9ee84c71df"); vErr == nil {
 		t.Fatal("wrong-secret signature accepted")
 	}
 }
