@@ -236,7 +236,7 @@ func buildBillsQuery(p *BillsParams) url.Values {
 		q.Add("status", string(v))
 	}
 	for _, v := range p.RepaymentStatus {
-		q.Add("repaymentStatus", v)
+		q.Add("repaymentStatus", string(v))
 	}
 	for _, v := range p.OverdueStatus {
 		q.Add("overdueStatus", string(v))

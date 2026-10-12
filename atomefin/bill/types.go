@@ -46,12 +46,43 @@ const (
 	RefundStatusNotRefunded     RefundStatus = "NOT_REFUNDED"
 )
 
+// RepaymentStatus is the spec's repayment status axis for bills and
+// bill lines.
+type RepaymentStatus string
+
+const (
+	RepaymentStatusRepaid        RepaymentStatus = "REPAID"
+	RepaymentStatusUnpaid        RepaymentStatus = "UNPAID"
+	RepaymentStatusPartialRepaid RepaymentStatus = "PARTIAL_REPAID"
+)
+
+// IsValid reports whether s is a spec-defined repayment status.
+// Forward-compat: unknown values round-trip opaquely.
+func (s RepaymentStatus) IsValid() bool {
+	switch s {
+	case RepaymentStatusRepaid, RepaymentStatusUnpaid, RepaymentStatusPartialRepaid:
+		return true
+	}
+	return false
+}
+
+// RepaymentEvent is the spec's repayment trigger axis on
+// repaymentDetail rows (NORMAL / ATOME_REPAYMENT /
+// OVERPAID_REPAYMENT).
+type RepaymentEvent string
+
+const (
+	RepaymentEventNormal          RepaymentEvent = "NORMAL"
+	RepaymentEventAtomeRepayment  RepaymentEvent = "ATOME_REPAYMENT"
+	RepaymentEventOverpaidRepaymt RepaymentEvent = "OVERPAID_REPAYMENT"
+)
+
 // Bill is the schema returned under /bills data[] and BillDetail.bill.
 type Bill struct {
 	BillID            string            `json:"billId"`
 	BillMonth         string            `json:"billMonth"`
-	BillStartDate     string            `json:"billStartDate,omitempty"`
-	BillEndDate       string            `json:"billEndDate,omitempty"`
+	BillStartDate     string            `json:"billStartDate"`
+	BillEndDate       string            `json:"billEndDate"`
 	BillTotalAmount   atomefin.Amount   `json:"billTotalAmount"`
 	OutstandingAmount atomefin.Amount   `json:"outstandingAmount"`
 	RepaidAmount      atomefin.Amount   `json:"repaidAmount"`
@@ -65,25 +96,32 @@ type Bill struct {
 	Status            BillStatus        `json:"status"`
 	RefundStatus      RefundStatus      `json:"refundStatus"`
 	Currency          atomefin.Currency `json:"currency"`
-	RepaymentStatus   string            `json:"repaymentStatus"`
+	RepaymentStatus   RepaymentStatus   `json:"repaymentStatus"`
 	OverdueStatus     OverdueStatus     `json:"overdueStatus"`
 	Discounts         *BillDiscounts    `json:"discounts,omitempty"`
 }
 
-// BillsResponseItem is one /bills data row: Bill plus currency.
+// BillsResponseItem is one /bills data row: the spec's BillsResponse
+// (allOf Bill + required currency). Bill already carries the
+// `currency` JSON field, so the embed alone covers the full shape —
+// a previous duplicate outer Currency field shadowed Bill.Currency
+// and left it empty after decoding.
 type BillsResponseItem struct {
 	Bill
-	Currency atomefin.Currency `json:"currency"`
 }
 
 // BillDetail is the full single-bill type returned by /billDetail.
+// currency, bill, mainOrders and paginator are required per spec
+// (omitempty removed accordingly); orders is the legacy SKU-dimension
+// line array, `type: object` in the spec with no schema — Grab
+// returns null.
 type BillDetail struct {
-	Currency         atomefin.Currency `json:"currency,omitempty"`
-	Bill             *Bill             `json:"bill,omitempty"`
+	Currency         atomefin.Currency `json:"currency"`
+	Bill             *Bill             `json:"bill"`
 	RepaymentDetails []RepaymentDetail `json:"repaymentDetails,omitempty"`
-	MainOrders       []BillMainOrder   `json:"mainOrders,omitempty"`
-	Paginator        *Paginator        `json:"paginator,omitempty"`
-	Orders           []BillMainOrder   `json:"orders,omitempty"`
+	MainOrders       []BillMainOrder   `json:"mainOrders"`
+	Paginator        *Paginator        `json:"paginator"`
+	Orders           []map[string]any  `json:"orders,omitempty"`
 }
 
 // RepaymentDetail is one repayment write-off row under bill detail.
@@ -94,14 +132,15 @@ type RepaymentDetail struct {
 	RepaidInterestAmount  atomefin.Amount `json:"repaidInterestAmount,omitempty"`
 	RepaidLateFeeAmount   atomefin.Amount `json:"repaidLateFeeAmount,omitempty"`
 	RepaymentTime         int64           `json:"repaymentTime,omitempty"`
-	Event                 string          `json:"event,omitempty"`
+	Event                 RepaymentEvent  `json:"event,omitempty"`
 }
 
-// Paginator is the spec paginator object used by detail/list aggregate payloads.
+// Paginator is the spec paginator object used by detail/list aggregate
+// payloads. start/count/totalCount are all required per spec.
 type Paginator struct {
-	Start      int `json:"start,omitempty"`
-	Count      int `json:"count,omitempty"`
-	TotalCount int `json:"totalCount,omitempty"`
+	Start      int `json:"start"`
+	Count      int `json:"count"`
+	TotalCount int `json:"totalCount"`
 }
 
 // BillMainOrder is one merchant-dimension bill line on /billDetail
@@ -127,7 +166,7 @@ type BillMainOrder struct {
 	GracePeriod       int                      `json:"gracePeriod"`
 	DueDate           string                   `json:"dueDate"`
 	Status            BillStatus               `json:"status"`
-	RepaymentStatus   string                   `json:"repaymentStatus"`
+	RepaymentStatus   RepaymentStatus          `json:"repaymentStatus"`
 	OverdueStatus     OverdueStatus            `json:"overdueStatus"`
 	RefundStatus      RefundStatus             `json:"refundStatus"`
 	Discounts         *BillDiscounts           `json:"discounts,omitempty"`
@@ -149,7 +188,7 @@ type BillsParams struct {
 	StartMonth           string
 	EndMonth             string
 	Status               []BillStatus
-	RepaymentStatus      []string
+	RepaymentStatus      []RepaymentStatus
 	OverdueStatus        []OverdueStatus
 	RefundStatus         []RefundStatus
 }

@@ -57,8 +57,8 @@ func TestAccountChangeHandler_HappyPath(t *testing.T) {
 	if seen.CreditInfo == nil {
 		t.Fatal("CreditInfo nil")
 	}
-	if seen.AmountChange != 5000000 {
-		t.Errorf("AmountChange = %d", seen.AmountChange)
+	if seen.AmountChange == nil || *seen.AmountChange != 5000000 {
+		t.Errorf("AmountChange = %v", seen.AmountChange)
 	}
 }
 
@@ -205,8 +205,8 @@ func TestAccountChangeHandler_DecodesFixture_BalanceIncrease(t *testing.T) {
 	if seen == nil {
 		t.Fatal("event data nil")
 	}
-	if seen.AmountChange != 5000000 {
-		t.Errorf("AmountChange = %d", seen.AmountChange)
+	if seen.AmountChange == nil || *seen.AmountChange != 5000000 {
+		t.Errorf("AmountChange = %v", seen.AmountChange)
 	}
 	if seen.ExtendInfo == nil || seen.ExtendInfo.CreditLimitAdjustmentReason != "PERMANENT_CREDIT_INCREASE" {
 		t.Errorf("ExtendInfo = %#v", seen.ExtendInfo)

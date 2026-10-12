@@ -50,7 +50,8 @@ type VirtualAccount struct {
 	// BankCode is the selected virtual-account bank.
 	BankCode BankCode `json:"bankCode"`
 	// CreateTime is the VA creation time in Unix milliseconds.
-	CreateTime int64 `json:"createTime"`
+	// Optional per spec.
+	CreateTime int64 `json:"createTime,omitempty"`
 }
 
 // VirtualAccountListResponse is the POST /va/getList envelope.
@@ -66,10 +67,11 @@ func (r *VirtualAccountListResponse) IsSuccess() bool {
 }
 
 // VirtualAccountResponse is the POST /va/vaCodeByBank envelope.
+// data is required per spec on the 200 response.
 type VirtualAccountResponse struct {
 	Code    atomefin.Code   `json:"code"`
 	Message string          `json:"message"`
-	Data    *VirtualAccount `json:"data,omitempty"`
+	Data    *VirtualAccount `json:"data"`
 }
 
 // IsSuccess reports whether the envelope's Code is SUCCESS. Nil-safe.

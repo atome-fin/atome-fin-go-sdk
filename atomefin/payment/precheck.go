@@ -111,7 +111,7 @@ func validatePaymentPreCheckRequest(req *PaymentPreCheckRequest) error {
 	if req.TotalAmount <= 0 {
 		return &atomefin.ValidationError{Field: "totalAmount", Message: "must be > 0 (minor units)"}
 	}
-	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, planSubOrderAmounts(req.SubOrders)); err != nil {
+	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, setPlanSubOrderAmounts(req.SubOrders)); err != nil {
 		return err
 	}
 	if req.ExtendInfo != nil && req.ExtendInfo.OrderType != "" && !req.ExtendInfo.OrderType.IsValid() {
@@ -133,10 +133,15 @@ func validatePaymentPreCheckRequest(req *PaymentPreCheckRequest) error {
 	if req.PeriodType == 0 && len(req.SubOrders) > 0 && req.SubOrders[0].PeriodType != nil {
 		req.PeriodType = *req.SubOrders[0].PeriodType
 	}
-	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, planSubOrderAmounts(req.SubOrders)); err != nil {
+	// Amount checks apply only to sub-orders that set an amount —
+	// precheck sub-orders may legitimately omit it.
+	if err := validateCheckoutAmounts(req.PeriodType, req.TotalAmount, setPlanSubOrderAmounts(req.SubOrders)); err != nil {
 		return err
 	}
-	if len(req.SubOrders) > 0 && sumPlanSubOrderAmount(req.SubOrders) != req.TotalAmount {
+	// The sum rule only holds when every sub-order carries an amount;
+	// with any amount omitted the server derives the split itself.
+	if len(req.SubOrders) > 0 && allPlanSubOrderAmountsSet(req.SubOrders) &&
+		sumPlanSubOrderAmount(req.SubOrders) != req.TotalAmount {
 		return &atomefin.ValidationError{
 			Field:   "totalAmount",
 			Message: "must equal sum of subOrders[].amount",

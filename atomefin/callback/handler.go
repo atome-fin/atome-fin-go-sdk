@@ -10,13 +10,25 @@ import (
 	"net/http"
 
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin"
+	"github.com/atome-fin/atome-fin-go-sdk/atomefin/sign"
 )
 
 // AuthorizationHeader is the canonical name of the header carrying the
-// inbound signature. The spec uses the exact string "Authorization"
-// (DESIGN.md §1.3) — net/http's CanonicalHeaderKey already lower-cases
-// this consistently so we don't need a normalization step.
+// inbound signature in RSA2 mode. The spec uses the exact string
+// "Authorization" (DESIGN.md §1.3) — net/http's CanonicalHeaderKey
+// already lower-cases this consistently so we don't need a
+// normalization step.
 const AuthorizationHeader = "Authorization"
+
+// OVO.HMAC header names (2026-10-12 spec: every Atome → partner
+// callback carries `client-id`, `time`, `signature` instead of RSA2
+// `Authorization`). All lowercase, no `x-` prefix; Header.Get
+// canonicalizes case-insensitively.
+const (
+	HMACClientIDHeader  = "client-id"
+	HMACTimeHeader      = "time"
+	HMACSignatureHeader = "signature"
+)
 
 // AuthHandlerFunc is the user-supplied callback for /authNotifyUrl
 // events. The handler returns nil to ack the callback (HTTP 200) or
@@ -100,17 +112,38 @@ func handle[T any](v *Verifier, fn func(context.Context, *T) error) http.Handler
 			return
 		}
 
-		// Signature header MUST exist. Empty signatures are surfaced as
-		// 401 INVALID_SIGNATURE (not 400) so the partner sees the same
-		// error class regardless of whether the header is malformed or
-		// outright wrong.
-		sig := r.Header.Get(AuthorizationHeader)
-		if sig == "" {
-			writeAck(w, http.StatusUnauthorized, AckBadSignature())
-			return
+		// Signature extraction depends on the Verifier's mode.
+		//
+		// OVO.HMAC (FromHMACSecret): headers `client-id` / `time` /
+		// `signature`; the verified bytes are the OVO.HMAC canonical
+		// over method, path+query, and the base64 of the raw body.
+		//
+		// RSA2 (NewVerifier / FromCertPEMs / FromClient): the
+		// `Authorization` header over the raw body.
+		//
+		// Missing/empty headers surface as 401 INVALID_SIGNATURE (not
+		// 400) so the partner sees the same error class regardless of
+		// whether the header is malformed or outright wrong.
+		var sig string
+		canonical := body
+		if v.hmacClientID != "" {
+			sig = r.Header.Get(HMACSignatureHeader)
+			timeMs := r.Header.Get(HMACTimeHeader)
+			clientID := r.Header.Get(HMACClientIDHeader)
+			if sig == "" || timeMs == "" || clientID != v.hmacClientID {
+				writeAck(w, http.StatusUnauthorized, AckBadSignature())
+				return
+			}
+			canonical = sign.OVOHMACCanonical(clientID, timeMs, r.Method, r.URL.RequestURI(), body)
+		} else {
+			sig = r.Header.Get(AuthorizationHeader)
+			if sig == "" {
+				writeAck(w, http.StatusUnauthorized, AckBadSignature())
+				return
+			}
 		}
 
-		if vErr := v.Verify(r.Context(), body, sig); vErr != nil {
+		if vErr := v.Verify(r.Context(), canonical, sig); vErr != nil {
 			writeAck(w, http.StatusUnauthorized, AckBadSignature())
 			return
 		}

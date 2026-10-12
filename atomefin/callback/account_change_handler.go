@@ -11,11 +11,11 @@ import (
 //
 // Atome-fin guarantees at-least-once delivery, so fn must be
 // idempotent against duplicate deliveries. Typical pattern: dedupe
-// on event.Data.EventID (short-lived dedupe set is sufficient).
+// on event.CallbackRequestID (short-lived dedupe set is sufficient).
 type AccountChangeHandlerFunc func(ctx context.Context, event *AccountChangeEvent) error
 
 // AccountChangeHandler returns the http.Handler for the
-// /<accountChangeNotifyUrl> endpoint. Same behavioural contract as
+// /account_change_callback endpoint. Same behavioural contract as
 // AuthHandler / CaptureHandler / RefundHandler:
 //
 //   - body read via io.LimitReader (Verifier.BodyLimit, default 1 MiB)

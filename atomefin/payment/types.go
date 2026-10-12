@@ -91,7 +91,7 @@ type SkuInfo struct {
 	CategoryOneName string          `json:"categoryOneName,omitempty"`
 	CategoryCodes   []string        `json:"categoryCodes,omitempty"`
 	Quantity        int             `json:"quantity,omitempty"`
-	Amount          atomefin.Amount `json:"amount"`
+	Amount          atomefin.Amount `json:"amount,omitempty"`
 }
 
 // MainOrderExtendInfo is the per-merchant extension block under
@@ -100,8 +100,11 @@ type SkuInfo struct {
 // (GRAB_MART plan/auth/capture, GRAB_FOOD auth/capture);
 // FoodPlanMainOrderExtendInfo relaxes both to optional.
 type MainOrderExtendInfo struct {
-	MerchantID string    `json:"merchantId,omitempty"`
-	SkuInfos   []SkuInfo `json:"skuInfos,omitempty"`
+	MerchantID string `json:"merchantId,omitempty"`
+	// MerchantName is the merchant display name; Atome stores it for
+	// later display (bills, transaction detail). Optional per spec.
+	MerchantName string    `json:"merchantName,omitempty"`
+	SkuInfos     []SkuInfo `json:"skuInfos,omitempty"`
 }
 
 // ---------- Request-side extendInfo deep tree ----------
@@ -164,11 +167,14 @@ type DeviceInfo struct {
 }
 
 // GeoPoint is a (longitude, latitude, time) triple. The spec models
-// all three values as strings in PlatformDeviceInfo.
+// all three values as optional strings in PlatformDeviceInfo (time may
+// be null when both longitude and latitude are omitted); omitempty
+// keeps a partially-filled sample from emitting `""`, which would
+// violate the spec's minLength/pattern constraints.
 type GeoPoint struct {
-	Longitude string `json:"longitude"`
-	Latitude  string `json:"latitude"`
-	Time      string `json:"time"` // Unix-ms as a string
+	Longitude string `json:"longitude,omitempty"`
+	Latitude  string `json:"latitude,omitempty"`
+	Time      string `json:"time,omitempty"` // Unix-ms as a string
 }
 
 // DeviceProfile holds device fingerprint fields.
@@ -369,6 +375,9 @@ type CaptureExtendInfoResp struct {
 // AgreementRef is the nested agreement object inside
 // CaptureExtendInfoResp.
 type AgreementRef struct {
-	// AgreementURL is required when the parent Agreement is emitted.
-	AgreementURL string `json:"agreementUrl"` // PII per Q14
+	// AgreementURL is the financing agreement PDF URL. Generated
+	// asynchronously after capture succeeds — nullable/omitted per
+	// spec until ready; nil means "not generated yet", distinct from
+	// empty string.
+	AgreementURL *string `json:"agreementUrl,omitempty"` // PII per Q14
 }

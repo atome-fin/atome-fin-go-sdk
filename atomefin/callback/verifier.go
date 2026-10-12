@@ -30,6 +30,14 @@ type Verifier struct {
 	verifiers []sign.Verifier
 	bodyLimit int64
 	clock     func() time.Time // reserved for future replay-window checks (Q5)
+
+	// hmacClientID is non-empty when the Verifier runs in OVO.HMAC
+	// mode (2026-10-12 spec: every Atome → partner callback is signed
+	// with HMAC-SHA256 headers `client-id` / `time` / `signature`
+	// instead of RSA2 `Authorization`). In this mode `verifiers`
+	// holds sign.NewOVOHMACVerifier instances and the handler builds
+	// the OVO.HMAC canonical from the inbound request.
+	hmacClientID string
 }
 
 // VerifierOption configures a Verifier at construction time.
@@ -127,6 +135,51 @@ func FromCertPEMs(pems [][]byte, opts ...VerifierOption) (*Verifier, error) {
 		verifiers = append(verifiers, sv)
 	}
 	return NewVerifier(verifiers, opts...)
+}
+
+// FromHMACSecret builds a Verifier running in OVO.HMAC mode — the
+// scheme the 2026-10-12 spec mandates for every Atome → partner
+// callback. The inbound signature is read from the `signature`
+// header and verified as HMAC-SHA256 over the canonical
+//
+//	{client-id}{time}{METHOD} {path_including_query}{base64RawStd(body)}
+//
+// with the key derived from clientSecret per
+// docs/grab/credit-application-hmac-signing.md (hex(sha256(secret))
+// as ASCII bytes).
+//
+// clientID is the Grab-assigned partner client ID; the handler
+// rejects requests whose `client-id` header differs. Pass multiple
+// secrets to keep verification passing across a secret rotation
+// window (ANY match verifies), mirroring the RSA2 multi-cert
+// pattern.
+func FromHMACSecret(clientID string, clientSecrets []string, opts ...VerifierOption) (*Verifier, error) {
+	if clientID == "" {
+		return nil, errors.New("atomefin/callback: FromHMACSecret: empty clientID")
+	}
+	if len(clientSecrets) == 0 {
+		return nil, errors.New("atomefin/callback: FromHMACSecret: no client secrets provided")
+	}
+	verifiers := make([]sign.Verifier, 0, len(clientSecrets))
+	for i, s := range clientSecrets {
+		sv, err := sign.NewOVOHMACVerifier(s)
+		if err != nil {
+			return nil, fmt.Errorf("atomefin/callback: FromHMACSecret[%d]: %w", i, err)
+		}
+		verifiers = append(verifiers, sv)
+	}
+	v, err := NewVerifier(verifiers, opts...)
+	if err != nil {
+		return nil, err
+	}
+	v.hmacClientID = clientID
+	return v, nil
+}
+
+// IsHMAC reports whether the Verifier runs in OVO.HMAC mode (built
+// via FromHMACSecret) rather than RSA2 `Authorization` mode.
+func (v *Verifier) IsHMAC() bool {
+	return v != nil && v.hmacClientID != ""
 }
 
 // Verify checks signature against body using each configured verifier

@@ -237,6 +237,31 @@ func planSubOrderAmounts(orders []PlanSubOrder) []atomefin.Amount {
 	return amounts
 }
 
+// setPlanSubOrderAmounts returns only the amounts that are actually
+// set (> 0). /payment-precheck sub-orders may omit amount entirely —
+// the zero value means "not sent" (omitempty), not "zero rupiah" —
+// so minimum checks must skip unset entries.
+func setPlanSubOrderAmounts(orders []PlanSubOrder) []atomefin.Amount {
+	amounts := make([]atomefin.Amount, 0, len(orders))
+	for _, so := range orders {
+		if so.Amount > 0 {
+			amounts = append(amounts, so.Amount)
+		}
+	}
+	return amounts
+}
+
+// allPlanSubOrderAmountsSet reports whether every sub-order carries
+// an amount; the precheck sum rule only applies in that case.
+func allPlanSubOrderAmountsSet(orders []PlanSubOrder) bool {
+	for _, so := range orders {
+		if so.Amount <= 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func sumSubOrderAmount(orders []SubOrder) atomefin.Amount {
 	var sum atomefin.Amount
 	for _, so := range orders {

@@ -27,6 +27,11 @@ type CreditInformationHandlerFunc func(ctx context.Context, event *CreditInforma
 // At-least-once delivery applies — fn must be idempotent against
 // duplicate deliveries. Typical pattern: dedupe on
 // event.Data.RequestID at the application layer.
+//
+// Deprecated: the 2026-10-12 G spec defines no credit-information
+// callback path — results arrive via GET /credit-information-result
+// polling only. Kept for partners wired against earlier drafts; it
+// will be removed once the spec stabilises without it.
 func CreditInformationHandler(v *Verifier, fn CreditInformationHandlerFunc) http.Handler {
 	if fn == nil {
 		return handle[CreditInformationEvent](v, nil)

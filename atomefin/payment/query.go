@@ -144,6 +144,12 @@ func validateQueryParams(requestID, externalReferenceUID string) error {
 			Message: "required (the partner-side user/account identifier from the prior outbound submission)",
 		}
 	}
+	if len(externalReferenceUID) > 64 {
+		return &atomefin.ValidationError{
+			Field:   "externalReferenceUid",
+			Message: "exceeds spec maxlength 64",
+		}
+	}
 	return nil
 }
 

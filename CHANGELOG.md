@@ -7,6 +7,115 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.9.0] — 2026-10-12
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-10-12-45f4731a.yaml`.
+
+### Added
+
+- **OVO.HMAC (HMAC-SHA256) callback verification.** The 2026-10-12
+  spec signs every Atome → partner callback with OVO.HMAC headers
+  `client-id` / `time` / `signature` instead of RSA2
+  `Authorization`; this period only `/<creditApplicationNotifyUrl>`
+  is sent. New:
+  - `sign.NewOVOHMACSigner` / `sign.NewOVOHMACVerifier` /
+    `sign.OVOHMACCanonical` / `sign.OVOHMACKey` implementing the
+    canonical from `docs/grab/credit-application-hmac-signing.md`
+    (`{client-id}{time}{METHOD} {path}{base64RawStd(body)}`, key =
+    `hex(sha256(secret))` as ASCII bytes), pinned to the Grab
+    gateway self-test vector.
+  - `callback.FromHMACSecret(clientID, secrets)` builds a Verifier
+    in HMAC mode (multiple secrets supported for rotation); every
+    callback handler then reads the three HMAC headers and rejects
+    a mismatched `client-id`. RSA2 Verifiers keep working unchanged.
+- **`Client.HeartBeatStatus`** returns the typed GET /heart-beat
+  envelope (`code` / `message` / `data`) the spec defines;
+  `HeartBeat` keeps its error-only signature.
+- **`payment.MainOrderExtendInfo.MerchantName`** — the spec's
+  optional `mainOrderExtendInfos[].merchantName` on /payment-plan,
+  /auth, /capture and /reAuth.
+- **`refund.SubOrderRefundRequest.MerchantName` /
+  `refund.SubOrderRefundInfo.MerchantName`** — optional on the
+  refund request line and echoed on the result line.
+- **`credit.CreditApplicationParam.ApplicationEssentialInfo`** —
+  the optional KYC payload the spec allows on /credit-application
+  (the previously dead `ApplicationEssentialInfo` type is now
+  wired; its livenessCheck / individualProfile turned optional per
+  the spec's required list).
+- **`transaction.TradePaymentInfo.TotalTenor` /
+  `TradePaymentInfoDetail.TotalTenor`** and
+  **`TradeRefundInfoDetail.Event`** response fields.
+- Typed enums: `bill.RepaymentStatus` (REPAID / UNPAID /
+  PARTIAL_REPAID), `bill.RepaymentEvent`, `transaction.RefundType`,
+  `transaction.SubOrderRefundStatus`, `credit.CreditSceneType.IsValid`,
+  `callback.AccountChangeEventType`, `callback.AccountChangeScene`;
+  new codes `atomefin.CodeRefundableAmountInsufficient`,
+  `CodeNonRefundableStatus`, `CodeAccountClosed`,
+  `CodeInvalidPartner` and
+  `atomefin.FailureRefundableAmountInsufficient`.
+
+### Changed
+
+- **`payment.GeoPoint` / `credit.GPSSample`** fields are optional
+  (omitempty): the spec marks gps longitude/latitude/time optional,
+  and emitting `""` violated its minLength/pattern constraints.
+- **`payment.PlanSubOrder.Amount` and `payment.SkuInfo.Amount`**
+  serialize with omitempty — every /payment-precheck sub-order
+  field is optional per spec, and the FOOD /payment-plan SKU amount
+  is optional. The precheck validator now skips amount minimums for
+  unset amounts and only enforces the Σ subOrders == totalAmount
+  rule when every sub-order carries an amount.
+- **`payment.AgreementRef.AgreementURL` is `*string`** — the spec
+  marks `agreementUrl` nullable/optional (generated asynchronously
+  after capture); nil now distinguishes "not generated yet" from
+  empty string.
+- **`refund.SubOrderRefundInfo.TotalAmount`** lost its omitempty
+  (required per spec); **`.ExtendInfo`** is a `map[string]any`
+  (free-form object per spec — the previous empty struct dropped
+  all keys). The three credit `extendInfo` placeholders
+  (`CreditInformationResult`, `CreditApplicationResult`,
+  `CreditApplicationCollectQueryResult`) are `map[string]any` for
+  the same reason.
+- **`bill.BillsResponseItem`** no longer declares a duplicate outer
+  `currency` field that shadowed `Bill.Currency` and left it empty
+  after decoding; `item.Currency` now resolves to the embedded
+  Bill's populated field.
+- **`bill.BillDetail`** matches the spec's required list (currency
+  / bill / mainOrders / paginator no longer omitempty) and its
+  legacy `orders` array is `[]map[string]any` (spec: untyped
+  objects, Grab returns null). `bill.Bill.billStartDate` /
+  `billEndDate` and both `Paginator` types are required per spec.
+  `transaction.TransactionsData.currency` / `paginator`,
+  `TradeDetail.currency` and `TradeBillDetail` status axes follow
+  the same required-list fixes.
+- **`callback.AccountChangeEvent`**: `event` / `scene` are typed
+  enums and `amountChange` is `*atomefin.Amount` (the spec uses an
+  explicit 0 to signal a failed CIRCLED_LIST_CREDIT_BOOST, which a
+  non-pointer zero value could not distinguish from "absent").
+  `IsSuccess` is deprecated in favour of `HasIdentity` (the body
+  has no `code` field).
+- Validators tightened to spec maxlengths: /refund `orderId` (32),
+  `externalReferenceUid` (64); /query-refund and the payment
+  query-* family `externalReferenceUid` (64). Credit-side
+  `wifiList` now enforces the spec's `minItems: 1` and `sceneType`
+  its closed enum.
+
+### Removed
+
+- **`transaction.TradeRepaymentInfo.RepaidPrincipalAmount` /
+  `RepaidInterestAmount`** and **`transaction.TradeBillDetail.GracePeriod`**
+  — not in the spec (list lines carry the amount only; the
+  assembler does not copy gracePeriod).
+- `refund.SubOrderRefundExtendInfo`, and the credit extendInfo
+  placeholder structs, replaced by `map[string]any` as above.
+
+### Deprecated
+
+- `callback.CreditInformationHandler` — the G spec defines no
+  credit-information callback path; results arrive via GET
+  /credit-information-result polling.
+
 ## [0.8.14] — 2026-10-10
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

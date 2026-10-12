@@ -84,7 +84,7 @@ type PlanSubOrder struct {
 	MerchantName       string          `json:"merchantName,omitempty"`
 	MerchantCategory   string          `json:"merchantCategory,omitempty"`
 	MerchantJoinedDate string          `json:"merchantJoinedDate,omitempty"`
-	Amount             atomefin.Amount `json:"amount"`
+	Amount             atomefin.Amount `json:"amount,omitempty"`
 	PeriodType         *int            `json:"periodType,omitempty"`
 }
 
@@ -132,7 +132,7 @@ type SumOrderInstallmentPlan struct {
 	TotalTenor             int                         `json:"totalTenor"`
 	SumOrderRepayAmount    atomefin.Amount             `json:"sumOrderRepayAmount"`
 	SumOrderInterestAmount atomefin.Amount             `json:"sumOrderInterestAmount"`
-	SumOrderDiscountAmount atomefin.Amount             `json:"sumOrderDiscountAmount"`
+	SumOrderDiscountAmount atomefin.Amount             `json:"sumOrderDiscountAmount,omitempty"`
 	InstallmentDetails     []SumOrderInstallmentDetail `json:"installmentDetails"`
 }
 
@@ -155,7 +155,7 @@ type CommerceInstallmentPlan struct {
 	TotalTenor          int                         `json:"totalTenor"`
 	OrderRepayAmount    atomefin.Amount             `json:"orderRepayAmount"`
 	OrderInterestAmount atomefin.Amount             `json:"orderInterestAmount"`
-	OrderDiscountAmount atomefin.Amount             `json:"orderDiscountAmount"`
+	OrderDiscountAmount atomefin.Amount             `json:"orderDiscountAmount,omitempty"`
 	InstallmentDetails  []CommerceInstallmentDetail `json:"installmentDetails"`
 }
 

@@ -38,8 +38,7 @@ info:
     - **Polling:** **GET** `/query-auth`, `/query-capture`, `/query-voidAuth`, `/query-reAuth` return the same envelope as the corresponding
     POST `200` for `requestId` + `externalReferenceUid`; sign the **GET** query string per the **signature** tag.
 
-    - **Callbacks (Atome → partner):** `/<authNotifyUrl>` and `/<captureNotifyUrl>` fire **only** for **terminal** outcomes;
-    they **never** carry `PROCESSING`. `/reAuth` is **synchronous** — no callback.
+    - **Callbacks (Atome → partner):** Every callback path is signed with **OVO.HMAC (HMAC-SHA256)** — headers `client-id`, `time`, and `signature` — instead of RSA2. **This period only `/<creditApplicationNotifyUrl>` is sent.** `/<authNotifyUrl>`, `/<captureNotifyUrl>`, `/<refundNotifyUrl>`, `/repayment-callback`, and `/account_change_callback` stay in the spec and are **not sent this period**. When a callback is sent, it fires **only** for **terminal** outcomes and **never** carries `PROCESSING`. `/reAuth` is **synchronous** — no callback.
 
     - **`/reAuth` is synchronous:** HTTP `200` carries the terminal `data.status` (`SUCCESS` or `FAILED`). There is no `PROCESSING` and no callback.
 
@@ -59,7 +58,9 @@ info:
 
     | Poll same outcome | GET | `/query-auth`, `/query-capture`, `/query-voidAuth`, `/query-reAuth` |
 
-    | Auth / capture result callback | POST | `/<authNotifyUrl>`, `/<captureNotifyUrl>` |
+    | Credit result callback (sent this period) | POST | `/<creditApplicationNotifyUrl>` |
+
+    | Auth / capture result callback (not sent this period) | POST | `/<authNotifyUrl>`, `/<captureNotifyUrl>` |
 
     ## Minimum order / sub-order amounts
 
@@ -83,8 +84,7 @@ info:
 
     Paths are ordered for readability: **HealthCheck** and **Credit** first, then **Payment** (checkout pricing & plan APIs,
     then Auth–Capture–Void and GET queries), followed by **Refund**, **Bill**, **Transaction**, **Repayment**, and remaining
-    **Callback** routes (`/<refundNotifyUrl>`, `/repayment-callback`, `/account_change_callback`). Enable only what your integration
-    contract covers.
+    **Callback** routes (`/<creditApplicationNotifyUrl>`, `/<refundNotifyUrl>`, `/repayment-callback`, `/account_change_callback`, plus `/<authNotifyUrl>` and `/<captureNotifyUrl>` above). **This period only `/<creditApplicationNotifyUrl>` is sent.** The others are listed and **not sent this period**. All of them use **OVO.HMAC (HMAC-SHA256)**.
 
     '
   version: partner-white-label-draft
@@ -217,7 +217,9 @@ tags:
 
     | 2026-10-08 | Payment & Credit | `PlatformDeviceInfo` on `/credit-information`, `/auth`, `/capture`, and `/reAuth`: `device.googleAdvertisingId`, `device.build` (and `board` / `brand` / `device` / `manufacturer` / `model` / `product`), and `ipAddress` (and `ethIp` / `trueIp`) are optional. `gps.time` may be null when both `longitude` and `latitude` are omitted. |
 
-    | 2026-10-09 | Payment & Credit | `PlatformDeviceInfo.device.deviceId` is optional on `/credit-information`, `/auth`, `/capture`, and `/reAuth`. |' 
+    | 2026-10-09 | Payment & Credit | `PlatformDeviceInfo.device.deviceId` is optional on `/credit-information`, `/auth`, `/capture`, and `/reAuth`. |
+
+    | 2026-10-12 | Callback | This period only `/<creditApplicationNotifyUrl>` is sent. All partner callbacks (`/<creditApplicationNotifyUrl>`, `/<authNotifyUrl>`, `/<captureNotifyUrl>`, `/<refundNotifyUrl>`, `/repayment-callback`, `/account_change_callback`) use **OVO.HMAC (HMAC-SHA256)** — headers `client-id` / `time` / `signature` — instead of RSA2 `Authorization`. Auth, capture, refund, repayment, and account-change callbacks are **not sent this period**. |'
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -225,7 +227,7 @@ tags:
     \ certificate.\n- ATOME provide:\n  - Public key certificate: The validity period is 3 year\n- Partner provide:\n  - Public\
     \ key certificate: The validity period is 3 year\n- Params:\n  - Request Headers: add param `Authorization`\n  - GET:\
     \ Sign the request parameters which parameter names are sorted in alphabetical natural order\n  - POST: Sign with the\
-    \ payload.\n"
+    \ payload.\n\n**Callbacks (Atome → partner)** do not use RSA2. Every callback is signed with **OVO.HMAC (HMAC-SHA256)**. Headers: `client-id`, `time` (Unix epoch milliseconds, decimal string), `signature` (HMAC-SHA256, hex-encoded lowercase). This period only `/<creditApplicationNotifyUrl>` is sent.\n"
 - name: HealthCheck
 - name: Credit
 - name: Payment
@@ -262,9 +264,11 @@ tags:
 - name: Virtual Account
   description: Query available virtual-account banks and retrieve or create a user's repayment VA.
 - name: Refund
-  description: 'Asynchronously notify the final order result,  and notify the result by callback.</br>
+  description: 'Refund is asynchronous. The first `POST /refund` may return `PROCESSING`; the terminal result is `SUCCESS` or `FAILED`.</br>
 
-    If the partner gets the final result before the callback, the callback will still be executed, the partner ensuring idempotency.</br>
+    **This period `/<refundNotifyUrl>` is not sent.** Obtain the terminal result with `GET /query-refund` or an idempotent retry of `POST /refund`.</br>
+
+    When the callback is enabled later, it uses **OVO.HMAC (HMAC-SHA256)** and is still sent after the partner has already queried the final result. Handle it idempotently.</br>
 
     '
 - name: Bill
@@ -278,11 +282,18 @@ tags:
 
     **`paymentInfo.extendInfo.agreement.agreementUrl`:** Financing agreement PDF URL (RIPLAY + FA merged when ready). Generated **asynchronously** after capture succeeds — may be `null` on first fetch; partners may **poll** this endpoint on the installment-detail page until the URL appears. Same field semantics as `/capture` / `/<captureNotifyUrl>` `extendInfo.agreement.agreementUrl`.
 - name: Callback
-  description: 'Server-to-server notifications implemented on the **partner** side. Atome calls the partner-configured HTTPS
-    URL **only when** `/auth` or `/capture` reaches a **terminal** `data.status` (e.g. `SUCCESS` or `FAILED`). While the synchronous
-    API still shows **processing** (`PROCESSING`), Atome does **not** send these callbacks. After a terminal state is reached,
-    the partner may also obtain the same terminal outcome via **idempotent** `/auth` / `/capture` retry (same `requestId`).
-    `/reAuth` returns the terminal result on the POST itself and does **not** send a callback.
+  description: 'Server-to-server notifications implemented on the **partner** side. Every callback is signed with **OVO.HMAC
+    (HMAC-SHA256)** — headers `client-id`, `time`, and `signature` — instead of RSA2.
+
+
+    **This period only `/<creditApplicationNotifyUrl>` is sent.** `/<authNotifyUrl>`, `/<captureNotifyUrl>`, `/<refundNotifyUrl>`,
+    `/repayment-callback`, and `/account_change_callback` remain in the spec and are **not sent this period**. Partners obtain
+    those results by query or idempotent retry.
+
+
+    When a callback is enabled, Atome calls the partner-configured HTTPS URL **only** for a **terminal** outcome (`SUCCESS` or
+    `FAILED`). Callbacks **never** carry `PROCESSING`. `/reAuth` returns the terminal result on the POST itself and does **not**
+    send a callback.
 
     '
 - name: All Models
@@ -683,8 +694,11 @@ paths:
       - Callback
       summary: Submit credit application result callback
       description: |
+        **Sent this period.** This is the only Atome → partner callback sent in the current release.
+
         Atome → partner (Grab/OVO gateway) server-to-server callback. Signed with **OVO.HMAC
         (HMAC-SHA256)** instead of RSA2; the signature is verified at the gateway boundary.
+        Headers: `client-id`, `time`, `signature`.
       parameters:
       - in: header
         name: client-id
@@ -1340,16 +1354,16 @@ paths:
         **Synchronous response:**
 
         - **First submission (in-progress):** HTTP `200` acknowledges the request; `code` indicates acceptance while `data.status
-        = PROCESSING`. The final outcome is delivered asynchronously via the callback.
+        = PROCESSING`. **This period Atome does not send `/<authNotifyUrl>`.** Obtain the terminal result by idempotent retry
+        of `POST /auth` or `GET /query-auth`.
 
         - **Idempotent retry after terminal state:** If the same `requestId` is resubmitted **after** processing has finished,
-        the sync response directly carries the **terminal** result (`data.status = SUCCESS` or `FAILED`) — partners can safely
-        poll via idempotent retry instead of waiting for the callback.
+        the sync response directly carries the **terminal** result (`data.status = SUCCESS` or `FAILED`).
 
 
-        **Callback (terminal only):** Atome invokes `/<authNotifyUrl>` **only after** `data.status` reaches a terminal value
-        (`SUCCESS` or `FAILED`). **No callback** is sent for non-terminal / in-progress states, and callbacks **never** carry
-        `PROCESSING`. Partner must handle callbacks **idempotently** (same `requestId` / `authOrderId` may be retried).
+        **Callback:** `/<authNotifyUrl>` is **not sent this period**. The path remains in the spec. When enabled, it fires only
+        for terminal `SUCCESS` or `FAILED` (never `PROCESSING`), is signed with **OVO.HMAC (HMAC-SHA256)**, and must be handled
+        idempotently (same `requestId` / `authOrderId` may be retried).
 
         '
       parameters:
@@ -1372,11 +1386,11 @@ paths:
         '200':
           description: 'Sync response. Inspect `code` and `data.status`:
 
-            - `data.status = PROCESSING`: request accepted, still in progress — the final outcome arrives later via `/<authNotifyUrl>`
-            (or can be re-fetched by idempotent retry with the same `requestId` after processing completes).
+            - `data.status = PROCESSING`: request accepted, still in progress. **This period there is no `/<authNotifyUrl>`.**
+            Re-fetch the terminal result by idempotent retry with the same `requestId`, or `GET /query-auth`, after processing completes.
 
             - `data.status = SUCCESS` / `FAILED`: terminal result returned synchronously (typically via idempotent retry after
-            the callback / processing has completed).
+            processing has completed).
 
             '
           content:
@@ -1567,14 +1581,18 @@ paths:
       tags:
       - Payment
       - Callback
-      summary: Authorization result callback
-      description: '**Partner-implemented** endpoint. Atome `POST`s here **only after** authorization reaches a **terminal**
+      summary: Authorization result callback (not sent this period)
+      description: '**Not sent this period.** The path stays in the spec for a later release. This period, poll `GET /query-auth`
+        or retry `POST /auth` with the same `requestId`.
+
+
+        **Partner-implemented** endpoint. When enabled, Atome `POST`s here **only after** authorization reaches a **terminal**
         `data.status` in `AuthAckResponse` (same JSON shape as `/auth` HTTP 200). **Not** called for in-progress (`PROCESSING`)
-        states—the synchronous `/auth` response covers processing.
+        states.
 
 
         Callback body guarantees: `data.status` is **always** either `SUCCESS` or `FAILED`; it will **never** be `PROCESSING`
-        in a callback.
+        in a callback. Signed with **OVO.HMAC (HMAC-SHA256)** — headers `client-id`, `time`, `signature` — instead of RSA2.
 
 
         Replace `authNotifyUrl` with the HTTPS path agreed during integration (full base URL is configured per partner, not
@@ -1585,11 +1603,23 @@ paths:
       - url: https://merchant.example.com/
       parameters:
       - in: header
-        name: Authorization
+        name: client-id
         required: true
         schema:
           type: string
-        description: RSA2 signature over the POST JSON body; same rules as **signature** for inbound partner calls.
+        description: The client ID assigned to the partner.
+      - in: header
+        name: time
+        required: true
+        schema:
+          type: string
+        description: Unix epoch milliseconds (UTC), decimal string; included in the HMAC-signed message.
+      - in: header
+        name: signature
+        required: true
+        schema:
+          type: string
+        description: HMAC-SHA256 signature, hex-encoded lowercase.
       requestBody:
         $ref: '#/components/requestBodies/AuthCallbackRequest'
       responses:
@@ -1639,15 +1669,16 @@ paths:
         **Synchronous response:**
 
         - **First submission (in-progress):** HTTP `200` acknowledges the request; `code` indicates acceptance while `data.status
-        = PROCESSING`. The final capture outcome is delivered asynchronously via the callback.
+        = PROCESSING`. **This period Atome does not send `/<captureNotifyUrl>`.** Obtain the terminal result by idempotent
+        retry of `POST /capture` or `GET /query-capture`.
 
         - **Idempotent retry after terminal state:** Resubmitting the same `requestId` **after** capture has finished returns
-        the **terminal** result directly (`data.status = SUCCESS` or `FAILED`) — safe for partners to poll.
+        the **terminal** result directly (`data.status = SUCCESS` or `FAILED`).
 
 
-        **Callback (terminal only):** Atome invokes `/<captureNotifyUrl>` **only after** `data.status` reaches a terminal
-        value (`SUCCESS` or `FAILED`). **No callback** is sent while status is non-terminal, and callbacks **never** carry
-        `PROCESSING`. Partner must handle callbacks **idempotently** (same `requestId` / `orderId` may be retried).
+        **Callback:** `/<captureNotifyUrl>` is **not sent this period**. The path remains in the spec. When enabled, it fires
+        only for terminal `SUCCESS` or `FAILED` (never `PROCESSING`), is signed with **OVO.HMAC (HMAC-SHA256)**, and must be
+        handled idempotently (same `requestId` / `orderId` may be retried).
 
         '
       parameters:
@@ -1663,8 +1694,8 @@ paths:
         '200':
           description: 'Sync response. Inspect `code` and `data.status`:
 
-            - `data.status = PROCESSING`: request accepted, still in progress — final outcome arrives later via `/<captureNotifyUrl>`
-            (or can be re-fetched by idempotent retry with the same `requestId` after processing completes).
+            - `data.status = PROCESSING`: request accepted, still in progress. **This period there is no `/<captureNotifyUrl>`.**
+            Re-fetch the terminal result by idempotent retry with the same `requestId`, or `GET /query-capture`, after processing completes.
 
             - `data.status = SUCCESS` / `FAILED`: terminal result returned synchronously (typically via idempotent retry once
             capture has completed).
@@ -1861,14 +1892,18 @@ paths:
       tags:
       - Payment
       - Callback
-      summary: Capture result callback
-      description: '**Partner-implemented** endpoint. Atome `POST`s here **only after** capture reaches a **terminal** `data.status`
+      summary: Capture result callback (not sent this period)
+      description: '**Not sent this period.** The path stays in the spec for a later release. This period, poll `GET /query-capture`
+        or retry `POST /capture` with the same `requestId`.
+
+
+        **Partner-implemented** endpoint. When enabled, Atome `POST`s here **only after** capture reaches a **terminal** `data.status`
         in `CaptureAckResponse` (same JSON shape as `/capture` HTTP 200). **Not** called while the operation is still **processing**
-        (`PROCESSING`)—that state is conveyed only by the synchronous `/capture` response.
+        (`PROCESSING`).
 
 
         Callback body guarantees: `data.status` is **always** either `SUCCESS` or `FAILED`; it will **never** be `PROCESSING`
-        in a callback.
+        in a callback. Signed with **OVO.HMAC (HMAC-SHA256)** — headers `client-id`, `time`, `signature` — instead of RSA2.
 
 
         Replace `captureNotifyUrl` with the HTTPS path agreed during integration (full base URL is configured per partner,
@@ -1879,11 +1914,23 @@ paths:
       - url: https://merchant.example.com/
       parameters:
       - in: header
-        name: Authorization
+        name: client-id
         required: true
         schema:
           type: string
-        description: RSA2 signature over the POST JSON body; same rules as **signature** for inbound partner calls.
+        description: The client ID assigned to the partner.
+      - in: header
+        name: time
+        required: true
+        schema:
+          type: string
+        description: Unix epoch milliseconds (UTC), decimal string; included in the HMAC-signed message.
+      - in: header
+        name: signature
+        required: true
+        schema:
+          type: string
+        description: HMAC-SHA256 signature, hex-encoded lowercase.
       requestBody:
         $ref: '#/components/requestBodies/CaptureCallbackRequest'
       responses:
@@ -2427,16 +2474,32 @@ paths:
       tags:
       - Refund
       - Callback
-      summary: refund result callback
+      summary: refund result callback (not sent this period)
+      description: |
+        **Not sent this period.** The path stays in the spec for a later release. This period, poll `GET /query-refund`
+        or retry `POST /refund` with the same `requestId`.
+
+        When enabled, Atome signs the callback with **OVO.HMAC (HMAC-SHA256)** — headers `client-id`, `time`, `signature` —
+        instead of RSA2. The body returns only terminal `SUCCESS` or `FAILED`.
       parameters:
       - in: header
-        name: Authorization
+        name: client-id
         required: true
         schema:
           type: string
-        description: |
-          RSA2 signature over the POST JSON body; same rules as **signature** for inbound
-          partner calls.
+        description: The client ID assigned to the partner.
+      - in: header
+        name: time
+        required: true
+        schema:
+          type: string
+        description: Unix epoch milliseconds (UTC), decimal string; included in the HMAC-signed message.
+      - in: header
+        name: signature
+        required: true
+        schema:
+          type: string
+        description: HMAC-SHA256 signature, hex-encoded lowercase.
       requestBody:
         $ref: '#/components/requestBodies/RefundResult'
       responses:
@@ -3229,16 +3292,31 @@ paths:
       tags:
       - Repayment
       - Callback
-      summary: repayment result callback
+      summary: repayment result callback (not sent this period)
+      description: |
+        **Not sent this period.** The path stays in the spec for a later release. This period, poll `GET /repayment-result`.
+
+        When enabled, Atome signs the callback with **OVO.HMAC (HMAC-SHA256)** — headers `client-id`, `time`, `signature` —
+        instead of RSA2. The body returns only terminal `SUCCESS` or `FAILED`.
       parameters:
       - in: header
-        name: Authorization
+        name: client-id
         required: true
         schema:
           type: string
-        description: |
-          RSA2 signature over the POST JSON body; same rules as **signature** for inbound
-          partner calls.
+        description: The client ID assigned to the partner.
+      - in: header
+        name: time
+        required: true
+        schema:
+          type: string
+        description: Unix epoch milliseconds (UTC), decimal string; included in the HMAC-signed message.
+      - in: header
+        name: signature
+        required: true
+        schema:
+          type: string
+        description: HMAC-SHA256 signature, hex-encoded lowercase.
       requestBody:
         required: true
         content:
@@ -3265,16 +3343,32 @@ paths:
     post:
       tags:
       - Callback
-      summary: account change callback
+      summary: account change callback (not sent this period)
+      description: |
+        **Not sent this period.** The path stays in the spec for a later release. This period, read account status and
+        credit from `GET /credit-result`.
+
+        When enabled, Atome signs the callback with **OVO.HMAC (HMAC-SHA256)** — headers `client-id`, `time`, `signature` —
+        instead of RSA2.
       parameters:
       - in: header
-        name: Authorization
+        name: client-id
         required: true
         schema:
           type: string
-        description: |
-          RSA2 signature over the POST JSON body; same rules as **signature** for inbound
-          partner calls.
+        description: The client ID assigned to the partner.
+      - in: header
+        name: time
+        required: true
+        schema:
+          type: string
+        description: Unix epoch milliseconds (UTC), decimal string; included in the HMAC-signed message.
+      - in: header
+        name: signature
+        required: true
+        schema:
+          type: string
+        description: HMAC-SHA256 signature, hex-encoded lowercase.
       requestBody:
         required: true
         content:
@@ -5362,7 +5456,7 @@ components:
         code:
           type: string
           description: '`SUCCESS`: Request accepted. Business outcome lives in `data.status` — on first submission it is typically
-            `PROCESSING` (terminal result via callback); on idempotent retry after completion it is `SUCCESS` / `FAILED`.<br/>
+            `PROCESSING`. **This period `/<authNotifyUrl>` is not sent**; the terminal result is `SUCCESS` / `FAILED` on idempotent retry or `GET /query-auth`.<br/>
 
             `INVALID_ORDER_AMOUNT`: `totalAmount` or a sub-order `amount` is below the minimum for `periodType`, or above the
             maximum installable amount.<br/>
@@ -5506,7 +5600,7 @@ components:
       properties:
         code:
           type: string
-          description: '`SUCCESS`: Request accepted; see `data.status` for business outcome (`PROCESSING` on first submission; terminal states via callback or idempotent retry).<br/>
+          description: '`SUCCESS`: Request accepted; see `data.status` for business outcome (`PROCESSING` on first submission; terminal states via idempotent retry or `GET /query-capture`. **This period `/<captureNotifyUrl>` is not sent**).<br/>
 
             `INVALID_ORDER_AMOUNT`: a sub-order `amount` is below **1 × tenor** (`periodType`), or `totalAmount` / a sub-order `amount` is above the
             maximum installable amount.<br/>
@@ -6103,8 +6197,8 @@ components:
             on first submission while work is in progress, and `SUCCESS` / `FAILED` either once the work has completed (idempotent
             retry with the same `requestId`) or when the decision can be made inline.<br/>
 
-            Callbacks (`/<authNotifyUrl>`, `/<captureNotifyUrl>`) are sent **only** at terminal states and always carry `SUCCESS`
-            or `FAILED`; they **never** carry `PROCESSING`.
+            `/<authNotifyUrl>` and `/<captureNotifyUrl>` are **not sent this period**. When enabled, they are sent **only** at terminal states and always carry `SUCCESS`
+            or `FAILED`; they **never** carry `PROCESSING`. They are signed with **OVO.HMAC (HMAC-SHA256)**.
 
             '
           enum:
@@ -6535,8 +6629,8 @@ components:
           description: Repayment identifier returned by Atome.
         status:
           type: string
-          description: Code `PROCESSING` occurs only in the query repayment result and apply to repayment; The refund callback
-            will only return `SUCCESS` or `FAILED`
+          description: Code `PROCESSING` occurs only on `GET /repayment-result`. `/repayment-callback` is **not sent this period**.
+            When enabled, the callback returns only `SUCCESS` or `FAILED`.
           enum:
           - PROCESSING
           - SUCCESS
@@ -7067,8 +7161,8 @@ components:
           description: Actual refund discount amount. Optional this period — no subsidy (贴息).
         status:
           type: string
-          description: Code `PROCESSING` occurs only in the query refund result and apply to refund; The refund callback will
-            only return `SUCCESS` or `FAILED`
+          description: Code `PROCESSING` occurs only on `GET /query-refund` and the first `POST /refund`. `/<refundNotifyUrl>` is **not sent this period**.
+            When enabled, the callback returns only `SUCCESS` or `FAILED`.
           enum:
           - SUCCESS
           - PROCESSING

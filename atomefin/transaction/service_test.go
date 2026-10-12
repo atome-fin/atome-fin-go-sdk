@@ -190,7 +190,8 @@ func TestService_TransactionDetail_Success(t *testing.T) {
 		t.Errorf("BillID = %q", resp.Data.PaymentInfo.SubOrders[0].BillOrderDetails[0].BillID)
 	}
 	if resp.Data.PaymentInfo.ExtendInfo == nil || resp.Data.PaymentInfo.ExtendInfo.Agreement == nil ||
-		resp.Data.PaymentInfo.ExtendInfo.Agreement.AgreementURL != "https://atome.example/agreements/ORD-1.pdf" {
+		resp.Data.PaymentInfo.ExtendInfo.Agreement.AgreementURL == nil ||
+		*resp.Data.PaymentInfo.ExtendInfo.Agreement.AgreementURL != "https://atome.example/agreements/ORD-1.pdf" {
 		t.Errorf("AgreementURL = %#v", resp.Data.PaymentInfo.ExtendInfo)
 	}
 	if gotPath != "/transactionDetail" {

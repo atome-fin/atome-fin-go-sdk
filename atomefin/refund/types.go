@@ -65,6 +65,9 @@ type SubOrderRefundRequest struct {
 	// MerchantID is required for GRAB_MART; optional for GRAB_FOOD
 	// and TRANSPORT per spec (SubOrderRefundRequest).
 	MerchantID string `json:"merchantId,omitempty"`
+	// MerchantName is the merchant display name. Optional per spec
+	// (GRAB_MART sends it; echoed back on the refund result line).
+	MerchantName string `json:"merchantName,omitempty"`
 	// Quantity is the number of units being refunded for this line.
 	Quantity int `json:"quantity,omitempty"`
 	// Amount is the per-line refund value in minor units.
@@ -118,16 +121,17 @@ type RefundResult struct {
 // SubOrderRefundRequest; merchantId is echoed when sent (required
 // for GRAB_MART per MartSubOrderRefundInfo).
 type SubOrderRefundInfo struct {
-	SubOrderID           string                    `json:"subOrderId,omitempty"`
-	MerchantID           string                    `json:"merchantId,omitempty"`
-	Quantity             int                       `json:"quantity,omitempty"`
-	TotalAmount          atomefin.Amount           `json:"totalAmount,omitempty"`
-	PrincipalAmount      atomefin.Amount           `json:"principalAmount,omitempty"`
-	InterestAmount       atomefin.Amount           `json:"interestAmount,omitempty"`
-	DiscountAmount       atomefin.Amount           `json:"discountAmount,omitempty"`
-	OverpaidAmountChange atomefin.Amount           `json:"overpaidAmountChange,omitempty"`
-	ExtendInfo           *SubOrderRefundExtendInfo `json:"extendInfo,omitempty"`
+	SubOrderID string `json:"subOrderId,omitempty"`
+	MerchantID string `json:"merchantId,omitempty"`
+	// MerchantName echoes the request's merchantName when sent.
+	MerchantName string `json:"merchantName,omitempty"`
+	Quantity     int    `json:"quantity,omitempty"`
+	// TotalAmount is required per spec on every result line.
+	TotalAmount          atomefin.Amount `json:"totalAmount"`
+	PrincipalAmount      atomefin.Amount `json:"principalAmount,omitempty"`
+	InterestAmount       atomefin.Amount `json:"interestAmount,omitempty"`
+	DiscountAmount       atomefin.Amount `json:"discountAmount,omitempty"`
+	OverpaidAmountChange atomefin.Amount `json:"overpaidAmountChange,omitempty"`
+	// ExtendInfo is the spec's free-form per-line extension object.
+	ExtendInfo map[string]any `json:"extendInfo,omitempty"`
 }
-
-// SubOrderRefundExtendInfo is reserved for per-sub-order refund metadata.
-type SubOrderRefundExtendInfo struct{}

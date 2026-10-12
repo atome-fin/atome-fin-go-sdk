@@ -128,6 +128,12 @@ func (s *Service) QueryRefund(ctx context.Context, requestID, externalReferenceU
 			Message: "required (the partner-side user/account identifier from the prior /refund submission)",
 		}
 	}
+	if len(externalReferenceUID) > 64 {
+		return nil, &atomefin.ValidationError{
+			Field:   "externalReferenceUid",
+			Message: "exceeds spec maxlength 64",
+		}
+	}
 
 	q := url.Values{
 		"requestId":            []string{requestID},
@@ -212,8 +218,14 @@ func validateRefund(req *RefundParam) error {
 	if req.ExternalReferenceUID == "" {
 		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "required"}
 	}
+	if len(req.ExternalReferenceUID) > 64 {
+		return &atomefin.ValidationError{Field: "externalReferenceUid", Message: "exceeds spec maxlength 64"}
+	}
 	if req.OrderID == "" {
 		return &atomefin.ValidationError{Field: "orderId", Message: "required (the orderId returned by the prior /capture call)"}
+	}
+	if len(req.OrderID) > 32 {
+		return &atomefin.ValidationError{Field: "orderId", Message: "exceeds spec maxlength 32"}
 	}
 	if req.RefundAmount <= 0 {
 		return &atomefin.ValidationError{Field: "refundAmount", Message: "must be > 0 (minor units)"}

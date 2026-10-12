@@ -89,10 +89,9 @@ type RepaymentResult struct {
 }
 
 // CommerceAccountChanges is the canonical credit-change vector for
-// commerce-domain responses (repayment, etc.) per spec. It carries
-// the field set defined by the spec for commerce-domain endpoints;
-// the auth / capture / voidAuth / refund family uses
-// payment.AccountChanges, which is its own canonical vector.
+// commerce-domain responses (repayment, refund) per spec. The auth /
+// capture / voidAuth family uses payment.AccountChanges, which is its
+// own canonical vector.
 //
 // All *Change fields are SIGNED int64 deltas — a repayment reduces
 // UsedCredit (negative) and increases AvailableCredit (positive).

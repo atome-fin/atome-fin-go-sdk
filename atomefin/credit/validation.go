@@ -100,6 +100,12 @@ func validatePlatformInformation(pi *PlatformInformation) error {
 			Message: "required",
 		}
 	}
+	if !pi.SceneType.IsValid() {
+		return &atomefin.ValidationError{
+			Field:   "applicationEssentialInfo.platformInformation.sceneType",
+			Message: "must be one of PRODUCT_LANDING_PAGE | PROMO_BANNER_PAGE | MARKETING_PUSH_ENTRY | CHECKOUT_PAGE | WALLET_DASHBOARD_ENTRY",
+		}
+	}
 	if pi.DeviceInfo == nil {
 		return &atomefin.ValidationError{
 			Field:   "applicationEssentialInfo.platformInformation.deviceInfo",
@@ -136,10 +142,10 @@ func validatePlatformInformation(pi *PlatformInformation) error {
 			Message: "required",
 		}
 	}
-	if pi.DeviceInfo.WifiList == nil {
+	if len(pi.DeviceInfo.WifiList) == 0 {
 		return &atomefin.ValidationError{
 			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.wifiList",
-			Message: "required",
+			Message: "required with at least one entry (spec minItems 1)",
 		}
 	}
 	for _, wifi := range pi.DeviceInfo.WifiList {

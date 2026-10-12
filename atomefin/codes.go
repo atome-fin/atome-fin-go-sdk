@@ -49,6 +49,12 @@ const (
 	CodeUserCreditLimitInsufficient  Code = "USER_CREDIT_LIMIT_INSUFFICIENT"
 	CodeRiskReject                   Code = "RISK_REJECT"
 
+	// Refund-envelope codes (spec RefundAckResponse).
+	CodeRefundableAmountInsufficient Code = "REFUNDABLE_AMOUNT_INSUFFICIENT"
+	CodeNonRefundableStatus          Code = "NON_REFUNDABLE_STATUS"
+	CodeAccountClosed                Code = "ACCOUNT_CLOSED"
+	CodeInvalidPartner               Code = "INVALID_PARTNER"
+
 	// Codes that surface in non-200 envelopes; included here so a caller can
 	// type-switch a single APIError.Code field without juggling multiple
 	// enum types. See DESIGN.md §1.6.
@@ -77,6 +83,9 @@ type FailureCode string
 const (
 	FailureUserCreditLimitInsufficient FailureCode = "USER_CREDIT_LIMIT_INSUFFICIENT"
 	FailureRiskReject                  FailureCode = "RISK_REJECT"
+	// FailureRefundableAmountInsufficient surfaces on refund results
+	// (spec RefundResult.failureCode).
+	FailureRefundableAmountInsufficient FailureCode = "REFUNDABLE_AMOUNT_INSUFFICIENT"
 )
 
 // AccountStatus is the value of `accountChanges.previousStatus` /

@@ -42,6 +42,41 @@ func (t TransactionType) IsValid() bool {
 // String returns the wire literal verbatim.
 func (t TransactionType) String() string { return string(t) }
 
+// RefundType is the refund trigger axis on refund rows (NORMAL /
+// CHARGEBACK / OVERPAID / ATOME_REPAYMENT).
+type RefundType string
+
+const (
+	RefundTypeNormal         RefundType = "NORMAL"
+	RefundTypeChargeback     RefundType = "CHARGEBACK"
+	RefundTypeOverpaid       RefundType = "OVERPAID"
+	RefundTypeAtomeRepayment RefundType = "ATOME_REPAYMENT"
+)
+
+// IsValid reports whether t is a spec-defined refund type.
+// Forward-compat: unknown values round-trip opaquely.
+func (t RefundType) IsValid() bool {
+	switch t {
+	case RefundTypeNormal, RefundTypeChargeback, RefundTypeOverpaid, RefundTypeAtomeRepayment:
+		return true
+	}
+	return false
+}
+
+// SubOrderRefundStatus is the per-line refund status axis
+// (FULL_REFUND / PARTIAL_REFUND).
+type SubOrderRefundStatus string
+
+const (
+	SubOrderRefundStatusFull    SubOrderRefundStatus = "FULL_REFUND"
+	SubOrderRefundStatusPartial SubOrderRefundStatus = "PARTIAL_REFUND"
+)
+
+// RepaymentEvent is the repayment trigger axis on repayment rows
+// (NORMAL / ATOME_REPAYMENT / OVERPAID_REPAYMENT). Shares the wire
+// values of bill.RepaymentEvent.
+type RepaymentEvent = bill.RepaymentEvent
+
 // ---------- Request param types ----------
 
 // TransactionsParams are the query params for GET /transactions.
@@ -63,13 +98,14 @@ type TransactionsResponse struct {
 	Data    *TransactionsData `json:"data,omitempty"`
 }
 
-// TransactionsData is the GET /transactions payload.
+// TransactionsData is the GET /transactions payload. currency and
+// paginator are required per spec.
 type TransactionsData struct {
-	Currency      atomefin.Currency    `json:"currency,omitempty"`
+	Currency      atomefin.Currency    `json:"currency"`
 	PaymentInfo   []TradePaymentInfo   `json:"paymentInfo,omitempty"`
 	RefundInfo    []TradeRefundInfo    `json:"refundInfo,omitempty"`
 	RepaymentInfo []TradeRepaymentInfo `json:"repaymentInfo,omitempty"`
-	Paginator     *Paginator           `json:"paginator,omitempty"`
+	Paginator     *Paginator           `json:"paginator"`
 }
 
 // TransactionDetailResponse is the GET /transactionDetail outer
@@ -80,18 +116,22 @@ type TransactionDetailResponse struct {
 	Data    *TradeDetail  `json:"data,omitempty"`
 }
 
+// Paginator mirrors the spec paginator; start/count/totalCount are
+// all required.
 type Paginator struct {
-	Start      int `json:"start,omitempty"`
-	Count      int `json:"count,omitempty"`
-	TotalCount int `json:"totalCount,omitempty"`
+	Start      int `json:"start"`
+	Count      int `json:"count"`
+	TotalCount int `json:"totalCount"`
 }
 
 type TradePaymentInfo struct {
 	PaymentRequestID string                   `json:"paymentRequestId"`
 	OrderID          string                   `json:"orderId"`
 	OrderType        payment.PaymentOrderType `json:"orderType"`
-	CreateTime       int64                    `json:"createTime"`
-	SubOrders        []TradeSubOrder          `json:"subOrders,omitempty"`
+	// TotalTenor is the instalment tenor of the captured order.
+	TotalTenor int             `json:"totalTenor,omitempty"`
+	CreateTime int64           `json:"createTime"`
+	SubOrders  []TradeSubOrder `json:"subOrders,omitempty"`
 }
 
 type TradeRefundInfo struct {
@@ -103,20 +143,18 @@ type TradeRefundInfo struct {
 	OverpaidAmountChange  atomefin.Amount       `json:"overpaidAmountChange,omitempty"`
 	AvailableCreditChange atomefin.Amount       `json:"availableCreditChange,omitempty"`
 	LateFeeAmountChange   atomefin.Amount       `json:"lateFeeAmountChange,omitempty"`
-	RefundType            string                `json:"refundType"`
+	RefundType            RefundType            `json:"refundType"`
 	CreateTime            int64                 `json:"createTime"`
 	SubOrders             []TradeRefundSubOrder `json:"subOrders,omitempty"`
 }
 
 type TradeRepaymentInfo struct {
-	RepaymentRequestID    string                 `json:"repaymentRequestId"`
-	RepaymentAmount       atomefin.Amount        `json:"repaymentAmount"`
-	OverpaidAmountChange  atomefin.Amount        `json:"overpaidAmountChange,omitempty"`
-	RepaidPrincipalAmount atomefin.Amount        `json:"repaidPrincipalAmount,omitempty"`
-	RepaidInterestAmount  atomefin.Amount        `json:"repaidInterestAmount,omitempty"`
-	Event                 string                 `json:"event"`
-	CreateTime            int64                  `json:"createTime"`
-	RepaymentDetails      []TradeRepaymentDetail `json:"repaymentDetails,omitempty"`
+	RepaymentRequestID   string                 `json:"repaymentRequestId"`
+	RepaymentAmount      atomefin.Amount        `json:"repaymentAmount"`
+	OverpaidAmountChange atomefin.Amount        `json:"overpaidAmountChange,omitempty"`
+	Event                RepaymentEvent         `json:"event"`
+	CreateTime           int64                  `json:"createTime"`
+	RepaymentDetails     []TradeRepaymentDetail `json:"repaymentDetails,omitempty"`
 }
 
 type TradeSubOrder struct {
@@ -129,15 +167,16 @@ type TradeSubOrder struct {
 }
 
 type TradeRefundSubOrder struct {
-	SubOrderID            string          `json:"subOrderId"`
-	MerchantID            string          `json:"merchantId,omitempty"`
-	MerchantName          string          `json:"merchantName,omitempty"`
-	RefundStatus          string          `json:"refundStatus"`
-	PrincipalAmount       atomefin.Amount `json:"principalAmount"`
-	WaivedInterestAmount  atomefin.Amount `json:"waivedInterestAmount,omitempty"`
-	AvailableCreditChange atomefin.Amount `json:"availableCreditChange,omitempty"`
-	DiscountAmount        atomefin.Amount `json:"discountAmount,omitempty"`
-	OverpaidAmountChange  atomefin.Amount `json:"overpaidAmountChange,omitempty"`
+	// SubOrderID is omitted when null per spec.
+	SubOrderID            string               `json:"subOrderId,omitempty"`
+	MerchantID            string               `json:"merchantId,omitempty"`
+	MerchantName          string               `json:"merchantName,omitempty"`
+	RefundStatus          SubOrderRefundStatus `json:"refundStatus"`
+	PrincipalAmount       atomefin.Amount      `json:"principalAmount"`
+	WaivedInterestAmount  atomefin.Amount      `json:"waivedInterestAmount,omitempty"`
+	AvailableCreditChange atomefin.Amount      `json:"availableCreditChange,omitempty"`
+	DiscountAmount        atomefin.Amount      `json:"discountAmount,omitempty"`
+	OverpaidAmountChange  atomefin.Amount      `json:"overpaidAmountChange,omitempty"`
 }
 
 type TradeRepaymentDetail struct {
@@ -149,22 +188,24 @@ type TradeRepaymentDetail struct {
 }
 
 type TradeDetail struct {
-	Currency      atomefin.Currency         `json:"currency,omitempty"`
+	Currency      atomefin.Currency         `json:"currency"`
 	PaymentInfo   *TradePaymentInfoDetail   `json:"paymentInfo,omitempty"`
 	RefundInfo    *RefundInfoDetail         `json:"refundInfo,omitempty"`
 	RepaymentInfo *TradeRepaymentInfoDetail `json:"repaymentInfo,omitempty"`
 }
 
 type TradePaymentInfoDetail struct {
-	CaptureRequestID string                        `json:"captureRequestId"`
-	OrderID          string                        `json:"orderId"`
-	OrderType        payment.PaymentOrderType      `json:"orderType"`
-	CreateTime       int64                         `json:"createTime"`
-	PrincipalAmount  atomefin.Amount               `json:"principalAmount"`
-	InterestAmount   atomefin.Amount               `json:"interestAmount,omitempty"`
-	DiscountAmount   atomefin.Amount               `json:"discountAmount,omitempty"`
-	SubOrders        []TradeSubOrderDetail         `json:"subOrders,omitempty"`
-	ExtendInfo       *PaymentTransactionExtendInfo `json:"extendInfo,omitempty"`
+	CaptureRequestID string                   `json:"captureRequestId"`
+	OrderID          string                   `json:"orderId"`
+	OrderType        payment.PaymentOrderType `json:"orderType"`
+	// TotalTenor is the instalment tenor of the captured order.
+	TotalTenor      int                           `json:"totalTenor,omitempty"`
+	CreateTime      int64                         `json:"createTime"`
+	PrincipalAmount atomefin.Amount               `json:"principalAmount"`
+	InterestAmount  atomefin.Amount               `json:"interestAmount,omitempty"`
+	DiscountAmount  atomefin.Amount               `json:"discountAmount,omitempty"`
+	SubOrders       []TradeSubOrderDetail         `json:"subOrders,omitempty"`
+	ExtendInfo      *PaymentTransactionExtendInfo `json:"extendInfo,omitempty"`
 }
 
 // PaymentTransactionExtendInfo carries transaction-detail extension fields.
@@ -183,34 +224,39 @@ type TradeSubOrderDetail struct {
 	RefundInfo       []TradeRefundInfoDetail `json:"refundInfo,omitempty"`
 }
 
+// TradeBillDetail is one bill line on /transactionDetail. status,
+// repaymentStatus and overdueStatus are required per spec; the spec's
+// assembler does not copy gracePeriod onto this shape.
 type TradeBillDetail struct {
-	BillID            string              `json:"billId"`
-	BillDate          string              `json:"billDate"`
-	DueDate           string              `json:"dueDate"`
-	BillStartDate     string              `json:"billStartDate,omitempty"`
-	BillEndDate       string              `json:"billEndDate,omitempty"`
-	TotalAmount       atomefin.Amount     `json:"totalAmount"`
-	OutstandingAmount atomefin.Amount     `json:"outstandingAmount,omitempty"`
-	RepaidAmount      atomefin.Amount     `json:"repaidAmount"`
-	PrincipalAmount   atomefin.Amount     `json:"principalAmount"`
-	InterestAmount    atomefin.Amount     `json:"interestAmount"`
-	GracePeriod       int                 `json:"gracePeriod,omitempty"`
-	Status            bill.BillStatus     `json:"status,omitempty"`
-	RepaymentStatus   string              `json:"repaymentStatus,omitempty"`
-	OverdueStatus     bill.OverdueStatus  `json:"overdueStatus,omitempty"`
-	Discounts         *bill.BillDiscounts `json:"discounts,omitempty"`
+	BillID            string               `json:"billId"`
+	BillDate          string               `json:"billDate"`
+	DueDate           string               `json:"dueDate"`
+	BillStartDate     string               `json:"billStartDate,omitempty"`
+	BillEndDate       string               `json:"billEndDate,omitempty"`
+	TotalAmount       atomefin.Amount      `json:"totalAmount"`
+	OutstandingAmount atomefin.Amount      `json:"outstandingAmount,omitempty"`
+	RepaidAmount      atomefin.Amount      `json:"repaidAmount"`
+	PrincipalAmount   atomefin.Amount      `json:"principalAmount"`
+	InterestAmount    atomefin.Amount      `json:"interestAmount"`
+	Status            bill.BillStatus      `json:"status"`
+	RepaymentStatus   bill.RepaymentStatus `json:"repaymentStatus"`
+	OverdueStatus     bill.OverdueStatus   `json:"overdueStatus"`
+	Discounts         *bill.BillDiscounts  `json:"discounts,omitempty"`
 }
 
 type TradeRefundInfoDetail struct {
-	RefundRequestID       string          `json:"refundRequestId"`
-	PrincipalAmount       atomefin.Amount `json:"principalAmount"`
-	DiscountAmount        atomefin.Amount `json:"discountAmount,omitempty"`
-	WaivedInterestAmount  atomefin.Amount `json:"waivedInterestAmount,omitempty"`
-	AvailableCreditChange atomefin.Amount `json:"availableCreditChange,omitempty"`
-	LateFeeAmountChange   atomefin.Amount `json:"lateFeeAmountChange,omitempty"`
-	RefundStatus          string          `json:"refundStatus,omitempty"`
-	OverpaidAmountChange  atomefin.Amount `json:"overpaidAmountChange,omitempty"`
-	CreateTime            int64           `json:"createTime"`
+	RefundRequestID       string               `json:"refundRequestId"`
+	PrincipalAmount       atomefin.Amount      `json:"principalAmount"`
+	DiscountAmount        atomefin.Amount      `json:"discountAmount,omitempty"`
+	WaivedInterestAmount  atomefin.Amount      `json:"waivedInterestAmount,omitempty"`
+	AvailableCreditChange atomefin.Amount      `json:"availableCreditChange,omitempty"`
+	LateFeeAmountChange   atomefin.Amount      `json:"lateFeeAmountChange,omitempty"`
+	RefundStatus          SubOrderRefundStatus `json:"refundStatus,omitempty"`
+	OverpaidAmountChange  atomefin.Amount      `json:"overpaidAmountChange,omitempty"`
+	// Event is the refund trigger (NORMAL / CHARGEBACK / OVERPAID /
+	// ATOME_REPAYMENT). Optional per spec.
+	Event      RefundType `json:"event,omitempty"`
+	CreateTime int64      `json:"createTime"`
 }
 
 type RefundInfoDetail struct {
@@ -222,7 +268,7 @@ type RefundInfoDetail struct {
 	LateFeeAmountChange   atomefin.Amount       `json:"lateFeeAmountChange,omitempty"`
 	AvailableCreditChange atomefin.Amount       `json:"availableCreditChange,omitempty"`
 	OverpaidAmountChange  atomefin.Amount       `json:"overpaidAmountChange,omitempty"`
-	RefundType            string                `json:"refundType"`
+	RefundType            RefundType            `json:"refundType"`
 	CreateTime            int64                 `json:"createTime"`
 	SubOrders             []TradeRefundSubOrder `json:"subOrders,omitempty"`
 }
@@ -232,7 +278,7 @@ type TradeRepaymentInfoDetail struct {
 	RepaymentAmount      atomefin.Amount              `json:"repaymentAmount"`
 	OverpaidAmountChange atomefin.Amount              `json:"overpaidAmountChange,omitempty"`
 	LateFeeAmountChange  atomefin.Amount              `json:"lateFeeAmountChange,omitempty"`
-	Event                string                       `json:"event"`
+	Event                RepaymentEvent               `json:"event"`
 	CreateTime           int64                        `json:"createTime"`
 	RepaymentDetails     []TradeDetailRepaymentDetail `json:"repaymentDetails,omitempty"`
 }

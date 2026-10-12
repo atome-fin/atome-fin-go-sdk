@@ -281,6 +281,11 @@ type CreditApplicationParam struct {
 	Email string `json:"email"`
 	// Country is the ISO-style market code; currently "ID" only.
 	Country Country `json:"country"`
+	// ApplicationEssentialInfo carries the full KYC payload
+	// (livenessCheck, individualProfile, platformInformation).
+	// Optional per spec — omit when the prior /credit-information
+	// already collected it.
+	ApplicationEssentialInfo *ApplicationEssentialInfo `json:"applicationEssentialInfo,omitempty"`
 	// ExtendInfo links to the prior /credit-information call.
 	// Required (per spec).
 	ExtendInfo *CreditApplicationExtendInfo `json:"extendInfo"`
@@ -334,13 +339,18 @@ type CloseAccountParam struct {
 
 // ApplicationEssentialInfo is the KYC payload nested inside
 // CreditApplicationParam. Field shape may differ per country (today
-// only ID); see the request fixture for the canonical sample.
+// only ID); see the request fixture for the canonical sample. Only
+// platformInformation is required per spec; livenessCheck and
+// individualProfile are required for non-overlap users (GKYC or OVO
+// premium) and omitted for overlap users.
 type ApplicationEssentialInfo struct {
-	// LivenessCheck carries the liveness snapshot result. Required.
-	LivenessCheck *LivenessCheck `json:"livenessCheck"`
+	// LivenessCheck carries the liveness snapshot result. Required
+	// for non-overlap users; omit for overlap users.
+	LivenessCheck *LivenessCheck `json:"livenessCheck,omitempty"`
 	// IndividualProfile carries the user's KYC profile (idType,
-	// ocrResult, idFrontPhoto). Required per spec.
-	IndividualProfile *IndividualProfile `json:"individualProfile"`
+	// ocrResult, idFrontPhoto). Required for non-overlap users; omit
+	// for overlap users.
+	IndividualProfile *IndividualProfile `json:"individualProfile,omitempty"`
 	// PlatformInformation carries partner-side risk signals
 	// (creditProfile, sceneType, deviceInfo). Required per spec.
 	PlatformInformation *PlatformInformation `json:"platformInformation"`
@@ -396,6 +406,18 @@ const (
 	SceneCheckoutPage         CreditSceneType = "CHECKOUT_PAGE"
 	SceneWalletDashboardEntry CreditSceneType = "WALLET_DASHBOARD_ENTRY"
 )
+
+// IsValid reports whether t is a spec-defined scene type (the spec's
+// CreditSceneType enum is closed). Forward-compat: unknown values
+// round-trip opaquely.
+func (t CreditSceneType) IsValid() bool {
+	switch t {
+	case SceneProductLandingPage, ScenePromoBannerPage, SceneMarketingPushEntry,
+		SceneCheckoutPage, SceneWalletDashboardEntry:
+		return true
+	}
+	return false
+}
 
 // UserFlag identifies the partner platform user type.
 type UserFlag string
@@ -470,13 +492,16 @@ type DeviceInfo struct {
 }
 
 // GPSSample is the GPS sample on a device snapshot. Spec types
-// longitude/latitude/time as strings (per existing payment.GPS
-// pattern; time stays a string here because the credit spec types
-// it as string, distinct from /auth's int-Unix-ms).
+// longitude/latitude/time as optional strings (time may be null when
+// both longitude and latitude are omitted); omitempty keeps a
+// partially-filled sample from emitting `""`, which would violate the
+// spec's minLength/pattern constraints. time stays a string here
+// because the credit spec types it as string, distinct from /auth's
+// int-Unix-ms.
 type GPSSample struct {
-	Longitude string `json:"longitude"`
-	Latitude  string `json:"latitude"`
-	Time      string `json:"time"` // string per credit spec
+	Longitude string `json:"longitude,omitempty"`
+	Latitude  string `json:"latitude,omitempty"`
+	Time      string `json:"time,omitempty"` // string per credit spec
 }
 
 // Device is the device-build snapshot.
@@ -541,16 +566,10 @@ type CreditInformationResult struct {
 	JumpURL string `json:"jumpUrl"`
 	// FailReason is set when Status == FAILED.
 	FailReason string `json:"failReason,omitempty"`
-	// ExtendInfo is the free-form extension bag — kept as a typed
-	// object for forward-compat (today empty).
-	ExtendInfo *CreditInformationResultExtendInfo `json:"extendInfo,omitempty"`
+	// ExtendInfo is the spec's free-form extension object; keys are
+	// preserved as-is (spec: `type: object`, no fixed properties).
+	ExtendInfo map[string]any `json:"extendInfo,omitempty"`
 }
-
-// CreditInformationResultExtendInfo is a placeholder for future
-// spec additions on CreditInformationResult.extendInfo. Kept as a
-// named type so a minor release can add fields without breaking the
-// envelope.
-type CreditInformationResultExtendInfo struct{}
 
 // IsSuccess reports whether the envelope's Code is SUCCESS.
 // Nil-safe.
@@ -568,9 +587,10 @@ func (r *CreditInformationResponse) IsTerminal() bool {
 }
 
 // CreditApplicationResponse is the POST /credit-application and
-// GET /credit-result outer envelope. Also serves as the
-// /<creditApplicationNotifyUrl> callback envelope (mirrors the
-// refund pattern: synchronous and async share one shape).
+// GET /credit-result outer envelope. The
+// /<creditApplicationNotifyUrl> callback body is the inner
+// CreditApplicationResult without this envelope (see
+// callback.CreditApplicationEvent).
 type CreditApplicationResponse struct {
 	Code    atomefin.Code            `json:"code"`
 	Message string                   `json:"message"`
@@ -604,14 +624,10 @@ type CreditApplicationResult struct {
 	BillDay int `json:"billDay,omitempty"`
 	// PayDay is the user's payment day-of-month (1–31).
 	PayDay int `json:"payDay,omitempty"`
-	// ExtendInfo is the free-form extension bag (typed for
-	// forward-compat; today empty).
-	ExtendInfo *CreditApplicationResultExtendInfo `json:"extendInfo,omitempty"`
+	// ExtendInfo is the spec's free-form extension object; keys are
+	// preserved as-is (spec: `type: object`, no fixed properties).
+	ExtendInfo map[string]any `json:"extendInfo,omitempty"`
 }
-
-// CreditApplicationResultExtendInfo is a placeholder for future
-// spec additions.
-type CreditApplicationResultExtendInfo struct{}
 
 // IsSuccess reports whether the envelope's Code is SUCCESS.
 // Nil-safe.
@@ -702,14 +718,10 @@ type CreditApplicationCollectQueryResult struct {
 	// LIVENESS_NO_RESULT, SUBMIT_OVER_MAXIMUM_TIME) but the SDK
 	// passes the wire literal through as-is to stay forward-compat.
 	FailReason string `json:"failReason,omitempty"`
-	// ExtendInfo is the free-form extension bag (typed for
-	// forward-compat).
-	ExtendInfo *CreditCollectQueryResultExtendInfo `json:"extendInfo,omitempty"`
+	// ExtendInfo is the spec's free-form extension object; keys are
+	// preserved as-is (spec: `type: object`, no fixed properties).
+	ExtendInfo map[string]any `json:"extendInfo,omitempty"`
 }
-
-// CreditCollectQueryResultExtendInfo is a placeholder for future
-// spec additions on CreditApplicationCollectQueryResult.extendInfo.
-type CreditCollectQueryResultExtendInfo struct{}
 
 // IsSuccess reports whether the envelope's Code is SUCCESS.
 // Nil-safe.

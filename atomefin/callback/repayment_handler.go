@@ -30,7 +30,7 @@ type RepaymentHandlerFunc func(ctx context.Context, event *RepaymentEvent) error
 // At-least-once delivery applies (atome-fin retries up to 14 times
 // per spec on non-200 responses) — fn must be idempotent against
 // duplicate deliveries. Typical pattern: dedupe on
-// event.Data.RequestID at the application layer.
+// event.RequestID at the application layer.
 func RepaymentHandler(v *Verifier, fn RepaymentHandlerFunc) http.Handler {
 	if fn == nil {
 		// Surface the nil user-fn before we wrap it; otherwise the
