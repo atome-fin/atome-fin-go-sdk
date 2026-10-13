@@ -219,7 +219,9 @@ tags:
 
     | 2026-10-09 | Payment & Credit | `PlatformDeviceInfo.device.deviceId` is optional on `/credit-information`, `/auth`, `/capture`, and `/reAuth`. |
 
-    | 2026-10-12 | Callback | This period only `/<creditApplicationNotifyUrl>` is sent. All partner callbacks (`/<creditApplicationNotifyUrl>`, `/<authNotifyUrl>`, `/<captureNotifyUrl>`, `/<refundNotifyUrl>`, `/repayment-callback`, `/account_change_callback`) use **OVO.HMAC (HMAC-SHA256)** — headers `client-id` / `time` / `signature` — instead of RSA2 `Authorization`. Auth, capture, refund, repayment, and account-change callbacks are **not sent this period**. |'
+    | 2026-10-12 | Callback | This period only `/<creditApplicationNotifyUrl>` is sent. All partner callbacks (`/<creditApplicationNotifyUrl>`, `/<authNotifyUrl>`, `/<captureNotifyUrl>`, `/<refundNotifyUrl>`, `/repayment-callback`, `/account_change_callback`) use **OVO.HMAC (HMAC-SHA256)** — headers `client-id` / `time` / `signature` — instead of RSA2 `Authorization`. Auth, capture, refund, repayment, and account-change callbacks are **not sent this period**. |
+
+    | 2026-10-13 | Payment & Credit | `PlatformDeviceInfo.wifiList` is optional on `/credit-information`, `/auth`, `/capture`, and `/reAuth`. When an entry is sent, `ssid` is still required. |' 
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -6290,16 +6292,14 @@ components:
       description: |-
         User device information at submission time. Shared by `POST /credit-information`
         (`applicationEssentialInfo.platformInformation.deviceInfo`) and by `/auth`, `/capture`, and `/reAuth`
-        (`extendInfo.deviceInfo`). Required: `platform`, `device`,
-        `device.isRoot`, `wifiList` (at least one entry), and `wifiList[].ssid`.
-        Optional: `gps` and `gps.longitude` / `gps.latitude` / `gps.time` (`time` may be null when both longitude and latitude
+        (`extendInfo.deviceInfo`). Required: `platform`, `device`, and `device.isRoot`.
+        Optional: `wifiList` (when an entry is sent, `ssid` is required), `gps` and `gps.longitude` / `gps.latitude` / `gps.time` (`time` may be null when both longitude and latitude
         are omitted), `device.deviceId`, `device.googleAdvertisingId`, `device.idfa`, `device.idfv`, `device.androidId`, `device.utdid`,
         `device.build` and its fields (`board` / `brand` / `device` / `manufacturer` / `model` / `product` / `cpuAbi`),
         and `ipAddress` and `ipAddress.ethIp` / `trueIp`.
       required:
       - platform
       - device
-      - wifiList
       properties:
         platform:
           type: string
@@ -6387,8 +6387,7 @@ components:
                   description: Optional.
         wifiList:
           type: array
-          description: Visible Wi-Fi networks at submission time. Required — at least one entry.
-          minItems: 1
+          description: Visible Wi-Fi networks at submission time. Optional. When an entry is sent, `ssid` is required.
           items:
             type: object
             required:

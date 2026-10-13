@@ -159,11 +159,13 @@ type RequestExtendInfo struct {
 // DeviceInfo describes the originating device.
 // Required by the spec on /auth and /capture.
 type DeviceInfo struct {
-	Platform  Platform       `json:"platform"`
-	GPS       *GeoPoint      `json:"gps,omitempty"`
-	Device    *DeviceProfile `json:"device"`
-	WifiList  []WifiAP       `json:"wifiList"`
-	IPAddress *IPAddress     `json:"ipAddress,omitempty"`
+	Platform Platform       `json:"platform"`
+	GPS      *GeoPoint      `json:"gps,omitempty"`
+	Device   *DeviceProfile `json:"device"`
+	// WifiList is optional per the 2026-10-13 spec change; when an
+	// entry is sent, its ssid is required.
+	WifiList  []WifiAP   `json:"wifiList,omitempty"`
+	IPAddress *IPAddress `json:"ipAddress,omitempty"`
 }
 
 // GeoPoint is a (longitude, latitude, time) triple. The spec models

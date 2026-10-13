@@ -7,10 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
-## [0.9.0] — 2026-10-12
+## [0.9.0] — 2026-10-13
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as
-`swagger-2026-10-12-45f4731a.yaml`.
+`swagger-2026-10-13-24f1b0cc.yaml`.
 
 ### Added
 
@@ -99,11 +99,16 @@ Syncs the SDK to the upstream partner white-label `G` spec pinned as
   non-pointer zero value could not distinguish from "absent").
   `IsSuccess` is deprecated in favour of `HasIdentity` (the body
   has no `code` field).
+- **`deviceInfo.wifiList` is now optional** on `/credit-information`
+  (`credit.DeviceInfo.WifiList`) and on `/auth`, `/capture`, `/reAuth`
+  (`payment.DeviceInfo.WifiList`). The credit client-side validator no
+  longer requires at least one entry; an entry's `ssid` stays required.
+  `WifiList` now serializes with `omitempty`, so an unset list is
+  omitted instead of emitted as `null`.
 - Validators tightened to spec maxlengths: /refund `orderId` (32),
   `externalReferenceUid` (64); /query-refund and the payment
-  query-* family `externalReferenceUid` (64). Credit-side
-  `wifiList` now enforces the spec's `minItems: 1` and `sceneType`
-  its closed enum.
+  query-* family `externalReferenceUid` (64). Credit-side `sceneType`
+  now enforces its closed enum.
 
 ### Removed
 

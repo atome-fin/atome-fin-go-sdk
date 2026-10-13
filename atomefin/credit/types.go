@@ -486,7 +486,9 @@ type DeviceInfo struct {
 	// Device is the device-build snapshot.
 	Device *Device `json:"device"`
 	// WifiList is the visible Wi-Fi networks at submission time.
-	WifiList []WifiAP `json:"wifiList"`
+	// Optional per the 2026-10-13 spec change; when an entry is
+	// sent, its ssid is required.
+	WifiList []WifiAP `json:"wifiList,omitempty"`
 	// IPAddress carries ethIp / trueIp.
 	IPAddress *IPAddress `json:"ipAddress,omitempty"`
 }

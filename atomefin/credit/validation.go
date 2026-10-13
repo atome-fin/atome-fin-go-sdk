@@ -142,12 +142,8 @@ func validatePlatformInformation(pi *PlatformInformation) error {
 			Message: "required",
 		}
 	}
-	if len(pi.DeviceInfo.WifiList) == 0 {
-		return &atomefin.ValidationError{
-			Field:   "applicationEssentialInfo.platformInformation.deviceInfo.wifiList",
-			Message: "required with at least one entry (spec minItems 1)",
-		}
-	}
+	// wifiList is optional per the 2026-10-13 spec change; when an
+	// entry is sent, its ssid is still required.
 	for _, wifi := range pi.DeviceInfo.WifiList {
 		if wifi.SSID == "" {
 			return &atomefin.ValidationError{

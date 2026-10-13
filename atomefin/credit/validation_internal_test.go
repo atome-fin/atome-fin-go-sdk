@@ -260,3 +260,17 @@ func TestValidatePlatformInformation_DeviceStillRequired(t *testing.T) {
 	err := validateCreditInformation(base)
 	mustValidateError(t, err, "deviceInfo.device")
 }
+
+func TestValidatePlatformInformation_WifiListOptionalSSIDRequired(t *testing.T) {
+	base := internalValidInformationParam()
+	pi := base.ApplicationEssentialInfo.PlatformInformation
+
+	pi.DeviceInfo.WifiList = nil
+	if err := validateCreditInformation(base); err != nil {
+		t.Fatalf("nil wifiList must be allowed (2026-10-13 spec): %v", err)
+	}
+
+	pi.DeviceInfo.WifiList = []WifiAP{{SSID: ""}}
+	err := validateCreditInformation(base)
+	mustValidateError(t, err, "wifiList[].ssid")
+}
