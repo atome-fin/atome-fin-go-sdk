@@ -221,7 +221,9 @@ tags:
 
     | 2026-10-12 | Callback | This period only `/<creditApplicationNotifyUrl>` is sent. All partner callbacks (`/<creditApplicationNotifyUrl>`, `/<authNotifyUrl>`, `/<captureNotifyUrl>`, `/<refundNotifyUrl>`, `/repayment-callback`, `/account_change_callback`) use **OVO.HMAC (HMAC-SHA256)** — headers `client-id` / `time` / `signature` — instead of RSA2 `Authorization`. Auth, capture, refund, repayment, and account-change callbacks are **not sent this period**. |
 
-    | 2026-10-13 | Payment & Credit | `PlatformDeviceInfo.wifiList` is optional on `/credit-information`, `/auth`, `/capture`, and `/reAuth`. When an entry is sent, `ssid` is still required. |' 
+    | 2026-10-13 | Payment & Credit | `PlatformDeviceInfo.wifiList` is optional on `/credit-information`, `/auth`, `/capture`, and `/reAuth`. When an entry is sent, `ssid` is still required. |
+
+    | 2026-10-14 | Payment & Credit | `PlatformDeviceInfo.gps.longitude` and `gps.latitude` drop pattern, minLength, and maxLength. Descriptions state only that they are longitude and latitude. |' 
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -6313,18 +6315,10 @@ components:
           properties:
             longitude:
               type: string
-              description: |-
-                GPS longitude. Up to 6 decimal places. Optional.
-              minLength: 1
-              maxLength: 11
-              pattern: '^-?(180(\.0{1,6})?|(1[0-7]\d|[0-9]?\d)(\.\d{1,6})?)$'
+              description: GPS longitude. Optional.
             latitude:
               type: string
-              description: |-
-                GPS latitude. Up to 6 decimal places. Optional.
-              minLength: 1
-              maxLength: 10
-              pattern: '^-?(90(\.0{1,6})?|([0-8]?\d)(\.\d{1,6})?)$'
+              description: GPS latitude. Optional.
             time:
               type: string
               nullable: true
