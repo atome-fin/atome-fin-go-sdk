@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -126,6 +127,71 @@ func TestE2E_SubmitInformation_DecryptingServer(t *testing.T) {
 	}
 	if resp.Data == nil || resp.Data.JumpURL != "https://x" {
 		t.Errorf("Data = %#v", resp.Data)
+	}
+}
+
+// TestSubmitInformation_NoClientValidation verifies that an
+// incomplete CreditInformationParam reaches the server instead of
+// being rejected locally: POST /credit-information performs no
+// request-body validation, so the gateway owns every
+// required-field check.
+func TestSubmitInformation_NoClientValidation(t *testing.T) {
+	atomeEncryptKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa.GenerateKey atome: %v", err)
+	}
+	signKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa.GenerateKey sign: %v", err)
+	}
+
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		encHeader := r.Header.Get(encrypt.EncryptHeaderName)
+		body, _ := io.ReadAll(r.Body)
+		plain, derr := encrypt.Unmarshal(encHeader, string(body), atomeEncryptKey)
+		if derr != nil {
+			t.Errorf("Unmarshal: %v", derr)
+			http.Error(w, `{"code":"INVALID_ENCRYPTION","message":""}`, http.StatusBadRequest)
+			return
+		}
+		var got credit.CreditInformationParam
+		if jerr := json.Unmarshal(plain, &got); jerr != nil {
+			t.Errorf("decode plaintext as CreditInformationParam: %v", jerr)
+			return
+		}
+		if got.RequestID == "" {
+			t.Error("decoded RequestID empty (auto-mint failed?)")
+		}
+		if got.MobileNumber != "" {
+			t.Errorf("decoded MobileNumber = %q; want empty (server owns required-field checks)", got.MobileNumber)
+		}
+		if got.Email != "" {
+			t.Errorf("decoded Email = %q; want empty (server owns required-field checks)", got.Email)
+		}
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"requestId":"r-1","externalReferenceUid":"u","status":"DRAFT","jumpUrl":"https://x"}}`))
+	}))
+	defer srv.Close()
+
+	c, err := atomefin.New(
+		atomefin.WithBaseURL(srv.URL),
+		atomefin.WithPrivateKeyPEM(pemForRSA(t, signKey)),
+		atomefin.WithEncryptAtomePublicCertPEM(pubPEMForRSA(t, &atomeEncryptKey.PublicKey)),
+	)
+	if err != nil {
+		t.Fatalf("atomefin.New: %v", err)
+	}
+	resp, err := credit.New(c).SubmitInformation(context.Background(), &credit.CreditInformationParam{})
+	if err != nil {
+		t.Fatalf("SubmitInformation: %v; want incomplete request forwarded to gateway", err)
+	}
+	if got := atomic.LoadInt32(&hits); got != 1 {
+		t.Fatalf("server hits = %d; want 1 (request must reach the wire)", got)
+	}
+	if !resp.IsSuccess() {
+		t.Errorf("Code = %q, want SUCCESS", resp.Code)
 	}
 }
 

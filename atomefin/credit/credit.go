@@ -159,6 +159,9 @@ func (s *Service) invokeGet(ctx context.Context, op string, q url.Values, out an
 // *ValidationError before any network round-trip.
 //
 // RequestID is auto-minted from the Client's generator when empty.
+//
+// No client-side request validation is performed: required fields,
+// maxLengths, and enum values are enforced by the gateway.
 func (s *Service) SubmitInformation(ctx context.Context, req *CreditInformationParam) (*CreditInformationResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
@@ -168,9 +171,6 @@ func (s *Service) SubmitInformation(ctx context.Context, req *CreditInformationP
 	}
 	if req.RequestID == "" {
 		req.RequestID = s.c.NewRequestID()
-	}
-	if err := validateCreditInformation(req); err != nil {
-		return nil, err
 	}
 	var out CreditInformationResponse
 	if err := s.invokeEncryptedPost(ctx, "/credit-information", req, &out); err != nil {

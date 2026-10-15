@@ -116,14 +116,14 @@ func validApplicationParam() *credit.CreditApplicationParam {
 // ptrFloat64 is a tiny helper for optional *float64 test fixtures.
 func ptrFloat64(v float64) *float64 { return &v }
 
-// ---------- POST /credit-information + /credit-application — BLOCKED in v0.2.x ----------
+// ---------- POST /credit-information + /credit-application — encryption preconditions ----------
 
 // TestSubmitInformation_RejectsMissingEncryptOption pins that
 // calling /credit-information on a Client constructed without
-// WithEncryptAtomePublicCertPEM fails LOCALLY (no network) with a
+// WithEncryptAtomePublicCertPEM fails locally (no network) with a
 // typed *ValidationError pointing the partner at the missing
-// option. v0.3 re-enabled the network path; the precondition
-// guard moves from method-body to Client.DoEncryptedSigned.
+// option. This is the only pre-flight check SubmitInformation
+// performs; all request-body validation belongs to the gateway.
 func TestSubmitInformation_RejectsMissingEncryptOption(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("server must NOT be reached when encrypt key is unconfigured")
@@ -400,11 +400,11 @@ func TestService_CloseAccount_UnpaidDebt(t *testing.T) {
 // ---------- Retry on 5xx ----------
 //
 // Probe via ModifyApplicationInfo (POST /modify-application-info) —
-// SubmitInformation / SubmitApplication are blocked locally in
-// v0.2.x and never reach the wire. Both paths share the same
+// These transport-level probes use ModifyApplicationInfo because
+// it reaches the wire without the hybrid-encryption setup the
+// Submit* methods require. All POST paths share the same
 // invokePost / DoSigned pipeline, so retry / ctx-cancel /
-// reserved-header semantics observed via ModifyApplicationInfo
-// apply uniformly.
+// reserved-header semantics observed here apply uniformly.
 
 func TestService_Retries_5xx_ThenSucceeds(t *testing.T) {
 	var hits int32
@@ -469,8 +469,7 @@ func TestService_RespectsContextCancellation(t *testing.T) {
 // path: the server inspects the inbound Authorization header and
 // confirms it is the SDK-generated signature, not anything else.
 // Probes via ModifyApplicationInfo for the same reason as the
-// retry / ctx tests above (the blocked Submit* methods are no
-// longer suitable wire-touching probes).
+// retry / ctx tests above (it needs no hybrid-encryption setup).
 func TestService_ReservedHeaderAllowlist_AuthorizationSDKControlled(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")

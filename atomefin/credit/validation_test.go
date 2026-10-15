@@ -10,14 +10,12 @@ import (
 	"github.com/atome-fin/atome-fin-go-sdk/atomefin/credit"
 )
 
-// /credit-information and /credit-application validators are
-// preserved in validation.go for v0.3 re-enablement but no longer
-// reached by SubmitInformation / SubmitApplication (both blocked
-// in v0.2.x — see TestSubmitInformation_BlockedUntilV0_3 in
-// service_test.go). The validator-internal tests live in
-// validation_internal_test.go (white-box, package credit) where
-// they exercise validateCreditInformation / validateCreditApplication
-// directly without going through the blocked public methods.
+// POST /credit-information performs no client-side request
+// validation (all field checks live on the gateway), so the
+// validators exercised here are for POST /modify-application-info,
+// POST /close-account, and the GET query endpoints. White-box
+// validator tests live in validation_internal_test.go (package
+// credit), which exercises validateCreditApplication directly.
 
 // ---------- /modify-application-info validation ----------
 

@@ -7,6 +7,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.9.1] — 2026-10-15
+
+### Removed
+
+- **Client-side validation for `POST /credit-information`.**
+  `SubmitInformation` no longer rejects missing/invalid required
+  fields, maxLengths, or enum values locally; every request-body
+  check now belongs to the partner gateway. The method keeps only
+  the encryption preflight (`checkConfigured`), the nil-receiver
+  guard, and `requestId` auto-mint.
+
+### Changed
+
+- **Repinned to `swagger-2026-10-14-c6911fd0.yaml`.** The upstream
+  spec dropped the `gps.longitude` / `gps.latitude` pattern and
+  length constraints (the SDK did not enforce them on this path).
+
 ## [0.9.0] — 2026-10-13
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as
