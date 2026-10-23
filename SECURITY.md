@@ -64,8 +64,8 @@ choice byte-for-byte.
 
 ### Hybrid encryption — `atomefin/encrypt/`
 
-Used **only** by the two credit-flow POSTs
-(`/credit-information`, `/credit-application`) per the partner
+Used **only** by the three credit-flow POSTs
+(`/get-user-tag`, `/credit-information`, `/credit-application`) per the partner
 protocol (Q31 — Q34, RESOLVED 2026-05-06). All other endpoints
 travel plaintext.
 

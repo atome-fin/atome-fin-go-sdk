@@ -126,7 +126,7 @@ once at the top of your test file.
 
 ### 2. Hybrid-encryption endpoints
 
-`/credit-information` and `/credit-application` (since v0.3) use
+`/get-user-tag`, `/credit-information`, and `/credit-application` use
 `Client.DoEncryptedSigned`. Those calls require
 **`WithEncryptAtomePublicCertPEM`** at construction; without it
 the SDK returns `*atomefin.ValidationError` BEFORE any
@@ -247,7 +247,7 @@ marker header). Default cache size 1024; tweak via
 `WithIdempotencyCacheSize(n)`. `Server.Reset()` clears the
 cache between sub-tests.
 
-Encrypted POSTs (`/credit-information`, `/credit-application`)
+Encrypted POSTs (`/get-user-tag`, `/credit-information`, `/credit-application`)
 bypass the cache in v0.5 — the spec server has no decryption
 key, so the requestId can't be extracted from the encrypted
 body. Plaintext endpoints work as expected.

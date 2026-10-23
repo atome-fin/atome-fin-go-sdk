@@ -130,6 +130,82 @@ func TestE2E_SubmitInformation_DecryptingServer(t *testing.T) {
 	}
 }
 
+// TestE2E_GetUserTag_DecryptingServer verifies the /get-user-tag
+// envelope: auto-minted requestId, plaintext mobileNumber inside the
+// encrypted body, and normal response decoding.
+func TestE2E_GetUserTag_DecryptingServer(t *testing.T) {
+	atomeEncryptKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa.GenerateKey atome: %v", err)
+	}
+	signKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa.GenerateKey sign: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/get-user-tag" {
+			t.Errorf("path = %q, want /get-user-tag", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %q, want POST", r.Method)
+		}
+		encHeader := r.Header.Get(encrypt.EncryptHeaderName)
+		if encHeader == "" {
+			t.Error("missing Encrypt header")
+		}
+		body, _ := io.ReadAll(r.Body)
+		plain, derr := encrypt.Unmarshal(encHeader, string(body), atomeEncryptKey)
+		if derr != nil {
+			t.Errorf("Unmarshal: %v", derr)
+			http.Error(w, `{"code":"INVALID_ENCRYPTION","message":""}`, http.StatusBadRequest)
+			return
+		}
+		var got credit.GetUserTagParam
+		if jerr := json.Unmarshal(plain, &got); jerr != nil {
+			t.Errorf("decode GetUserTagParam: %v", jerr)
+			return
+		}
+		if got.RequestID == "" {
+			t.Error("decoded RequestID empty (auto-mint failed?)")
+		}
+		if got.MobileNumber != "+628129801929" {
+			t.Errorf("decoded MobileNumber = %q", got.MobileNumber)
+		}
+		if got.Country != credit.CountryIndonesia {
+			t.Errorf("decoded Country = %q", got.Country)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","message":"ok","data":{"userTag":"NEW_USER","userStatus":"APPROVE"}}`))
+	}))
+	defer srv.Close()
+
+	c, err := atomefin.New(
+		atomefin.WithBaseURL(srv.URL),
+		atomefin.WithPrivateKeyPEM(pemForRSA(t, signKey)),
+		atomefin.WithEncryptAtomePublicCertPEM(pubPEMForRSA(t, &atomeEncryptKey.PublicKey)),
+	)
+	if err != nil {
+		t.Fatalf("atomefin.New: %v", err)
+	}
+
+	resp, err := credit.New(c).GetUserTag(context.Background(), &credit.GetUserTagParam{
+		MobileNumber: "+628129801929",
+		Country:      credit.CountryIndonesia,
+	})
+	if err != nil {
+		t.Fatalf("GetUserTag: %v", err)
+	}
+	if !resp.IsSuccess() {
+		t.Errorf("Code = %q, want SUCCESS", resp.Code)
+	}
+	if resp.Data == nil || resp.Data.UserTag != credit.UserTagNewUser ||
+		resp.Data.UserStatus != credit.UserTagStatusApprove {
+		t.Errorf("Data = %#v", resp.Data)
+	}
+}
+
 // TestSubmitInformation_NoClientValidation verifies that an
 // incomplete CreditInformationParam reaches the server instead of
 // being rejected locally: POST /credit-information performs no

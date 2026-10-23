@@ -6,9 +6,40 @@
   "country": "ID",
   "applicationEssentialInfo": {
     "individualProfile": {
+      "manuallyEducation": "BACHELOR",
+      "motherMaidenName": "Maria Zhang",
+      "maritalStatus": "SINGLE",
       "ocrResult": {
         "fullName": "Luna Zhang"
       }
+    },
+    "emergencyContact": {
+      "name": "David Zhang",
+      "phone": "+6281501122221",
+      "relation": "SIBLINGS"
+    },
+    "emergencyContact_2": {
+      "name": "Maria Zhang",
+      "phone": "+6281501122222",
+      "relation": "PARENTS"
+    },
+    "workInformation": {
+      "employerName": "Atome",
+      "workSince": "1 - 2 YEARS",
+      "monthlyIncome": "Rp 8.000.001 - 15.000.000",
+      "jobIndustry": "Finance",
+      "jobPosition": "STAFF",
+      "payrollPeriod": "MONTHLY"
+    },
+    "residential": {
+      "region": "DKI Jakarta",
+      "province": "DKI Jakarta",
+      "city": "Jakarta Selatan",
+      "district": "Kebayoran Baru",
+      "address": "Jl. Senayan No. 1"
+    },
+    "paymentInformation": {
+      "payDay": 10
     }
   },
   "extendInfo": {

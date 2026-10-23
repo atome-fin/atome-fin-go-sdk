@@ -1,6 +1,7 @@
 // Package encrypt provides the AES-ECB-PKCS5 + RSA-PKCS#1 v1.5
-// hybrid envelope used by the apaylater partner protocol on its two
-// credit-flow POSTs (`/credit-information`, `/credit-application`).
+// hybrid envelope used by the apaylater partner protocol on its three
+// credit-flow POSTs (`/get-user-tag`, `/credit-information`,
+// `/credit-application`).
 // Q31 — Q34 (resolved 2026-05-06) pin the algorithm choices below;
 // every other v0.2 endpoint stays plaintext.
 //

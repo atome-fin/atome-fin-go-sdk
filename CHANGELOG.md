@@ -7,6 +7,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.9.2] — 2026-10-23
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-10-23-34c75b4b.yaml`, covering the 2026-10-21 and
+2026-10-23 upstream changes.
+
+### Added
+
+- **`Client`-side `POST /get-user-tag`.** New
+  `credit.Service.GetUserTag` performs the spec's initial screening
+  before `/credit-information`, using the same AES+RSA hybrid
+  encryption envelope as the other credit POSTs. New
+  `credit.GetUserTagParam`, `credit.GetUserTagResponse`,
+  `credit.GetUserTagResult`, and `credit.UserTag` /
+  `credit.UserTagStatus` enums (`NEW_USER` / `PRIOR_USER`,
+  `APPROVE` / `REJECT`). `requestId` is auto-minted when empty;
+  request-body checks remain gateway-owned.
+- **Optional financial information on `applicationEssentialInfo`.**
+  `credit.FinancialInformation` (embedded in both
+  `CreditInformationEssentialInfo` and `ApplicationEssentialInfo`)
+  exposes `emergencyContact` / `emergencyContact_2`,
+  `workInformation`, `residential`, and `paymentInformation` with
+  their typed nested shapes.
+- **New `IndividualProfile` fields** — `manuallyEducation`,
+  `motherMaidenName`, and `maritalStatus`.
+
+### Changed
+
+- **`livenessCheck` is optional for GKYC non-overlap users.** When
+  present, `result`, `snapshotPhoto`, and the
+  `livenessCheckResult01` / `02` / `03` fields are all optional;
+  `result` and `snapshotPhoto` now carry `omitempty`.
+
 ## [0.9.1] — 2026-10-15
 
 ### Removed

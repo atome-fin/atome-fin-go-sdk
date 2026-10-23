@@ -1,9 +1,10 @@
 // Package credit implements the outbound credit-lifecycle endpoints
 // plus the inbound credit-* callback type-aliases used by
 // atomefin/callback. v0.2 chunk #6 — the largest sub-package by
-// schema surface; the spec exposes seven outbound surfaces and two
+// schema surface; the spec exposes eight outbound surfaces and two
 // inbound callbacks:
 //
+//	POST /get-user-tag                 partner → atome-fin (signed body)
 //	POST /credit-information           partner → atome-fin (signed body)
 //	POST /credit-application           partner → atome-fin (signed body)
 //	GET  /credit-result                partner → atome-fin (signed query)
@@ -23,13 +24,13 @@
 //	cr := credit.New(c)
 //	res, err := cr.SubmitInformation(ctx, &credit.CreditInformationParam{...})
 //
-// The credit lifecycle is two-step: partners first POST
-// /credit-information to register a user (returns a `requestId` and a
-// jumpUrl into Atome's KYC web flow), then POST /credit-application
-// linking the prior requestId via extendInfo.creditInformationRequestId
-// to submit the full KYC payload. Async completion arrives via the
-// two callbacks; partners that prefer polling can call the matching
-// GET endpoints.
+// The credit lifecycle starts with POST /get-user-tag to screen the
+// user, then POST /credit-information to register the user (returns a
+// `requestId` and a jumpUrl into Atome's KYC web flow), then POST
+// /credit-application linking the prior requestId via
+// extendInfo.creditInformationRequestId to submit the full KYC
+// payload. Async completion arrives via the two callbacks; partners
+// that prefer polling can call the matching GET endpoints.
 //
 // # Money policy
 //

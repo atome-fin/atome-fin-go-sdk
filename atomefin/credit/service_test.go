@@ -116,7 +116,30 @@ func validApplicationParam() *credit.CreditApplicationParam {
 // ptrFloat64 is a tiny helper for optional *float64 test fixtures.
 func ptrFloat64(v float64) *float64 { return &v }
 
-// ---------- POST /credit-information + /credit-application — encryption preconditions ----------
+// ---------- credit POSTs — encryption preconditions ----------
+
+// TestGetUserTag_RejectsMissingEncryptOption pins the encryption
+// precondition for /get-user-tag: no network round-trip without the
+// encrypt public cert.
+func TestGetUserTag_RejectsMissingEncryptOption(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server must NOT be reached when encrypt key is unconfigured")
+	}))
+	defer srv.Close()
+
+	c := mustClient(t, srv) // no WithEncryptAtomePublicCertPEM
+	_, err := credit.New(c).GetUserTag(context.Background(), &credit.GetUserTagParam{
+		MobileNumber: "+628129801929",
+		Country:      credit.CountryIndonesia,
+	})
+	var ve *atomefin.ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("err = %v; want *ValidationError", err)
+	}
+	if ve.Field != "encryptAtomePublicCert" {
+		t.Errorf("Field = %q; want encryptAtomePublicCert", ve.Field)
+	}
+}
 
 // TestSubmitInformation_RejectsMissingEncryptOption pins that
 // calling /credit-information on a Client constructed without

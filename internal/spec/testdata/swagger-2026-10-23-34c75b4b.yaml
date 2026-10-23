@@ -223,7 +223,11 @@ tags:
 
     | 2026-10-13 | Payment & Credit | `PlatformDeviceInfo.wifiList` is optional on `/credit-information`, `/auth`, `/capture`, and `/reAuth`. When an entry is sent, `ssid` is still required. |
 
-    | 2026-10-14 | Payment & Credit | `PlatformDeviceInfo.gps.longitude` and `gps.latitude` drop pattern, minLength, and maxLength. Descriptions state only that they are longitude and latitude. |' 
+    | 2026-10-14 | Payment & Credit | `PlatformDeviceInfo.gps.longitude` and `gps.latitude` drop pattern, minLength, and maxLength. Descriptions state only that they are longitude and latitude. |
+
+    | 2026-10-21 | Credit | `POST /credit-information` non-overlap (GKYC) `applicationEssentialInfo.livenessCheck` is optional. When sent, `result`, `snapshotPhoto`, and `livenessCheckResult01` / `02` / `03` are all optional. |
+
+    | 2026-10-23 | Credit | `POST /credit-information` may collect optional financial information. Grab sends `individualProfile.manuallyEducation`, `workInformation.employerName` / `monthlyIncome` / `jobIndustry` / `jobPosition`, and `emergencyContact.name` / `phone` / `relation`. The other financial objects and fields stay in the schema. Financial-information enum values are examples only; the values Grab sends are agreed with risk control. Added `POST /get-user-tag` for initial screening; `mobileNumber` is plaintext. |' 
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -430,22 +434,94 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerErrorResponse'
+  /get-user-tag:
+    post:
+      tags:
+      - Credit
+      summary: Get user tag
+      description: 'Initial screening before `POST /credit-information`. Query `userTag` by plaintext `mobileNumber`.
+
+        '
+      parameters:
+      - in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+        description: Request parameter signature.
+      - in: header
+        name: Encrypt
+        required: true
+        schema:
+          type: string
+        description: 'Store the AES key after RSA public key encryption. </br>
+
+          format: `symmetricKey=aeskey ciphertext`
+
+          '
+      requestBody:
+        $ref: '#/components/requestBodies/GetUserTag'
+      responses:
+        '200':
+          description: SUCCESS
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Result of user-tag screening
+                properties:
+                  code:
+                    type: string
+                    description: 'result code<br />
+
+                      `SUCCESS`：get user tag successfully<br/>
+
+                      '
+                    enum:
+                    - SUCCESS
+                  message:
+                    type: string
+                    description: success or fail message
+                  data:
+                    $ref: '#/components/schemas/GetUserTagResult'
+        '400':
+          description: PARAMS_MISSING、PARAMS_WRONG、WRONG_PARAMS_FORMAT、INVALID_ENCRYPTION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: INVALID_SIGNATURE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorizationErrorResponse'
+        '500':
+          description: SERVER_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerErrorResponse'
   /credit-information:
     post:
       tags:
       - Credit
       summary: Submit credit information
-      description: 'First step of the credit flow: submit partner-side user identity, country, and
+      description: 'Second step of the credit flow, after `POST /get-user-tag`: submit partner-side user identity, country, and
 
         `applicationEssentialInfo`. Choose the request body by user type:<br/>
 
-        **Non-overlap** (GKYC or OVO premium): `livenessCheck`, `individualProfile`, and `platformInformation.latestGkycTimeStamp` are required.<br/>
+        **Non-overlap** (GKYC or OVO premium): `individualProfile` and `platformInformation.latestGkycTimeStamp` are required. `livenessCheck` is optional for GKYC users; when sent, every field inside (`result`, `snapshotPhoto`, `livenessCheckResult01` / `02` / `03`) is optional.<br/>
 
-        **Overlap**: send `platformInformation` only; omit `livenessCheck` and `individualProfile`.<br/>
+        **Overlap**: send `platformInformation`; omit `livenessCheck` and `individualProfile`.<br/>
 
-        `platformInformation` is required in both bodies. Financial information (`emergencyContact`,
+        `platformInformation` is required in both bodies. Financial objects are optional. Grab sends these fields:
 
-        `workInformation`) is not collected in this period.
+        `individualProfile.manuallyEducation`, `workInformation.employerName`, `workInformation.monthlyIncome`, `workInformation.jobIndustry`, `workInformation.jobPosition`, `emergencyContact.name`, `emergencyContact.phone`, `emergencyContact.relation`.
+
+        These fields stay in the schema and are not sent by Grab: `motherMaidenName`, `maritalStatus`, `emergencyContact_2`, `workInformation.workSince`, `workInformation.payrollPeriod`, `residential`, and `paymentInformation`.<br/>
+
+        Financial-information enum values are **examples only**. The values Grab sends on the fields above are agreed with risk control.
 
         '
       parameters:
@@ -510,7 +586,7 @@ paths:
       tags:
       - Credit
       summary: Submit credit application
-      description: 'Second step of the credit flow. KYC and platform profile are collected on `POST /credit-information`
+      description: 'Third step of the credit flow. KYC and platform profile are collected on `POST /credit-information`
 
         (`applicationEssentialInfo`); this call correlates the application via `extendInfo.creditInformationRequestId`.
 
@@ -4114,6 +4190,45 @@ components:
                 country: ID
                 extendInfo:
                   creditInformationRequestId: R897321804
+    GetUserTag:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              requestId:
+                type: string
+                description: Partner-side idempotent request identifier (max 64 chars).
+                maxLength: 64
+              mobileNumber:
+                type: string
+                description: |-
+                  Plaintext mobile phone number with the dialling code prefix, e.g. `+62XXXXXXXXXXX`.
+                  Validation: `pattern`: `^\+628\d{8,12}$`, 12-16 characters including `+`.
+                minLength: 12
+                maxLength: 16
+                pattern: '^\+628\d{8,12}$'
+              country:
+                type: string
+                description: 'User''s country (ISO-style market code).<br/>
+
+                  `ID`: Indonesia<br/>
+
+                  '
+                enum:
+                - ID
+            required:
+            - requestId
+            - mobileNumber
+            - country
+          examples:
+            ID:
+              summary: Indonesia request body example
+              value:
+                requestId: R897321804
+                mobileNumber: '+628129801929'
+                country: ID
     CreditInformation:
       required: true
       content:
@@ -4125,7 +4240,7 @@ components:
           examples:
             NON_OVERLAP:
               summary: Non-overlap (GKYC or OVO premium)
-              description: 'Requires `livenessCheck`, `individualProfile`, and `platformInformation.latestGkycTimeStamp`. `platformInformation` is required.<br/>
+              description: 'Requires `individualProfile` and `platformInformation.latestGkycTimeStamp`. `livenessCheck` is optional for GKYC users; when sent, every field inside is optional. `platformInformation` is required. The financial fields in this sample are the ones Grab sends. Enum values in the sample are examples only; the values Grab sends are agreed with risk control. Other financial fields stay in the schema and are omitted here.<br/>
 
                 **platformInformation.creditProfile** sample is for reference only — final JSON structure is agreed during partner integration.
 
@@ -4145,6 +4260,7 @@ components:
                     livenessCheckResult03: XX
                   individualProfile:
                     idType: KTP
+                    manuallyEducation: JUNIOR SCHOOL
                     ocrResult:
                       idNumber: '3173051234567890'
                       fullName: Luna Zhang
@@ -4163,6 +4279,15 @@ components:
                       manuallyExpiredDate: '2099-12-31'
                       manuallyCitizenship: WNI
                     idFrontPhoto: /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgM........
+                  emergencyContact:
+                    name: David Zhang
+                    phone: '+6281501122221'
+                    relation: SIBLINGS
+                  workInformation:
+                    employerName: Atome
+                    monthlyIncome: Rp 8.000.001 - 15.000.000
+                    jobIndustry: Finance
+                    jobPosition: STAFF
                   platformInformation:
                     sceneType: CHECKOUT_PAGE
                     creditProfile: '{"extendedFeatures":[{"key":"crowd_id","value":"encoded_id_1"},{"key":"crowd_date","value":"20240311"}],"modelScores":[{"scoreType":"application_model","scoreValue":31,"version":"v1.0"},{"scoreType":"behavior_model","scoreValue":74,"version":"v1.0"}]}'
@@ -4201,7 +4326,7 @@ components:
                   language: id
             OVERLAP:
               summary: Overlap
-              description: 'Overlap users send `platformInformation` only. Omit `livenessCheck` and `individualProfile`.'
+              description: 'Overlap users send `platformInformation`. Omit `livenessCheck` and `individualProfile`. Grab does not send `individualProfile.manuallyEducation` on this body. The same optional `emergencyContact` and `workInformation` fields as the non-overlap sample may be included.'
               value:
                 requestId: R897321804
                 externalReferenceUid: E897321804
@@ -4246,7 +4371,8 @@ components:
                 extendInfo:
                   language: id
             ID-ENUM:
-              summary: Indonesia Enum definition
+              summary: Indonesia enum examples
+              description: 'Financial-information enum values in this sample are examples only. The values Grab sends are agreed with risk control.'
               value:
                 applicationEssentialInfo:
                   livenessCheck:
@@ -4263,6 +4389,14 @@ components:
                     - WIDOWED
                     - SEPARATED
                     - OTHERS
+                    manuallyEducation:
+                    - PRIMARY
+                    - JUNIOR SCHOOL
+                    - SENIOR HIGH SCHOOL
+                    - DIPLOMA
+                    - BACHELOR
+                    - MASTER
+                    - PHD DOCTOR
                   platformInformation:
                     sceneType:
                     - PRODUCT_LANDING_PAGE
@@ -4278,6 +4412,69 @@ components:
                     - '1'
                     - '2'
                     - '3'
+                  emergencyContact:
+                    relation:
+                    - SPOUSE
+                    - SIBLINGS
+                    - PARENTS
+                    - RELATIVES
+                    - COLLEAGUES
+                    - CHILDREN
+                    - FRIENDS
+                    - OTHERS
+                  workInformation:
+                    workSince:
+                    - < 1 YEAR
+                    - 1 - 2 YEARS
+                    - 2 - 3 YEARS
+                    - 3 - 5 YEARS
+                    - '> 5 YEARS'
+                    monthlyIncome:
+                    - '> Rp 50.000.000'
+                    - Rp 25.000.001 - 50.000.000
+                    - Rp 15.000.001 - 25.000.000
+                    - Rp 8.000.001 - 15.000.000
+                    - Rp 5.000.001 - 8.000.000
+                    - Rp 3.000.000 - 5.000.000
+                    jobIndustry:
+                    - Agriculture, forestry & fishery
+                    - Mining and excavation
+                    - Oil and gas
+                    - Electricity, gas, and water
+                    - Building
+                    - Hotel and restaurant
+                    - Transportation
+                    - Communication
+                    - Finance
+                    - Government service
+                    - Private services
+                    - Media, film
+                    - Military
+                    - Indonesia national police
+                    - Lawyer firm
+                    - Others
+                    - Education
+                    - Medical services
+                    - Recreation
+                    - Trade
+                    - Manufacturing
+                    jobPosition:
+                    - SUPERVISOR
+                    - DIRECTOR
+                    - MANAGER
+                    - STAFF
+                    - OTHERS
+                    payrollPeriod:
+                    - DAILY
+                    - WEEKLY
+                    - BI_WEEKLY
+                    - MONTHLY
+                    - OTHERS
+                  paymentInformation:
+                    payDay:
+                    - 2
+                    - 10
+                    - 25
                 extendInfo:
                   language:
                   - en
@@ -6806,6 +7003,40 @@ components:
           - PROMOTION_CATEGORY_CREDIT_BOOST
           - RETURN INITIAL
           - CIRCLED_LIST_CREDIT_BOOST
+    GetUserTagResult:
+      type: object
+      description: Result of `POST /get-user-tag`.
+      properties:
+        userTag:
+          type: string
+          description: 'User tag.<br/>
+
+            `NEW_USER`: new user<br/>
+
+            `PRIOR_USER`: existing user<br/>
+
+            '
+          enum:
+          - NEW_USER
+          - PRIOR_USER
+        userStatus:
+          type: string
+          description: 'User status.<br/>
+
+            `APPROVE`: approved user<br/>
+
+            `REJECT`: rejected user<br/>
+
+            '
+          enum:
+          - APPROVE
+          - REJECT
+        extendInfo:
+          type: object
+          description: Other information agreed per integration.
+      required:
+      - userTag
+      - userStatus
     CreditInformationResult:
       type: object
       description: Credit information submit result
@@ -8301,7 +8532,7 @@ components:
       - applicationEssentialInfo
     CreditInformationNonOverlapRequest:
       title: Non-overlap (GKYC or OVO premium)
-      description: Non-overlap users (GKYC or OVO premium). `livenessCheck`, `individualProfile`, and `platformInformation.latestGkycTimeStamp` are required.
+      description: Non-overlap users (GKYC or OVO premium). `individualProfile` and `platformInformation.latestGkycTimeStamp` are required. `livenessCheck` is optional for GKYC users; when sent, every field inside is optional. Financial information is optional.
       allOf:
       - $ref: '#/components/schemas/CreditInformationRequestBase'
       - type: object
@@ -8312,7 +8543,7 @@ components:
         - applicationEssentialInfo
     CreditInformationOverlapRequest:
       title: Overlap
-      description: Overlap users. Send `applicationEssentialInfo.platformInformation` only; omit `livenessCheck` and `individualProfile`.
+      description: Overlap users. Send `applicationEssentialInfo.platformInformation`; omit `livenessCheck` and `individualProfile`. Financial information is optional.
       allOf:
       - $ref: '#/components/schemas/CreditInformationRequestBase'
       - type: object
@@ -8321,6 +8552,151 @@ components:
             $ref: '#/components/schemas/ApplicationEssentialInfoOverlap'
         required:
         - applicationEssentialInfo
+    EmergencyContact:
+      type: object
+      description: 'Emergency contact. Optional. Grab sends `name`, `phone`, and `relation`. `emergencyContact_2` uses the same shape and is not sent by Grab.'
+      properties:
+        name:
+          type: string
+          description: |-
+            Sent by Grab. Contact name. 2–60 characters; letters, spaces, dots, and apostrophes.
+            Consecutive spaces are compressed. Single-name users are allowed.
+          minLength: 2
+          maxLength: 60
+          pattern: "^[A-Za-z\\u00C0-\\u024F.'][A-Za-z\\u00C0-\\u024F.' ]{0,58}[A-Za-z\\u00C0-\\u024F.']*$"
+        phone:
+          type: string
+          description: |-
+            Sent by Grab. Contact mobile number with the dialling code prefix, e.g. `+628XXXXXXXX`.
+            Validation: `pattern`: `^\+628\d{8,12}$`, up to 16 characters including `+`.
+          minLength: 12
+          maxLength: 16
+          pattern: '^\+628\d{8,12}$'
+        relation:
+          type: string
+          description: 'Sent by Grab. Relationship to the applicant. Enum values are examples only; the value Grab sends is agreed with risk control.'
+          enum:
+          - SPOUSE
+          - SIBLINGS
+          - PARENTS
+          - RELATIVES
+          - COLLEAGUES
+          - CHILDREN
+          - FRIENDS
+          - OTHERS
+    WorkInformation:
+      type: object
+      description: 'Work and income information. Optional. Grab sends `employerName`, `monthlyIncome`, `jobIndustry`, and `jobPosition`. `workSince` and `payrollPeriod` stay in the structure and are not sent by Grab. Enum values are examples only; the values Grab sends are agreed with risk control.'
+      properties:
+        employerName:
+          type: string
+          description: |-
+            Sent by Grab. Employer name. 2–80 characters. Letters, digits, spaces, and `& . , - /` are allowed.
+            Trimmed. A value of only symbols is rejected.
+          minLength: 2
+          maxLength: 80
+          pattern: "^[A-Za-z\\u00C0-\\u024F0-9&.,\\-\\/ ]{2,80}$"
+        workSince:
+          type: string
+          description: 'Retained in the structure. Not sent by Grab. Enum values are examples only.'
+          enum:
+          - < 1 YEAR
+          - 1 - 2 YEARS
+          - 2 - 3 YEARS
+          - 3 - 5 YEARS
+          - '> 5 YEARS'
+        monthlyIncome:
+          type: string
+          description: 'Sent by Grab. Monthly income band, in IDR. Enum values are examples only; the value Grab sends is agreed with risk control.'
+          enum:
+          - '> Rp 50.000.000'
+          - Rp 25.000.001 - 50.000.000
+          - Rp 15.000.001 - 25.000.000
+          - Rp 8.000.001 - 15.000.000
+          - Rp 5.000.001 - 8.000.000
+          - Rp 3.000.000 - 5.000.000
+        jobIndustry:
+          type: string
+          description: 'Sent by Grab. Job industry. Enum values are examples only; the value Grab sends is agreed with risk control.'
+          enum:
+          - Agriculture, forestry & fishery
+          - Mining and excavation
+          - Oil and gas
+          - Electricity, gas, and water
+          - Building
+          - Hotel and restaurant
+          - Transportation
+          - Communication
+          - Finance
+          - Government service
+          - Private services
+          - Media, film
+          - Military
+          - Indonesia national police
+          - Lawyer firm
+          - Others
+          - Education
+          - Medical services
+          - Recreation
+          - Trade
+          - Manufacturing
+        jobPosition:
+          type: string
+          description: 'Sent by Grab. Job position. Enum values are examples only; the value Grab sends is agreed with risk control.'
+          enum:
+          - SUPERVISOR
+          - DIRECTOR
+          - MANAGER
+          - STAFF
+          - OTHERS
+        payrollPeriod:
+          type: string
+          description: 'Retained in the structure. Not sent by Grab. Enum values are examples only.'
+          enum:
+          - DAILY
+          - WEEKLY
+          - BI_WEEKLY
+          - MONTHLY
+          - OTHERS
+    ResidentialInformation:
+      type: object
+      description: Residential address. Optional. Retained in the structure. Not sent by Grab.
+      properties:
+        region:
+          type: string
+          description: Region.
+          maxLength: 60
+        province:
+          type: string
+          description: Province.
+          maxLength: 60
+        city:
+          type: string
+          description: City.
+          maxLength: 60
+        district:
+          type: string
+          description: District.
+          maxLength: 60
+        address:
+          type: string
+          description: |-
+            Street address. 5–120 characters. Letters, digits, spaces, and `# . , - /` are allowed.
+            Trimmed. A value of only symbols is rejected.
+          minLength: 5
+          maxLength: 120
+          pattern: "^[A-Za-z\\u00C0-\\u024F0-9 #.,\\-\\/]{5,120}$"
+    PaymentInformation:
+      type: object
+      description: Payment information. Optional. Retained in the structure. Not sent by Grab.
+      properties:
+        payDay:
+          type: integer
+          description: 'Repayment day of the bill period. Example values: `2`, `10`, `25`. Enum values are examples only. Not sent by Grab.'
+          enum:
+          - 2
+          - 10
+          - 25
     ApplicationEssentialInfo:
       type: object
       description: 'KYC and risk profile collected on `POST /credit-information`. Field shape may differ by
@@ -8331,7 +8707,7 @@ components:
 
         Use **Non-overlap** or **Overlap** request body by user type. `platformInformation` is required in both.
 
-        Financial information (`emergencyContact`, `workInformation`) is not collected in this period.
+        Financial information is optional on both bodies. Grab sends `individualProfile.manuallyEducation`, `workInformation.employerName`, `workInformation.monthlyIncome`, `workInformation.jobIndustry`, `workInformation.jobPosition`, and `emergencyContact.name` / `phone` / `relation`. The other financial fields stay in the schema and are not sent by Grab. Financial-information enum values are examples only. The values Grab sends are agreed with risk control.
 
         '
       required:
@@ -8339,20 +8715,17 @@ components:
       properties:
         livenessCheck:
           type: object
-          description: Liveness check result with the photo. Required in the Non-overlap request body (GKYC or OVO premium); omit in the Overlap request body.
-          required:
-          - result
-          - snapshotPhoto
+          description: Liveness check result with the photo. Optional for GKYC (non-overlap) users; omit when unused. When present, every field inside is optional. Omit in the Overlap request body.
           properties:
             result:
               type: string
-              description: Liveness check outcome. Required.
+              description: Liveness check outcome. Optional.
               enum:
               - PASS
               - FAIL
             snapshotPhoto:
               type: string
-              description: Base64-encoded liveness snapshot photo. Required.
+              description: Base64-encoded liveness snapshot photo. Optional.
             livenessCheckResult01:
               type: string
               description: Liveness score. Optional.
@@ -8511,6 +8884,46 @@ components:
                 - Below 2 MB file size
                 - Minimum resolution of 256 x 256
                 - Maximum resolution of 4096 x 4096
+            manuallyEducation:
+              type: string
+              description: 'Sent by Grab. Education level. Optional. Enum values are examples only; the value Grab sends is agreed with risk control.'
+              enum:
+              - PRIMARY
+              - JUNIOR SCHOOL
+              - SENIOR HIGH SCHOOL
+              - DIPLOMA
+              - BACHELOR
+              - MASTER
+              - PHD DOCTOR
+            motherMaidenName:
+              type: string
+              description: |-
+                Retained in the structure. Not sent by Grab. Optional.
+                2–60 characters; letters, spaces, dots, and apostrophes.
+                Consecutive spaces are compressed. Single-name users are allowed.
+              minLength: 2
+              maxLength: 60
+              pattern: "^[A-Za-z\\u00C0-\\u024F.'][A-Za-z\\u00C0-\\u024F.' ]{0,58}[A-Za-z\\u00C0-\\u024F.']*$"
+            maritalStatus:
+              type: string
+              description: 'Retained in the structure. Not sent by Grab. Optional. Enum values are examples only.'
+              enum:
+              - SINGLE
+              - MARRIED
+              - DIVORCED
+              - WIDOWED
+              - SEPARATED
+              - OTHERS
+        emergencyContact:
+          $ref: '#/components/schemas/EmergencyContact'
+        emergencyContact_2:
+          $ref: '#/components/schemas/EmergencyContact'
+        workInformation:
+          $ref: '#/components/schemas/WorkInformation'
+        residential:
+          $ref: '#/components/schemas/ResidentialInformation'
+        paymentInformation:
+          $ref: '#/components/schemas/PaymentInformation'
         platformInformation:
           type: object
           description: User information on the partner platform.
@@ -8554,12 +8967,11 @@ components:
               $ref: '#/components/schemas/PlatformDeviceInfo'
     ApplicationEssentialInfoNonOverlap:
       title: Non-overlap applicationEssentialInfo
-      description: GKYC or OVO premium. `livenessCheck`, `individualProfile`, `platformInformation`, and `platformInformation.latestGkycTimeStamp` are required.
+      description: GKYC or OVO premium. `individualProfile`, `platformInformation`, and `platformInformation.latestGkycTimeStamp` are required. `livenessCheck` is optional for GKYC users; when sent, every field inside is optional. Financial information is optional.
       allOf:
       - $ref: '#/components/schemas/ApplicationEssentialInfo'
       - type: object
         required:
-        - livenessCheck
         - individualProfile
         - platformInformation
         properties:
@@ -8569,7 +8981,7 @@ components:
             - latestGkycTimeStamp
     ApplicationEssentialInfoOverlap:
       title: Overlap applicationEssentialInfo
-      description: Overlap users. Only `platformInformation` is required; omit `livenessCheck` and `individualProfile`.
+      description: Overlap users. Only `platformInformation` is required; omit `livenessCheck` and `individualProfile`. Financial information is optional.
       allOf:
       - $ref: '#/components/schemas/ApplicationEssentialInfo'
       - type: object

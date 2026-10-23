@@ -1,0 +1,11 @@
+{
+  "code": "SUCCESS",
+  "message": "ok",
+  "data": {
+    "userTag": "NEW_USER",
+    "userStatus": "APPROVE",
+    "extendInfo": {
+      "source": "grab"
+    }
+  }
+}

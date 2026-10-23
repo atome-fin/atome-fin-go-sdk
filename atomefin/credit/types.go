@@ -200,6 +200,51 @@ func (s UserStatus) IsValid() bool {
 // String returns the wire literal verbatim.
 func (s UserStatus) String() string { return string(s) }
 
+// UserTag is the initial-screening classification returned by
+// POST /get-user-tag.
+type UserTag string
+
+// Spec-defined user tags.
+const (
+	UserTagNewUser   UserTag = "NEW_USER"
+	UserTagPriorUser UserTag = "PRIOR_USER"
+)
+
+// IsValid reports whether t is a spec-defined user tag.
+func (t UserTag) IsValid() bool {
+	switch t {
+	case UserTagNewUser, UserTagPriorUser:
+		return true
+	}
+	return false
+}
+
+// String returns the wire literal verbatim.
+func (t UserTag) String() string { return string(t) }
+
+// UserTagStatus is the screening outcome returned alongside UserTag
+// by POST /get-user-tag. Distinct from UserStatus, which describes
+// an existing credit account.
+type UserTagStatus string
+
+// Spec-defined user-tag screening outcomes.
+const (
+	UserTagStatusApprove UserTagStatus = "APPROVE"
+	UserTagStatusReject  UserTagStatus = "REJECT"
+)
+
+// IsValid reports whether s is a spec-defined screening outcome.
+func (s UserTagStatus) IsValid() bool {
+	switch s {
+	case UserTagStatusApprove, UserTagStatusReject:
+		return true
+	}
+	return false
+}
+
+// String returns the wire literal verbatim.
+func (s UserTagStatus) String() string { return string(s) }
+
 // FailReason is one entry of the CreditApplicationResult.failReason
 // list — the rejection reason for a FAILED application.
 type FailReason string
@@ -217,11 +262,24 @@ const (
 
 // ---------- Request body types ----------
 
+// GetUserTagParam is the POST /get-user-tag request body. The
+// endpoint performs initial screening before /credit-information;
+// mobileNumber is sent in plaintext inside the hybrid-encrypted body.
+type GetUserTagParam struct {
+	// RequestID is partner-generated; max 64 chars. Idempotency key.
+	RequestID string `json:"requestId"`
+	// MobileNumber is the user's mobile with dialling code prefix,
+	// e.g. "+628XXXXXXXXXXX". Required by the spec.
+	MobileNumber string `json:"mobileNumber"`
+	// Country is the ISO-style market code; currently locked to "ID".
+	Country Country `json:"country"`
+}
+
 // CreditInformationParam is the POST /credit-information request
-// body. Lightweight first step of the credit flow: the partner
-// announces user identity and country; the server returns a jumpUrl
-// into Atome's KYC web flow plus a requestId the partner echoes on
-// the subsequent POST /credit-application.
+// body. Second step of the credit flow (after /get-user-tag): the
+// partner announces user identity and country; the server returns a
+// jumpUrl into Atome's KYC web flow plus a requestId the partner
+// echoes on the subsequent POST /credit-application.
 type CreditInformationParam struct {
 	// RequestID is partner-generated; max 64 chars. Idempotency key.
 	RequestID string `json:"requestId"` // max 64
@@ -244,16 +302,19 @@ type CreditInformationParam struct {
 }
 
 // CreditInformationEssentialInfo is the applicationEssentialInfo bag
-// on /credit-information. It intentionally uses credit-information
-// specific nested types so this lightweight step cannot accidentally
-// send the broader /credit-application KYC payload.
+// on /credit-information, including the optional financial block
+// added by the 2026-10-23 spec.
 type CreditInformationEssentialInfo struct {
-	// LivenessCheck is required for non-overlap users (GKYC or OVO
-	// premium); omit it for overlap users.
+	// LivenessCheck is optional for GKYC non-overlap users; when
+	// sent, every field inside is optional. Omit it for overlap
+	// users.
 	LivenessCheck *LivenessCheck `json:"livenessCheck,omitempty"`
 	// IndividualProfile is required for non-overlap users; omit it
 	// for overlap users.
 	IndividualProfile *IndividualProfile `json:"individualProfile,omitempty"`
+	// FinancialInformation carries the optional emergency-contact,
+	// work, residential, and payment fields.
+	FinancialInformation
 	// PlatformInformation is required for both request shapes.
 	PlatformInformation *PlatformInformation `json:"platformInformation"`
 }
@@ -340,26 +401,30 @@ type CloseAccountParam struct {
 // ApplicationEssentialInfo is the KYC payload nested inside
 // CreditApplicationParam. Field shape may differ per country (today
 // only ID); see the request fixture for the canonical sample. Only
-// platformInformation is required per spec; livenessCheck and
-// individualProfile are required for non-overlap users (GKYC or OVO
-// premium) and omitted for overlap users.
+// platformInformation is required per spec; individualProfile is
+// also required for non-overlap users (GKYC or OVO premium).
+// livenessCheck is optional, and overlap users omit both
+// livenessCheck and individualProfile.
 type ApplicationEssentialInfo struct {
-	// LivenessCheck carries the liveness snapshot result. Required
-	// for non-overlap users; omit for overlap users.
+	// LivenessCheck carries the liveness snapshot result. Optional
+	// for GKYC non-overlap users; omit for overlap users.
 	LivenessCheck *LivenessCheck `json:"livenessCheck,omitempty"`
 	// IndividualProfile carries the user's KYC profile (idType,
 	// ocrResult, idFrontPhoto). Required for non-overlap users; omit
 	// for overlap users.
 	IndividualProfile *IndividualProfile `json:"individualProfile,omitempty"`
+	// FinancialInformation carries the optional emergency-contact,
+	// work, residential, and payment fields.
+	FinancialInformation
 	// PlatformInformation carries partner-side risk signals
 	// (creditProfile, sceneType, deviceInfo). Required per spec.
 	PlatformInformation *PlatformInformation `json:"platformInformation"`
 }
 
-// LivenessCheck is the liveness result on /credit-application.
+// LivenessCheck is the liveness result on /credit-information.
 type LivenessCheck struct {
-	Result                string `json:"result"`
-	SnapshotPhoto         string `json:"snapshotPhoto"`
+	Result                string `json:"result,omitempty"`
+	SnapshotPhoto         string `json:"snapshotPhoto,omitempty"`
 	LivenessCheckResult01 string `json:"livenessCheckResult01,omitempty"`
 	LivenessCheckResult02 string `json:"livenessCheckResult02,omitempty"`
 	LivenessCheckResult03 string `json:"livenessCheckResult03,omitempty"`
@@ -374,6 +439,67 @@ type IndividualProfile struct {
 	// IDFrontPhoto is the base64-encoded front-side photo of the ID
 	// document. Required by the spec.
 	IDFrontPhoto string `json:"idFrontPhoto"`
+	// ManuallyEducation is the applicant's education level. Optional;
+	// spec enum values are examples only.
+	ManuallyEducation string `json:"manuallyEducation,omitempty"`
+	// MotherMaidenName is retained in the schema but not sent by
+	// Grab. Optional.
+	MotherMaidenName string `json:"motherMaidenName,omitempty"`
+	// MaritalStatus is retained in the schema but not sent by Grab.
+	// Optional; spec enum values are examples only.
+	MaritalStatus string `json:"maritalStatus,omitempty"`
+}
+
+// FinancialInformation is the optional financial block on
+// applicationEssentialInfo. Every field is optional; the enum values
+// documented on nested string fields are examples only, and the
+// values Grab sends are agreed with risk control.
+type FinancialInformation struct {
+	EmergencyContact   *EmergencyContact       `json:"emergencyContact,omitempty"`
+	EmergencyContact2  *EmergencyContact       `json:"emergencyContact_2,omitempty"`
+	WorkInformation    *WorkInformation        `json:"workInformation,omitempty"`
+	Residential        *ResidentialInformation `json:"residential,omitempty"`
+	PaymentInformation *PaymentInformation     `json:"paymentInformation,omitempty"`
+}
+
+// EmergencyContact is one emergency-contact entry. Grab sends the
+// first emergencyContact; emergencyContact_2 is retained in the
+// schema but not sent.
+type EmergencyContact struct {
+	Name     string `json:"name,omitempty"`
+	Phone    string `json:"phone,omitempty"`
+	Relation string `json:"relation,omitempty"`
+}
+
+// WorkInformation is the optional work and income block. Grab sends
+// EmployerName, MonthlyIncome, JobIndustry, and JobPosition;
+// WorkSince and PayrollPeriod are retained in the schema but not
+// sent.
+type WorkInformation struct {
+	EmployerName  string `json:"employerName,omitempty"`
+	WorkSince     string `json:"workSince,omitempty"`
+	MonthlyIncome string `json:"monthlyIncome,omitempty"`
+	JobIndustry   string `json:"jobIndustry,omitempty"`
+	JobPosition   string `json:"jobPosition,omitempty"`
+	PayrollPeriod string `json:"payrollPeriod,omitempty"`
+}
+
+// ResidentialInformation is the optional residential-address block.
+// Retained in the schema but not sent by Grab.
+type ResidentialInformation struct {
+	Region   string `json:"region,omitempty"`
+	Province string `json:"province,omitempty"`
+	City     string `json:"city,omitempty"`
+	District string `json:"district,omitempty"`
+	Address  string `json:"address,omitempty"`
+}
+
+// PaymentInformation is the optional payment block. Retained in the
+// schema but not sent by Grab.
+type PaymentInformation struct {
+	// PayDay is the repayment day of the bill period. The spec lists
+	// 2 / 10 / 25 as examples only. Zero omits the field.
+	PayDay int `json:"payDay,omitempty"`
 }
 
 // OCRResult is the OCR-extracted fields from the ID document photo.
@@ -543,6 +669,29 @@ type IPAddress struct {
 }
 
 // ---------- Response envelopes & data types ----------
+
+// GetUserTagResponse is the POST /get-user-tag outer envelope.
+type GetUserTagResponse struct {
+	Code    atomefin.Code     `json:"code"`
+	Message string            `json:"message"`
+	Data    *GetUserTagResult `json:"data,omitempty"`
+}
+
+// GetUserTagResult is the `data` body of GetUserTagResponse.
+type GetUserTagResult struct {
+	// UserTag is the initial-screening classification.
+	UserTag UserTag `json:"userTag"`
+	// UserStatus is the screening outcome (APPROVE / REJECT).
+	UserStatus UserTagStatus `json:"userStatus"`
+	// ExtendInfo is the spec's free-form extension object.
+	ExtendInfo map[string]any `json:"extendInfo,omitempty"`
+}
+
+// IsSuccess reports whether the envelope's Code is SUCCESS.
+// Nil-safe.
+func (r *GetUserTagResponse) IsSuccess() bool {
+	return r != nil && r.Code == atomefin.CodeSuccess
+}
 
 // CreditInformationResponse is the POST /credit-information outer
 // envelope.

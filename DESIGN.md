@@ -783,7 +783,7 @@ without owning.
 | `atomefin/bill` | `/bills`, `/billDetail`, `/billUnpaid` + `BillsAll` auto-pagination | GET-only; codified the **paginated-list pattern** (bare `json:"bills"`, no `,omitempty`) — empty pages round-trip as `[]` rather than dropping to `null` |
 | `atomefin/transaction` | `/transactions`, `/transactionDetail` + `TransactionsAll` | GET-only; same paginated-list pattern on `TransactionsData.Items` |
 | `atomefin/repayment` | `/repayment-request`, `/repayment-result`, `<repaymentNotifyUrl>` | uses **`CommerceAccountChanges`** — *not* `payment.AccountChanges` (see §15.3) |
-| `atomefin/credit` | `/credit-information`, `/credit-application`, `/credit-result`, `/credit-information-result`, `/query-balance-history`, `/modify-application-info`, `/close-account`, plus 2 callbacks | account-ops co-housed by domain cohesion (see §15.4); `INPROGESS` literal preserved verbatim from spec |
+| `atomefin/credit` | `/get-user-tag`, `/credit-information`, `/credit-application`, `/credit-result`, `/credit-information-result`, `/query-balance-history`, `/modify-application-info`, `/close-account`, plus 2 callbacks | account-ops co-housed by domain cohesion (see §15.4); `INPROGESS` literal preserved verbatim from spec |
 
 `atomefin/payment` also gained `PaymentPreCheck` + `PaymentPlan`
 (pre-checkout chunk #7) and the `Query*` GETs from chunk #1.

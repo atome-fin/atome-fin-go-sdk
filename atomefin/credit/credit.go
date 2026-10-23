@@ -1,6 +1,6 @@
-// Package credit's Service surface — POST /credit-information,
-// POST /credit-application, GET /credit-result, GET
-// /credit-information-result, GET /query-balance-history, POST
+// Package credit's Service surface — POST /get-user-tag, POST
+// /credit-information, POST /credit-application, GET /credit-result,
+// GET /credit-information-result, GET /query-balance-history, POST
 // /modify-application-info, POST /close-account.
 package credit
 
@@ -101,8 +101,8 @@ func (s *Service) invokePost(ctx context.Context, op string, in any, out any) er
 // through Client.DoEncryptedSigned (which does hybrid-encrypt +
 // sign + dispatch), decode the response body into out.
 //
-// Used only by SubmitInformation and SubmitApplication — Q31–Q34
-// limit the Encrypt: header to those two endpoints.
+// Used by GetUserTag, SubmitInformation, and SubmitApplication — the
+// three credit POSTs that require the Encrypt header.
 func (s *Service) invokeEncryptedPost(ctx context.Context, op string, in any, out any) error {
 	body, err := atomefin.MarshalSigning(in)
 	if err != nil {
@@ -143,6 +143,36 @@ func (s *Service) invokeGet(ctx context.Context, op string, q url.Values, out an
 		}
 	}
 	return nil
+}
+
+// ---------- POST /get-user-tag ----------
+
+// GetUserTag submits POST /get-user-tag — the initial screening call
+// before /credit-information. The spec sends mobileNumber in
+// plaintext inside the request body, which is protected by the same
+// hybrid-encryption envelope as the other credit POSTs.
+//
+// Routes through Client.DoEncryptedSigned. Requires the Client to
+// have been constructed with WithEncryptAtomePublicCertPEM;
+// otherwise returns *ValidationError before any network round-trip.
+//
+// RequestID is auto-minted from the Client's generator when empty.
+// Request-body validation is owned by the gateway.
+func (s *Service) GetUserTag(ctx context.Context, req *GetUserTagParam) (*GetUserTagResponse, error) {
+	if err := s.checkConfigured(); err != nil {
+		return nil, err
+	}
+	if req == nil {
+		return nil, &atomefin.ValidationError{Field: "request", Message: "nil GetUserTagParam"}
+	}
+	if req.RequestID == "" {
+		req.RequestID = s.c.NewRequestID()
+	}
+	var out GetUserTagResponse
+	if err := s.invokeEncryptedPost(ctx, "/get-user-tag", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // ---------- POST /credit-information ----------

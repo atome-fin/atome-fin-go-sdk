@@ -12,6 +12,16 @@ import (
 
 const fixtureRoot = "../../qa/testdata/"
 
+// ---------- /get-user-tag request + response ----------
+
+func TestGetUserTagParam_Roundtrip(t *testing.T) {
+	marshal.GoldenRoundTrip[credit.GetUserTagParam](t, fixtureRoot+"get_user_tag_request.json")
+}
+
+func TestGetUserTagResponse_Roundtrip(t *testing.T) {
+	marshal.GoldenRoundTrip[credit.GetUserTagResponse](t, fixtureRoot+"get_user_tag_response.json")
+}
+
 // ---------- /credit-information request + response variants ----------
 
 func TestCreditInformationParam_Roundtrip(t *testing.T) {
@@ -201,6 +211,12 @@ func TestR4_CreditInformationParam_RequiredEmitsAtZero(t *testing.T) {
 	)
 }
 
+func TestR4_GetUserTagParam_RequiredEmitsAtZero(t *testing.T) {
+	marshal.AssertRequiredEmits[credit.GetUserTagParam](t,
+		"requestId", "mobileNumber", "country",
+	)
+}
+
 func TestR4_CreditApplicationParam_RequiredEmitsAtZero(t *testing.T) {
 	marshal.AssertRequiredEmits[credit.CreditApplicationParam](t,
 		"requestId", "externalReferenceUid", "mobileNumber",
@@ -255,6 +271,32 @@ func TestUserStatus_IsValid(t *testing.T) {
 	} {
 		if !s.IsValid() {
 			t.Errorf("UserStatus(%q).IsValid() = false; want true", s)
+		}
+	}
+}
+
+func TestUserTag_IsValid(t *testing.T) {
+	for _, tag := range []credit.UserTag{credit.UserTagNewUser, credit.UserTagPriorUser} {
+		if !tag.IsValid() {
+			t.Errorf("UserTag(%q).IsValid() = false; want true", tag)
+		}
+	}
+	for _, tag := range []credit.UserTag{"", "NEW", "prior_user"} {
+		if tag.IsValid() {
+			t.Errorf("UserTag(%q).IsValid() = true; want false", tag)
+		}
+	}
+}
+
+func TestUserTagStatus_IsValid(t *testing.T) {
+	for _, status := range []credit.UserTagStatus{credit.UserTagStatusApprove, credit.UserTagStatusReject} {
+		if !status.IsValid() {
+			t.Errorf("UserTagStatus(%q).IsValid() = false; want true", status)
+		}
+	}
+	for _, status := range []credit.UserTagStatus{"", "APPROVED", "REJECTED"} {
+		if status.IsValid() {
+			t.Errorf("UserTagStatus(%q).IsValid() = true; want false", status)
 		}
 	}
 }

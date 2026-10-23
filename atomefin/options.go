@@ -74,7 +74,7 @@ type config struct {
 	debugBodyLog bool
 
 	// v0.3 hybrid-encryption keypair. Both nilable; required only by
-	// /credit-information and /credit-application.
+	// /get-user-tag, /credit-information, and /credit-application.
 	encryptAtomePub *rsa.PublicKey
 	encryptPriv     *rsa.PrivateKey
 }

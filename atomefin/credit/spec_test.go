@@ -24,6 +24,17 @@ import (
 func TestSpec_CreditEndpoints(t *testing.T) {
 	specserver.RunCases(t, []specserver.Case{
 		{
+			Op: "POST /get-user-tag",
+			Run: func(c *atomefin.Client) error {
+				_, err := credit.New(c).GetUserTag(context.Background(), &credit.GetUserTagParam{
+					RequestID:    "r-spec-tag",
+					MobileNumber: "+6281298000000",
+					Country:      credit.CountryIndonesia,
+				})
+				return err
+			},
+		},
+		{
 			Op: "POST /credit-information",
 			Run: func(c *atomefin.Client) error {
 				_, err := credit.New(c).SubmitInformation(context.Background(), specSampleCreditInformationParam())

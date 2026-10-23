@@ -91,7 +91,7 @@ func WithIdempotencyCacheSize(n int) ServerOption {
 
 // WithIdempotencyDecryptKey teaches the v0.6 idempotency cache
 // how to extract `requestId` from encrypted POST bodies on
-// /credit-information / /credit-application. PEM bytes of the
+// /get-user-tag / /credit-information / /credit-application. PEM bytes of the
 // RSA-2048 encrypt PRIVATE key the partner-side Client used to
 // wrap (the matching half of WithEncryptAtomePublicCertPEM on
 // the Client side). On every encrypted inbound request, the
