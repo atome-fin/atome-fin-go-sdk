@@ -73,7 +73,7 @@ if err != nil {
 log.Printf("auth: status=%s authOrderId=%s", res.Data.Status, res.Data.AuthOrderID)
 ```
 
-For the **three credit-flow POSTs** (`/get-user-tag`,
+For the **three credit-flow POSTs** (`/query-user-tag`,
 `/credit-information`, `/credit-application`), the upstream requires AES+RSA hybrid
 encryption. Construct the `Client` with the encrypt cert pair
 and call as normal — the SDK handles the envelope:
@@ -176,14 +176,14 @@ import away.
 |---|---|
 | `atomefin` | `Client`, functional `Option`s, error types, retry policy plumbing, `MarshalSigning`, `DoSigned` / `DoSignedGET` / `DoEncryptedSigned`. |
 | `atomefin/sign` | RSA-2048 PKCS#1 v1.5 signer + verifier; PEM loaders; canonical-input helpers. (PSS scaffolding removed in v0.7.0 — gateway only supports PKCS#1 v1.5.) |
-| `atomefin/encrypt` | AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid envelope used by `/get-user-tag`, `/credit-information`, and `/credit-application`. Stdlib-only. `Marshal` / `Unmarshal`, `RandomAESKey` (rejection-sampled A — Z), header build/parse. |
+| `atomefin/encrypt` | AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid envelope used by `/query-user-tag`, `/credit-information`, and `/credit-application`. Stdlib-only. `Marshal` / `Unmarshal`, `RandomAESKey` (rejection-sampled A — Z), header build/parse. |
 | `atomefin/mock` | First-class testing surface (see Mock catalog above). |
 | `atomefin/transport` | `RetryPolicy`, `Logger`, `Observer`, `NewSlogLogger`, User-Agent assembly. |
 | `atomefin/payment` | `Service` with `Auth` / `Capture` / `VoidAuth` / `ReAuth` + `QueryAuth` / `QueryCapture` / `QueryVoidAuth` / `QueryReAuth` + `*PollUntilTerminal` + `PaymentPreCheck` / `PaymentPlan`; typed request/response structs. |
 | `atomefin/virtualaccount` | `Service` with `ListBanks` / `GetOrCreate` for `/va/getList` and `/va/vaCodeByBank`; typed bank and VA structs. |
 | `atomefin/refund` | `Service` with `Refund` / `QueryRefund` / `RefundPollUntilTerminal`; types `RefundParam`, `RefundResult`, `SubOrderRefundRequest`, `SubOrderRefundInfo`. |
 | `atomefin/repayment` | `Service` with `Repayment` / `QueryRepayment` / `RepaymentPollUntilTerminal`; types `RepaymentParam`, `RepaymentResult`, `CommerceAccountChanges`. |
-| `atomefin/credit` | `Service` for the credit lifecycle plus account-ops: `GetUserTag` (initial screening), `SubmitInformation` (KYC start), `SubmitApplication`, `QueryResult` / `QueryInformationResult`, `BalanceHistory`, `ModifyApplicationInfo`, `CloseAccount`. |
+| `atomefin/credit` | `Service` for the credit lifecycle plus account-ops: `QueryUserTag` (initial screening), `SubmitInformation` (KYC start), `SubmitApplication`, `QueryResult` / `QueryInformationResult`, `BalanceHistory`, `ModifyApplicationInfo`, `CloseAccount`. |
 | `atomefin/bill` | `Service` with `Bills` / `BillDetail` / `BillsUnpaid` + `BillsAll` auto-pagination; types `Bill`, `BillDetail`, `BillMainOrder`, `BillDiscounts`, `Discount`, `DiscountDetail` + `OverdueStatus` enum. |
 | `atomefin/transaction` | `Service` with `Transactions` / `TransactionDetail` + `TransactionsAll` auto-pagination; types `Transaction`, `TransactionDetail` + `TransactionType` enum (`PAYMENT` / `REFUND` / `REPAYMENT`). |
 | `atomefin/callback` | `Verifier` (multi-cert), `AuthHandler` / `CaptureHandler` / `RefundHandler` / `RepaymentHandler` / `CreditApplicationHandler` / `CreditInformationHandler` / `AccountChangeHandler`, `AckResponse`. |
@@ -229,10 +229,10 @@ so the value never appears in the signed JSON body. Test
 
 ### Hybrid encryption on the three credit POSTs
 
-`/get-user-tag`, `/credit-information`, and `/credit-application` are the only
+`/query-user-tag`, `/credit-information`, and `/credit-application` are the only
 endpoints that require AES-ECB-PKCS5 + RSA-PKCS#1 v1.5 hybrid
 encryption (Q31 — Q34 RESOLVED 2026-05-06). The SDK handles it
-transparently inside `credit.GetUserTag`, `credit.SubmitInformation`,
+transparently inside `credit.QueryUserTag`, `credit.SubmitInformation`,
 and `credit.SubmitApplication` via `Client.DoEncryptedSigned`.
 
 You MUST construct the `Client` with the encrypt cert pair:
@@ -386,7 +386,7 @@ is the surface inventory you diff against when the spec moves.
 | `POST` | `/repayment-request` | partner → atome-fin | `repayment.New(c).Repayment(ctx, req)` | `*repayment.RepaymentParam` | `*repayment.RepaymentResponse` | apply a repayment against a prior auth + bill; uses `CommerceAccountChanges` (distinct from `payment.AccountChanges`) |
 | `GET` | `/repayment-result` | partner → atome-fin | `repayment.New(c).QueryRepayment(ctx, requestID, externalReferenceUID)` | `requestId` + `externalReferenceUid` query | `*repayment.RepaymentResponse` | polling alternative to PROCESSING webhook |
 | `POST` | `<repaymentNotifyUrl>` | atome-fin → partner | `callback.RepaymentHandler(v, fn)` | `*callback.RepaymentEvent` (= `repayment.RepaymentResponse`) | `callback.AckResponse` | terminal-only |
-| `POST` | `/get-user-tag` | partner → atome-fin | `credit.New(c).GetUserTag(ctx, req)` | `*credit.GetUserTagParam` | `*credit.GetUserTagResponse` | initial screening before KYC; returns `userTag` (`NEW_USER` / `PRIOR_USER`) and `userStatus` (`APPROVE` / `REJECT`). **Hybrid encryption required** — see [Hard rules](#hybrid-encryption-on-the-three-credit-posts) |
+| `POST` | `/query-user-tag` | partner → atome-fin | `credit.New(c).QueryUserTag(ctx, req)` | `*credit.QueryUserTagParam` | `*credit.QueryUserTagResponse` | initial screening before KYC; returns `userTag` (`NEW_USER` / `PRIOR_USER`) and `userStatus` (`APPROVE` / `REJECT`). **Hybrid encryption required** — see [Hard rules](#hybrid-encryption-on-the-three-credit-posts) |
 | `POST` | `/credit-information` | partner → atome-fin | `credit.New(c).SubmitInformation(ctx, req)` | `*credit.CreditInformationParam` | `*credit.CreditInformationResponse` | KYC start; returns a `requestId` + jumpUrl into the Atome KYC web flow. **Hybrid encryption required** — see [Hard rules](#hybrid-encryption-on-the-three-credit-posts) |
 | `POST` | `/credit-application` | partner → atome-fin | `credit.New(c).SubmitApplication(ctx, req)` | `*credit.CreditApplicationParam` | `*credit.CreditApplicationResponse` | submit credit application after KYC completes. **Hybrid encryption required** — see [Hard rules](#hybrid-encryption-on-the-three-credit-posts) |
 | `GET` | `/credit-result` | partner → atome-fin | `credit.New(c).QueryResult(ctx, externalReferenceUID)` | `externalReferenceUid` query | `*credit.CreditApplicationResponse` | poll application terminal state; spec preserves the `INPROGESS` literal verbatim |

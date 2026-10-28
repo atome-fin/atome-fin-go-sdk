@@ -12,14 +12,14 @@ import (
 
 const fixtureRoot = "../../qa/testdata/"
 
-// ---------- /get-user-tag request + response ----------
+// ---------- /query-user-tag request + response ----------
 
-func TestGetUserTagParam_Roundtrip(t *testing.T) {
-	marshal.GoldenRoundTrip[credit.GetUserTagParam](t, fixtureRoot+"get_user_tag_request.json")
+func TestQueryUserTagParam_Roundtrip(t *testing.T) {
+	marshal.GoldenRoundTrip[credit.QueryUserTagParam](t, fixtureRoot+"query_user_tag_request.json")
 }
 
-func TestGetUserTagResponse_Roundtrip(t *testing.T) {
-	marshal.GoldenRoundTrip[credit.GetUserTagResponse](t, fixtureRoot+"get_user_tag_response.json")
+func TestQueryUserTagResponse_Roundtrip(t *testing.T) {
+	marshal.GoldenRoundTrip[credit.QueryUserTagResponse](t, fixtureRoot+"query_user_tag_response.json")
 }
 
 // ---------- /credit-information request + response variants ----------
@@ -211,8 +211,8 @@ func TestR4_CreditInformationParam_RequiredEmitsAtZero(t *testing.T) {
 	)
 }
 
-func TestR4_GetUserTagParam_RequiredEmitsAtZero(t *testing.T) {
-	marshal.AssertRequiredEmits[credit.GetUserTagParam](t,
+func TestR4_QueryUserTagParam_RequiredEmitsAtZero(t *testing.T) {
+	marshal.AssertRequiredEmits[credit.QueryUserTagParam](t,
 		"requestId", "mobileNumber", "country",
 	)
 }

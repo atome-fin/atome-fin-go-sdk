@@ -103,7 +103,7 @@ func RunCases(t *testing.T, cases []Case) {
 // encrypt keypair. The signing keypair signs outbound requests;
 // the encrypt keypair satisfies the WithEncryptAtomePublicCertPEM
 // precondition for endpoints that route through DoEncryptedSigned
-// (today /get-user-tag, /credit-information, /credit-application). The spec
+// (today /query-user-tag, /credit-information, /credit-application). The spec
 // server itself ignores signatures and ignores the encrypted body
 // shape — payload validation against the pinned spec is the only
 // concern — so the test keypair material is fine to be ephemeral.

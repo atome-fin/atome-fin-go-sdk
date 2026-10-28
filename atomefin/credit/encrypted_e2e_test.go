@@ -130,10 +130,10 @@ func TestE2E_SubmitInformation_DecryptingServer(t *testing.T) {
 	}
 }
 
-// TestE2E_GetUserTag_DecryptingServer verifies the /get-user-tag
+// TestE2E_QueryUserTag_DecryptingServer verifies the /query-user-tag
 // envelope: auto-minted requestId, plaintext mobileNumber inside the
 // encrypted body, and normal response decoding.
-func TestE2E_GetUserTag_DecryptingServer(t *testing.T) {
+func TestE2E_QueryUserTag_DecryptingServer(t *testing.T) {
 	atomeEncryptKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("rsa.GenerateKey atome: %v", err)
@@ -144,8 +144,8 @@ func TestE2E_GetUserTag_DecryptingServer(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/get-user-tag" {
-			t.Errorf("path = %q, want /get-user-tag", r.URL.Path)
+		if r.URL.Path != "/query-user-tag" {
+			t.Errorf("path = %q, want /query-user-tag", r.URL.Path)
 		}
 		if r.Method != http.MethodPost {
 			t.Errorf("method = %q, want POST", r.Method)
@@ -161,9 +161,9 @@ func TestE2E_GetUserTag_DecryptingServer(t *testing.T) {
 			http.Error(w, `{"code":"INVALID_ENCRYPTION","message":""}`, http.StatusBadRequest)
 			return
 		}
-		var got credit.GetUserTagParam
+		var got credit.QueryUserTagParam
 		if jerr := json.Unmarshal(plain, &got); jerr != nil {
-			t.Errorf("decode GetUserTagParam: %v", jerr)
+			t.Errorf("decode QueryUserTagParam: %v", jerr)
 			return
 		}
 		if got.RequestID == "" {
@@ -190,12 +190,12 @@ func TestE2E_GetUserTag_DecryptingServer(t *testing.T) {
 		t.Fatalf("atomefin.New: %v", err)
 	}
 
-	resp, err := credit.New(c).GetUserTag(context.Background(), &credit.GetUserTagParam{
+	resp, err := credit.New(c).QueryUserTag(context.Background(), &credit.QueryUserTagParam{
 		MobileNumber: "+628129801929",
 		Country:      credit.CountryIndonesia,
 	})
 	if err != nil {
-		t.Fatalf("GetUserTag: %v", err)
+		t.Fatalf("QueryUserTag: %v", err)
 	}
 	if !resp.IsSuccess() {
 		t.Errorf("Code = %q, want SUCCESS", resp.Code)

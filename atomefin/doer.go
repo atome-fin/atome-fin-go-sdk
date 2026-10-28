@@ -212,7 +212,7 @@ func (c *Client) DoEncryptedSigned(ctx context.Context, method, path string, pla
 	if c.encryptAtomePub == nil {
 		return nil, &ValidationError{
 			Field:   "encryptAtomePublicCert",
-			Message: "WithEncryptAtomePublicCertPEM is required for endpoints with the Encrypt: header (today /get-user-tag, /credit-information, and /credit-application)",
+			Message: "WithEncryptAtomePublicCertPEM is required for endpoints with the Encrypt: header (today /query-user-tag, /credit-information, and /credit-application)",
 		}
 	}
 	if method != http.MethodPost {

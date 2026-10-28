@@ -1,4 +1,4 @@
-// Package credit's Service surface — POST /get-user-tag, POST
+// Package credit's Service surface — POST /query-user-tag, POST
 // /credit-information, POST /credit-application, GET /credit-result,
 // GET /credit-information-result, GET /query-balance-history, POST
 // /modify-application-info, POST /close-account.
@@ -101,7 +101,7 @@ func (s *Service) invokePost(ctx context.Context, op string, in any, out any) er
 // through Client.DoEncryptedSigned (which does hybrid-encrypt +
 // sign + dispatch), decode the response body into out.
 //
-// Used by GetUserTag, SubmitInformation, and SubmitApplication — the
+// Used by QueryUserTag, SubmitInformation, and SubmitApplication — the
 // three credit POSTs that require the Encrypt header.
 func (s *Service) invokeEncryptedPost(ctx context.Context, op string, in any, out any) error {
 	body, err := atomefin.MarshalSigning(in)
@@ -145,9 +145,9 @@ func (s *Service) invokeGet(ctx context.Context, op string, q url.Values, out an
 	return nil
 }
 
-// ---------- POST /get-user-tag ----------
+// ---------- POST /query-user-tag ----------
 
-// GetUserTag submits POST /get-user-tag — the initial screening call
+// QueryUserTag submits POST /query-user-tag — the initial screening call
 // before /credit-information. The spec sends mobileNumber in
 // plaintext inside the request body, which is protected by the same
 // hybrid-encryption envelope as the other credit POSTs.
@@ -158,21 +158,29 @@ func (s *Service) invokeGet(ctx context.Context, op string, q url.Values, out an
 //
 // RequestID is auto-minted from the Client's generator when empty.
 // Request-body validation is owned by the gateway.
-func (s *Service) GetUserTag(ctx context.Context, req *GetUserTagParam) (*GetUserTagResponse, error) {
+func (s *Service) QueryUserTag(ctx context.Context, req *QueryUserTagParam) (*QueryUserTagResponse, error) {
 	if err := s.checkConfigured(); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, &atomefin.ValidationError{Field: "request", Message: "nil GetUserTagParam"}
+		return nil, &atomefin.ValidationError{Field: "request", Message: "nil QueryUserTagParam"}
 	}
 	if req.RequestID == "" {
 		req.RequestID = s.c.NewRequestID()
 	}
-	var out GetUserTagResponse
-	if err := s.invokeEncryptedPost(ctx, "/get-user-tag", req, &out); err != nil {
+	var out QueryUserTagResponse
+	if err := s.invokeEncryptedPost(ctx, "/query-user-tag", req, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
+}
+
+// GetUserTag is a deprecated alias for QueryUserTag.
+//
+// Deprecated: upstream renamed POST /get-user-tag to POST
+// /query-user-tag on 2026-10-28. Use QueryUserTag.
+func (s *Service) GetUserTag(ctx context.Context, req *GetUserTagParam) (*GetUserTagResponse, error) {
+	return s.QueryUserTag(ctx, req)
 }
 
 // ---------- POST /credit-information ----------

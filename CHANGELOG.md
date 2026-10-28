@@ -7,6 +7,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 post-1.0. Pre-1.0 minor versions may break.
 
+## [0.9.3] — 2026-10-28
+
+Syncs the SDK to the upstream partner white-label `G` spec pinned as
+`swagger-2026-10-28-20f9be8f.yaml`.
+
+### Changed
+
+- **Renamed the user-tag screening endpoint to `POST /query-user-tag`.**
+  Upstream renamed `POST /get-user-tag`; request and response bodies
+  are unchanged. New canonical API:
+  `credit.Service.QueryUserTag`, `credit.QueryUserTagParam`,
+  `credit.QueryUserTagResponse`, and `credit.QueryUserTagResult`.
+- **Backward-compatible aliases retained.** `credit.Service.GetUserTag`
+  and the `GetUserTagParam` / `GetUserTagResponse` / `GetUserTagResult`
+  type aliases keep existing callers compiling; they are marked
+  deprecated in favor of the `QueryUserTag` names.
+
 ## [0.9.2] — 2026-10-23
 
 Syncs the SDK to the upstream partner white-label `G` spec pinned as

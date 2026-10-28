@@ -39,7 +39,7 @@ type Client struct {
 
 	// Encrypt-cert pair (v0.3, Q31–Q34). Both nilable. Required only
 	// when calling endpoints that mandate the Encrypt: header — today
-	// /get-user-tag, /credit-information, and /credit-application.
+	// /query-user-tag, /credit-information, and /credit-application.
 	// Other endpoints don't touch these.
 	encryptAtomePub *rsa.PublicKey
 	encryptPriv     *rsa.PrivateKey
@@ -207,7 +207,7 @@ func (c *Client) HTTPClient() *http.Client { return c.httpClient }
 // the SDK uses to wrap per-request AES keys). nil when the client
 // was constructed without WithEncryptAtomePublicCertPEM. Required
 // for endpoints with the `Encrypt:` header (today
-// /get-user-tag, /credit-information, and /credit-application).
+// /query-user-tag, /credit-information, and /credit-application).
 func (c *Client) EncryptAtomePublicKey() *rsa.PublicKey {
 	if c == nil {
 		return nil

@@ -201,7 +201,7 @@ func (s UserStatus) IsValid() bool {
 func (s UserStatus) String() string { return string(s) }
 
 // UserTag is the initial-screening classification returned by
-// POST /get-user-tag.
+// POST /query-user-tag.
 type UserTag string
 
 // Spec-defined user tags.
@@ -223,7 +223,7 @@ func (t UserTag) IsValid() bool {
 func (t UserTag) String() string { return string(t) }
 
 // UserTagStatus is the screening outcome returned alongside UserTag
-// by POST /get-user-tag. Distinct from UserStatus, which describes
+// by POST /query-user-tag. Distinct from UserStatus, which describes
 // an existing credit account.
 type UserTagStatus string
 
@@ -262,10 +262,10 @@ const (
 
 // ---------- Request body types ----------
 
-// GetUserTagParam is the POST /get-user-tag request body. The
+// QueryUserTagParam is the POST /query-user-tag request body. The
 // endpoint performs initial screening before /credit-information;
 // mobileNumber is sent in plaintext inside the hybrid-encrypted body.
-type GetUserTagParam struct {
+type QueryUserTagParam struct {
 	// RequestID is partner-generated; max 64 chars. Idempotency key.
 	RequestID string `json:"requestId"`
 	// MobileNumber is the user's mobile with dialling code prefix,
@@ -275,8 +275,14 @@ type GetUserTagParam struct {
 	Country Country `json:"country"`
 }
 
+// GetUserTagParam is a deprecated alias for QueryUserTagParam.
+//
+// Deprecated: upstream renamed POST /get-user-tag to POST
+// /query-user-tag on 2026-10-28. Use QueryUserTagParam.
+type GetUserTagParam = QueryUserTagParam
+
 // CreditInformationParam is the POST /credit-information request
-// body. Second step of the credit flow (after /get-user-tag): the
+// body. Second step of the credit flow (after /query-user-tag): the
 // partner announces user identity and country; the server returns a
 // jumpUrl into Atome's KYC web flow plus a requestId the partner
 // echoes on the subsequent POST /credit-application.
@@ -670,15 +676,15 @@ type IPAddress struct {
 
 // ---------- Response envelopes & data types ----------
 
-// GetUserTagResponse is the POST /get-user-tag outer envelope.
-type GetUserTagResponse struct {
-	Code    atomefin.Code     `json:"code"`
-	Message string            `json:"message"`
-	Data    *GetUserTagResult `json:"data,omitempty"`
+// QueryUserTagResponse is the POST /query-user-tag outer envelope.
+type QueryUserTagResponse struct {
+	Code    atomefin.Code       `json:"code"`
+	Message string              `json:"message"`
+	Data    *QueryUserTagResult `json:"data,omitempty"`
 }
 
-// GetUserTagResult is the `data` body of GetUserTagResponse.
-type GetUserTagResult struct {
+// QueryUserTagResult is the `data` body of QueryUserTagResponse.
+type QueryUserTagResult struct {
 	// UserTag is the initial-screening classification.
 	UserTag UserTag `json:"userTag"`
 	// UserStatus is the screening outcome (APPROVE / REJECT).
@@ -689,9 +695,21 @@ type GetUserTagResult struct {
 
 // IsSuccess reports whether the envelope's Code is SUCCESS.
 // Nil-safe.
-func (r *GetUserTagResponse) IsSuccess() bool {
+func (r *QueryUserTagResponse) IsSuccess() bool {
 	return r != nil && r.Code == atomefin.CodeSuccess
 }
+
+// GetUserTagResponse is a deprecated alias for QueryUserTagResponse.
+//
+// Deprecated: upstream renamed POST /get-user-tag to POST
+// /query-user-tag on 2026-10-28. Use QueryUserTagResponse.
+type GetUserTagResponse = QueryUserTagResponse
+
+// GetUserTagResult is a deprecated alias for QueryUserTagResult.
+//
+// Deprecated: upstream renamed POST /get-user-tag to POST
+// /query-user-tag on 2026-10-28. Use QueryUserTagResult.
+type GetUserTagResult = QueryUserTagResult
 
 // CreditInformationResponse is the POST /credit-information outer
 // envelope.

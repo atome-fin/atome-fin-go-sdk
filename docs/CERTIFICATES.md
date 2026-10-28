@@ -44,7 +44,7 @@
 
 **签名内容**：
 - 普通 POST：签 **明文 JSON body** 原始字节
-- 加密 POST（`/get-user-tag`、`/credit-information`、`/credit-application`）：签 **AES 加密后的 body**（先加密，再签名）
+- 加密 POST（`/query-user-tag`、`/credit-information`、`/credit-application`）：签 **AES 加密后的 body**（先加密，再签名）
 
 ---
 
@@ -146,7 +146,7 @@ Webhook 只涉及 **签名对 S3/S4**，不涉及加密对。
 |------|:-----------:|:-----------:|:-----------:|:-----------:|
 | Auth / Capture / Refund / 账单 / 交易等普通出站 | ✅ | — | — | — |
 | 接收 Webhook（Auth/Capture/Refund 回调等） | — | ✅ | — | — |
-| `/get-user-tag` / `/credit-information` / `/credit-application` | ✅ | — | ✅ | 可选 |
+| `/query-user-tag` / `/credit-information` / `/credit-application` | ✅ | — | ✅ | 可选 |
 | 出站 + 回调一体（单 Client + callback Handler） | ✅ | ✅ | 按需 | 可选 |
 | 仅 Mock 单元测试 | ✅（或 `WithMockKeysAllowed`） | 按需 | Credit 测试时需要 | 按需 |
 

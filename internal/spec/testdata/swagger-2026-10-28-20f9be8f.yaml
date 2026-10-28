@@ -227,7 +227,9 @@ tags:
 
     | 2026-10-21 | Credit | `POST /credit-information` non-overlap (GKYC) `applicationEssentialInfo.livenessCheck` is optional. When sent, `result`, `snapshotPhoto`, and `livenessCheckResult01` / `02` / `03` are all optional. |
 
-    | 2026-10-23 | Credit | `POST /credit-information` may collect optional financial information. Grab sends `individualProfile.manuallyEducation`, `workInformation.employerName` / `monthlyIncome` / `jobIndustry` / `jobPosition`, and `emergencyContact.name` / `phone` / `relation`. The other financial objects and fields stay in the schema. Financial-information enum values are examples only; the values Grab sends are agreed with risk control. Added `POST /get-user-tag` for initial screening; `mobileNumber` is plaintext. |' 
+    | 2026-10-23 | Credit | `POST /credit-information` may collect optional financial information. Grab sends `individualProfile.manuallyEducation`, `workInformation.employerName` / `monthlyIncome` / `jobIndustry` / `jobPosition`, and `emergencyContact.name` / `phone` / `relation`. The other financial objects and fields stay in the schema. Financial-information enum values are examples only; the values Grab sends are agreed with risk control. Added `POST /get-user-tag` for initial screening; `mobileNumber` is plaintext. |
+
+    | 2026-10-28 | Credit | Renamed `POST /get-user-tag` to `POST /query-user-tag`. Request and response stay the same; `mobileNumber` is still plaintext. |' 
 
 - name: signature
   description: "We use RSA2(2048 bit) encryption algorithm, and through the exchange of public key certificate to verify the\
@@ -434,11 +436,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerErrorResponse'
-  /get-user-tag:
+  /query-user-tag:
     post:
       tags:
       - Credit
-      summary: Get user tag
+      summary: Query user tag
       description: 'Initial screening before `POST /credit-information`. Query `userTag` by plaintext `mobileNumber`.
 
         '
@@ -460,7 +462,7 @@ paths:
 
           '
       requestBody:
-        $ref: '#/components/requestBodies/GetUserTag'
+        $ref: '#/components/requestBodies/QueryUserTag'
       responses:
         '200':
           description: SUCCESS
@@ -474,7 +476,7 @@ paths:
                     type: string
                     description: 'result code<br />
 
-                      `SUCCESS`：get user tag successfully<br/>
+                      `SUCCESS`：query user tag successfully<br/>
 
                       '
                     enum:
@@ -483,7 +485,7 @@ paths:
                     type: string
                     description: success or fail message
                   data:
-                    $ref: '#/components/schemas/GetUserTagResult'
+                    $ref: '#/components/schemas/QueryUserTagResult'
         '400':
           description: PARAMS_MISSING、PARAMS_WRONG、WRONG_PARAMS_FORMAT、INVALID_ENCRYPTION
           content:
@@ -507,7 +509,7 @@ paths:
       tags:
       - Credit
       summary: Submit credit information
-      description: 'Second step of the credit flow, after `POST /get-user-tag`: submit partner-side user identity, country, and
+      description: 'Second step of the credit flow, after `POST /query-user-tag`: submit partner-side user identity, country, and
 
         `applicationEssentialInfo`. Choose the request body by user type:<br/>
 
@@ -4190,7 +4192,7 @@ components:
                 country: ID
                 extendInfo:
                   creditInformationRequestId: R897321804
-    GetUserTag:
+    QueryUserTag:
       required: true
       content:
         application/json:
@@ -7003,9 +7005,9 @@ components:
           - PROMOTION_CATEGORY_CREDIT_BOOST
           - RETURN INITIAL
           - CIRCLED_LIST_CREDIT_BOOST
-    GetUserTagResult:
+    QueryUserTagResult:
       type: object
-      description: Result of `POST /get-user-tag`.
+      description: Result of `POST /query-user-tag`.
       properties:
         userTag:
           type: string

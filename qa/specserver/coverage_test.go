@@ -57,7 +57,7 @@ var outboundCovered = []string{
 	// both endpoints rejoin the case table.
 	"POST /credit-information",
 	"POST /credit-application",
-	"POST /get-user-tag",
+	"POST /query-user-tag",
 	"GET /credit-result",
 	"GET /credit-information-result",
 	"GET /query-balance-history",

@@ -118,17 +118,17 @@ func ptrFloat64(v float64) *float64 { return &v }
 
 // ---------- credit POSTs — encryption preconditions ----------
 
-// TestGetUserTag_RejectsMissingEncryptOption pins the encryption
-// precondition for /get-user-tag: no network round-trip without the
+// TestQueryUserTag_RejectsMissingEncryptOption pins the encryption
+// precondition for /query-user-tag: no network round-trip without the
 // encrypt public cert.
-func TestGetUserTag_RejectsMissingEncryptOption(t *testing.T) {
+func TestQueryUserTag_RejectsMissingEncryptOption(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("server must NOT be reached when encrypt key is unconfigured")
 	}))
 	defer srv.Close()
 
 	c := mustClient(t, srv) // no WithEncryptAtomePublicCertPEM
-	_, err := credit.New(c).GetUserTag(context.Background(), &credit.GetUserTagParam{
+	_, err := credit.New(c).QueryUserTag(context.Background(), &credit.QueryUserTagParam{
 		MobileNumber: "+628129801929",
 		Country:      credit.CountryIndonesia,
 	})
